@@ -21,7 +21,6 @@ Any modded item is accepted when it extends vanilla `ItemAxe`, advertises Forge'
 Use Java 8 and the included wrapper:
 
 ```bat
-gradlew.bat setupDecompWorkspace
 gradlew.bat genIntellijRuns
 gradlew.bat build
 ```
