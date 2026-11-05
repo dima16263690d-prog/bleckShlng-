@@ -1,0 +1,13 @@
+{
+  "variants": {
+    "axis=x": {
+      "model": "bleckshlng:stripped_dark_oak_wood"
+    },
+    "axis=y": {
+      "model": "bleckshlng:stripped_dark_oak_wood"
+    },
+    "axis=z": {
+      "model": "bleckshlng:stripped_dark_oak_wood"
+    }
+  }
+}
