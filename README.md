@@ -10,7 +10,9 @@ Minecraft 1.12.2 / Forge 14.23.5.2864 backport of vanilla Minecraft 1.13+ axe st
 - No whitelist by item name, material or mod ID.
 - Preserves X/Y/Z log orientation. The legacy `BlockLog.EnumAxis.NONE` state maps to the corresponding stripped-wood block.
 - One durability point is consumed outside creative mode.
+- Vanilla-like fire behavior and a furnace fuel value of 300 ticks.
 - Server-authoritative world changes.
+- Uses the closest available 1.12.2 wood-break sound; the dedicated `AXE_STRIP` sound does not exist in this version.
 
 ## Modded tool compatibility
 
