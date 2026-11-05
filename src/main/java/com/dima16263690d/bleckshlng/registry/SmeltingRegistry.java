@@ -1,6 +1,6 @@
 package com.dima16263690d.bleckshlng.registry;
 
-import com.dima16263690d.bleckshlng.registry.ModBlocks;
+import net.minecraft.block.Block;
 import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fml.common.registry.GameRegistry;
@@ -29,7 +29,7 @@ public final class SmeltingRegistry {
         registerCharcoal(ModBlocks.STRIPPED_DARK_OAK_WOOD);
     }
 
-    private static void registerCharcoal(net.minecraft.block.Block block) {
+    private static void registerCharcoal(Block block) {
         GameRegistry.addSmelting(
                 new ItemStack(block, 1, 0),
                 new ItemStack(Items.COAL, 1, 1),
