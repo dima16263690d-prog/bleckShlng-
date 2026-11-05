@@ -22,7 +22,7 @@ public final class BlockStrippedWood extends BlockRotatedPillar {
         setUnlocalizedName(BleckShlng.MODID + "." + name);
         setDefaultState(this.blockState.getBaseState().withProperty(AXIS, EnumFacing.Axis.Y));
         setHardness(2.0F);
-        setResistance(5.0F);
+        setResistance(2.0F);
         setSoundType(SoundType.WOOD);
         setHarvestLevel("axe", 0);
         setCreativeTab(CreativeTabs.BUILDING_BLOCKS);
