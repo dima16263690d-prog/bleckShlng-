@@ -1,13 +1,12 @@
 package com.dima16263690d.bleckshlng.block;
 
 import com.dima16263690d.bleckshlng.BleckShlng;
-import net.minecraft.block.Block;
 import net.minecraft.block.BlockRotatedPillar;
+import net.minecraft.block.SoundType;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.util.EnumFacing;
-import net.minecraft.util.SoundType;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
@@ -49,7 +48,7 @@ public final class BlockStrippedWood extends BlockRotatedPillar {
                     for (int z = -4; z <= 4; z++) {
                         BlockPos leafPos = pos.add(x, y, z);
                         IBlockState leafState = world.getBlockState(leafPos);
-                        Block leafBlock = leafState.getBlock();
+                        net.minecraft.block.Block leafBlock = leafState.getBlock();
 
                         if (leafBlock.isLeaves(leafState, world, leafPos)) {
                             leafBlock.beginLeavesDecay(leafState, world, leafPos);
