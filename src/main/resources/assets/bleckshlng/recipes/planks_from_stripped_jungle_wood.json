@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "item": "bleckshlng:stripped_jungle_wood"
+    }
+  ],
+  "result": {
+    "item": "minecraft:planks",
+    "data": 3,
+    "count": 4
+  }
+}
