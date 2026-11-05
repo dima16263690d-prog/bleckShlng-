@@ -3,10 +3,11 @@ package com.dima16263690d.bleckshlng.registry;
 import com.dima16263690d.bleckshlng.BleckShlng;
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
-
+import net.minecraft.item.ItemStack;
 import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.oredict.OreDictionary;
 
 @Mod.EventBusSubscriber(modid = BleckShlng.MODID)
 public final class ModItems {
@@ -33,5 +34,11 @@ public final class ModItems {
         ItemBlockStrippedWood itemBlock = new ItemBlockStrippedWood(block);
         itemBlock.setRegistryName(block.getRegistryName());
         event.getRegistry().register(itemBlock);
+
+        // Forge 1.12.2 equivalent of the vanilla 1.13+ "logs" item tag.
+        // The wildcard metadata keeps this compatible with any pillar axis metadata.
+        OreDictionary.registerOre(
+                "logWood",
+                new ItemStack(itemBlock, 1, OreDictionary.WILDCARD_VALUE));
     }
 }
