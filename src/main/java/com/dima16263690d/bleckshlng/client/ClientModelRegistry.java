@@ -35,6 +35,6 @@ public final class ClientModelRegistry {
     private static void register(Block block) {
         Item item = Item.getItemFromBlock(block);
         ModelLoader.setCustomModelResourceLocation(
-                item, 0, new ModelResourceLocation(block.getRegistryName(), "axis=y"));
+                item, 0, new ModelResourceLocation(block.getRegistryName(), "inventory"));
     }
 }
