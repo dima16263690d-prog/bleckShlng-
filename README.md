@@ -78,6 +78,7 @@ The backported crafting behavior includes:
 
 - **Planks:** one matching stripped log or stripped wood crafts into **4 matching planks**.
 - **Stripped wood:** place **4 matching stripped logs** in a 2×2 square to produce **3 matching stripped wood blocks**.
+- **Charcoal:** smelt one stripped log or stripped wood in a furnace to produce one charcoal.
 
 The stripped blocks are also registered in Forge's `logWood` OreDictionary entry. This provides the 1.12.2 compatibility equivalent of the later vanilla `logs` item tag for third-party recipes.
 
