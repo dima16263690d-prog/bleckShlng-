@@ -126,7 +126,6 @@ The reobfuscated mod JAR is generated in `build/libs/`.
 - Mod version: `1.0.0`
 - Minecraft target: `1.12.2`
 - Forge: `14.23.5.2864`
-- License: see the repository license file, if present.
 
 ## Credits
 
