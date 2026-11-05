@@ -73,3 +73,12 @@ sourceSets.each {
     it.output.resourcesDir = dir
     it.java.outputDir = dir
 }
+
+processResources {
+    inputs.property "version", project.version
+    inputs.property "mcversion", "1.12.2"
+
+    filesMatching("mcmod.info") {
+        expand "version": project.version, "mcversion": "1.12.2"
+    }
+}
