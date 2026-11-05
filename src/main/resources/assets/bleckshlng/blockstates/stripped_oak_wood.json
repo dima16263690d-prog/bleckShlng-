@@ -1,13 +1,16 @@
 {
   "variants": {
     "axis=x": {
-      "model": "bleckshlng:stripped_oak_wood"
+      "model": "bleckshlng:stripped_oak_wood",
+      "x": 90,
+      "y": 90
     },
     "axis=y": {
       "model": "bleckshlng:stripped_oak_wood"
     },
     "axis=z": {
-      "model": "bleckshlng:stripped_oak_wood"
+      "model": "bleckshlng:stripped_oak_wood",
+      "x": 90
     }
   }
 }

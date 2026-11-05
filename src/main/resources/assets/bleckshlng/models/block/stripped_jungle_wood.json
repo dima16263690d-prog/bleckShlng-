@@ -1,6 +1,7 @@
 {
-  "parent": "minecraft:block/cube_all",
+  "parent": "minecraft:block/cube_column",
   "textures": {
-    "all": "bleckshlng:blocks/stripped_jungle_log"
+    "end": "bleckshlng:blocks/stripped_jungle_log",
+    "side": "bleckshlng:blocks/stripped_jungle_log"
   }
 }
