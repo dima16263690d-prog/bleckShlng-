@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "item": "bleckshlng:stripped_acacia_log"
+    }
+  ],
+  "result": {
+    "item": "minecraft:planks",
+    "data": 4,
+    "count": 4
+  }
+}
