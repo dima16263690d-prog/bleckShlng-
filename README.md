@@ -82,9 +82,11 @@ The backported crafting behavior includes:
 
 The stripped blocks are also registered in Forge's `logWood` OreDictionary entry. This provides the 1.12.2 compatibility equivalent of the later vanilla `logs` item tag for third-party recipes.
 
-### Campfire compatibility
+### Campfire and cocoa compatibility
 
-Vanilla campfires were introduced after Minecraft 1.12.2, so this mod does not add a campfire block or a vanilla campfire recipe. The `logWood` OreDictionary registration allows third-party 1.12.2 campfire or cooking mods that use this standard log entry to accept the stripped blocks.
+Vanilla campfires and smokers were introduced after Minecraft 1.12.2, so this mod does not add those blocks or their vanilla recipes. The `logWood` OreDictionary registration allows third-party 1.12.2 campfire or cooking mods that use this standard log entry to accept the stripped blocks.
+
+The 1.12.2 vanilla `BlockCocoa` class checks specifically for `Blocks.LOG` with the Jungle variant. It does not recognise modded stripped jungle logs or stripped jungle wood. In newer vanilla versions, the check uses the `JUNGLE_LOGS` block tag, which includes those stripped blocks. Matching that cocoa behavior in 1.12.2 would require a targeted vanilla-class patch (coremod/mixin); BleckShlng does not currently install one.
 
 ## Client and server
 
