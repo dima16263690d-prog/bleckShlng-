@@ -1,8 +1,8 @@
 # BleckShlng
 
-**A vanilla Minecraft 1.13+ stripped-log and stripped-wood backport for Minecraft 1.12.2.**
+**A vanilla Minecraft 1.13–1.15 stripped-log and stripped-wood backport for Minecraft 1.12.2.**
 
-BleckShlng brings the stripped log and stripped wood blocks, axe interaction, and related block behavior to Forge 1.12.2. The implementation is adapted to the older block states and Forge event system used by this Minecraft version.
+BleckShlng brings the stripped log and stripped wood blocks, axe interaction, block behavior, and related crafting functionality to Forge 1.12.2. The implementation is adapted to the older block states and Forge event system used by this Minecraft version.
 
 ## What was ported
 
@@ -43,7 +43,7 @@ The original X, Y, and Z log axes are preserved when stripping a log.
 
 Minecraft 1.12.2 uses `BlockLog.EnumAxis.NONE` for the all-bark wood state. BleckShlng maps that state to the matching stripped wood block, while ordinary X/Y/Z log states become stripped logs.
 
-## Block properties and behavior
+## Block properties and fire behavior
 
 The stripped blocks use the following vanilla-style properties:
 
@@ -63,19 +63,27 @@ Additional behavior:
 
 - Stripping consumes **1 durability point** from the axe outside creative mode.
 - Creative mode does not consume axe durability.
+- Stripped logs and stripped wood are registered as flammable blocks, so normal fire/lava ignition and fire-spread rules can affect them.
+- Dropped stripped-block items are ordinary, non-fire-resistant items and are destroyed by fire or lava like other wooden items.
+- Both stripped logs and stripped wood burn in a furnace for **300 ticks**, matching the vanilla `logs` fuel category.
 - Stripped blocks can sustain leaves.
 - Breaking a stripped log marks nearby leaves for decay, matching vanilla log behavior.
 - The block replacement is performed server-side and synchronized to clients.
-- Minecraft 1.12.2 does not provide the later dedicated axe-stripping sound event, so the mod uses the closest available vanilla wood sound.
+
+Minecraft 1.12.2 does not provide the later dedicated axe-stripping sound event, so the mod uses the closest available vanilla wood sound.
 
 ## Crafting recipes
 
-Each stripped log can be crafted into its matching stripped wood:
+The backported crafting behavior includes:
 
-- Place **4 matching stripped logs** in a 2×2 square.
-- The recipe produces **3 matching stripped wood blocks**.
+- **Planks:** one matching stripped log or stripped wood crafts into **4 matching planks**.
+- **Stripped wood:** place **4 matching stripped logs** in a 2×2 square to produce **3 matching stripped wood blocks**.
 
-Recipes are registered independently from the axe-stripping interaction. This keeps crafting separate from tool compatibility.
+The stripped blocks are also registered in Forge's `logWood` OreDictionary entry. This provides the 1.12.2 compatibility equivalent of the later vanilla `logs` item tag for third-party recipes.
+
+### Campfire compatibility
+
+Vanilla campfires were introduced after Minecraft 1.12.2, so this mod does not add a campfire block or a vanilla campfire recipe. The `logWood` OreDictionary registration allows third-party 1.12.2 campfire or cooking mods that use this standard log entry to accept the stripped blocks.
 
 ## Client and server
 
