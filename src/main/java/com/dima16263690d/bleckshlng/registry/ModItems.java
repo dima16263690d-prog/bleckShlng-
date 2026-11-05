@@ -3,7 +3,7 @@ package com.dima16263690d.bleckshlng.registry;
 import com.dima16263690d.bleckshlng.BleckShlng;
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
-import net.minecraft.item.ItemBlock;
+
 import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
@@ -30,7 +30,7 @@ public final class ModItems {
     }
 
     private static void register(RegistryEvent.Register<Item> event, Block block) {
-        ItemBlock itemBlock = new ItemBlock(block);
+        ItemBlockStrippedWood itemBlock = new ItemBlockStrippedWood(block);
         itemBlock.setRegistryName(block.getRegistryName());
         event.getRegistry().register(itemBlock);
     }
