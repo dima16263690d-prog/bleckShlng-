@@ -3,6 +3,8 @@ package com.dima16263690d.bleckshlng;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.Mod.EventHandler;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
+import net.minecraftforge.fml.common.event.FMLInitializationEvent;
+import com.dima16263690d.bleckshlng.registry.SmeltingRegistry;
 import org.apache.logging.log4j.Logger;
 
 @Mod(
@@ -22,5 +24,10 @@ public final class BleckShlng {
     public void preInit(FMLPreInitializationEvent event) {
         LOGGER = event.getModLog();
         LOGGER.info("{} {} initialized for Minecraft 1.12.2", NAME, VERSION);
+    }
+
+    @EventHandler
+    public void init(FMLInitializationEvent event) {
+        SmeltingRegistry.register();
     }
 }
