@@ -11,6 +11,8 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import com.dima16263690d.bleckshlng.fluid.geometry.BlockGeometryAdapter;
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
+import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
+import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 
 /** Bounded shortest-slope search adapted from FlowingFluid.getSpread(). */
 public final class FlowDirectionSearch {
@@ -77,8 +79,14 @@ public final class FlowDirectionSearch {
         if (!world.isBlockLoaded(below)
                 || !FluidShapeCalculator.canPassThroughWall(world, pos, EnumFacing.DOWN)) return false;
         IBlockState state = world.getBlockState(below);
-        if (state.getMaterial() == fluidMaterial && state.getBlock() instanceof BlockLiquid) return true;
-        return BlockGeometryAdapter.canFluidEnter(world, below, state, fluidMaterial, EnumFacing.DOWN);
+        FluidStateBridge existingFluid = FluidStateMapper.fromWorld(world, below, state);
+        FluidStateBridge.FluidKind expectedKind = fluidMaterial == Material.WATER
+                ? FluidStateBridge.FluidKind.WATER : FluidStateBridge.FluidKind.LAVA;
+        if (existingFluid != null && existingFluid.getKind() == expectedKind) {
+            return true;
+        }
+        return FluidSpreadEngine.canFlowInto(
+                world, below, state, fluidMaterial, EnumFacing.DOWN);
     }
 
     private static boolean canRouteThrough(World world, BlockPos pos,
@@ -89,8 +97,9 @@ public final class FlowDirectionSearch {
             return state.getBlock() instanceof BlockLiquid
                     && state.getValue(BlockLiquid.LEVEL).intValue() > 0;
         }
-        // Use the same capacity check as FlowingFluid.canHoldFluid().
-        // Already waterlogged blocks must not be treated as empty routes.
-        return BlockGeometryAdapter.canFluidEnter(world, pos, state, fluidMaterial, direction);
+        // Use the same 1.13.2 source/capacity rule as the actual spread step.
+        // An empty waterloggable block is not an open path unless this spread
+        // would create a source in it immediately.
+        return FluidSpreadEngine.canFlowInto(world, pos, state, fluidMaterial, direction);
     }
 }
