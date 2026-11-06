@@ -13,8 +13,8 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
 import com.dima16263690d.bleckshlng.fluid.geometry.BlockGeometryAdapter;
-import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidOcclusionCache;
+import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
 import com.dima16263690d.bleckshlng.fluid.state.FluidLevelMapper;
 import com.dima16263690d.bleckshlng.fluid.state.FluidProperties;
@@ -23,64 +23,64 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 import com.dima16263690d.bleckshlng.fluid.waterlogging.WaterloggedFluidHandler;
 
 /**
- * FlowingFluid-compatible state recomputation and spreading.
+ * Liquid update order based on the legacy BlockDynamicLiquid algorithm used
+ * before the 1.13 Update Aquatic waterlogging changes.
  *
- * This ports the 1.18.2 order:
- * 1) recompute a non-source state from horizontal neighbors and the block above;
- * 2) try the downward route;
- * 3) spread sideways only when the modern source/hole rules allow it;
- * 4) after a successful fall, also spread sideways when at least three
- *    neighboring source fluids are present.
- *
- * Vanilla 1.12.2 water/lava blocks and their 0..15 metadata remain untouched.
+ * The old metadata-level recomputation and down-before-sideways order are
+ * retained. The 1.13-era additions are isolated to fluid capacity,
+ * collision-shape pass-through and waterlogged source storage.
  */
 public final class FluidSpreadEngine {
     private static final int NO_FLOW = -1;
-    private static final float FALLING_SIDE_AMOUNT = 7.0F;
 
-    private FluidSpreadEngine() { }
+    private FluidSpreadEngine() {
+    }
 
     public static void tick(World world, BlockPos pos, IBlockState state, Random random) {
         if (world == null || world.isRemote || pos == null || state == null
-                || random == null || !world.isBlockLoaded(pos)) return;
+                || random == null || !world.isBlockLoaded(pos)) {
+            return;
+        }
 
-        FluidOcclusionCache.beginFluidUpdate(world);
         Material material = state.getMaterial();
         if ((material != Material.WATER && material != Material.LAVA)
-                || !(state.getBlock() instanceof BlockLiquid)) return;
+                || !(state.getBlock() instanceof BlockLiquid)) {
+            return;
+        }
 
-        if (material == Material.LAVA && FluidMixingHandler.reactAt(world, pos, state)) return;
+        FluidOcclusionCache.beginFluidUpdate(world);
+
+        if (material == Material.LAVA && FluidMixingHandler.reactAt(world, pos, state)) {
+            return;
+        }
 
         int level = state.getValue(BlockLiquid.LEVEL).intValue();
         BlockDynamicLiquid flowing = getFlowingBlock(material);
+        int tickDelay = FluidProperties.tickRate(world, material);
 
-        // A source remains a source. Flowing states are recomputed like
-        // FlowingFluid.getNewLiquid() before any new spread is attempted.
-        if (level != 0) {
+        if (level > 0) {
             int newLevel = getNewLegacyLevel(world, pos, material);
-            if (newLevel == NO_FLOW) {
-                world.setBlockToAir(pos);
-                return;
+
+            if (material == Material.LAVA && level < 8 && newLevel >= 0
+                    && newLevel < 8 && newLevel > level && random.nextInt(4) != 0) {
+                tickDelay *= 4;
             }
 
-            if (newLevel != level) {
-                int delay = FluidProperties.tickRate(world, material);
-                if (material == Material.LAVA
-                        && isSlowerHorizontalLava(level, newLevel)
-                        && random.nextInt(4) != 0) {
-                    delay *= 4;
-                }
-
+            if (newLevel == level) {
+                placeStaticBlock(world, pos, material, state);
+            } else if (newLevel < 0) {
+                world.setBlockToAir(pos);
+                level = NO_FLOW;
+            } else {
                 IBlockState changed = flowing.getDefaultState()
                         .withProperty(BlockLiquid.LEVEL, Integer.valueOf(newLevel));
                 world.setBlockState(pos, changed, 2);
-                world.scheduleUpdate(pos, flowing, delay);
+                world.scheduleUpdate(pos, flowing, tickDelay);
                 world.notifyNeighborsOfStateChange(pos, flowing, false);
                 level = newLevel;
-            } else {
-                placeStaticBlock(world, pos, material, state);
             }
         } else {
+            // Source blocks remain sources; the legacy engine makes them static.
             placeStaticBlock(world, pos, material, state);
         }
 
@@ -88,195 +88,247 @@ public final class FluidSpreadEngine {
     }
 
     /**
-     * A waterlogged legacy block supplies a source fluid state without being
-     * replaced by Blocks.WATER. This is invoked by the separate fluid queue.
+     * A waterlogged block contributes a level-zero source without being
+     * replaced by Blocks.WATER. Its delayed update follows the same old
+     * down-first, then-horizontal spreading order as a vanilla source.
      */
     public static void spreadWaterloggedSource(World world, BlockPos pos) {
-        if (world == null || world.isRemote || pos == null || !world.isBlockLoaded(pos)) return;
+        if (world == null || world.isRemote || pos == null
+                || !world.isBlockLoaded(pos)) {
+            return;
+        }
+
         FluidOcclusionCache.beginFluidUpdate(world);
-        spread(world, pos, Material.WATER, 0);
+        spread(world, pos, Material.WATER, FluidLevelMapper.SOURCE_METADATA);
     }
 
     /**
-     * Port of FlowingFluid.getNewLiquid(), returned as legacy metadata.
-     * -1 means Fluids.EMPTY; 0 is a source; 8..15 is falling.
+     * Recomputes the 1.12/1.13 metadata level in the original order:
+     * horizontal neighbors, falling fluid above, then water source creation.
+     * Sidecar waterlogged blocks are read as fluid metadata zero.
      */
     public static int getNewLegacyLevel(World world, BlockPos pos, Material material) {
-        if (world == null || pos == null || !world.isBlockLoaded(pos)) return NO_FLOW;
+        if (world == null || pos == null || !world.isBlockLoaded(pos)) {
+            return NO_FLOW;
+        }
 
-        int maxAmount = 0;
-        int sourceCount = 0;
+        int minimumNeighborLevel = -100;
+        int adjacentSourceBlocks = 0;
 
         for (EnumFacing direction : EnumFacing.Plane.HORIZONTAL) {
             BlockPos neighborPos = pos.offset(direction);
             if (!world.isBlockLoaded(neighborPos)
-                    || !FluidShapeCalculator.canPassThroughWall(world, pos, direction)) continue;
+                    || !FluidShapeCalculator.canPassThroughWall(world, pos, direction)) {
+                continue;
+            }
 
-            IBlockState neighbor = world.getBlockState(neighborPos);
             int neighborLevel = getDepth(world, neighborPos, material);
-            if (neighborLevel < 0) continue;
+            if (neighborLevel < 0) {
+                continue;
+            }
 
-            if (neighborLevel == 0) sourceCount++;
-            // FluidState.getAmount() is independent of the FALLING flag.
-            // For legacy levels 8..15, the lower three bits still encode amount.
-            int amount = FluidLevelMapper.amountFromMetadata(neighborLevel);
-            if (amount > maxAmount) maxAmount = amount;
-        }
+            if (neighborLevel == FluidLevelMapper.SOURCE_METADATA) {
+                adjacentSourceBlocks++;
+            }
 
-        // Water may become a source when two source neighbors are present and
-        // the block below is solid or already contains a water source.
-        if (material == Material.WATER && sourceCount >= 2) {
-            BlockPos belowPos = pos.down();
-            if (world.isBlockLoaded(belowPos)) {
-                IBlockState below = world.getBlockState(belowPos);
-                if (below.getMaterial().isSolid()
-                        || getDepth(world, belowPos, Material.WATER) == 0) {
-                    return 0;
-                }
+            // Legacy falling metadata (8..15) is treated as the highest
+            // horizontal level when it feeds a neighboring block.
+            if (neighborLevel >= 8) {
+                neighborLevel = 0;
+            }
+
+            if (minimumNeighborLevel < 0
+                    || neighborLevel < minimumNeighborLevel) {
+                minimumNeighborLevel = neighborLevel;
             }
         }
 
-        // A matching fluid directly above creates the falling state.
+        int decay = FluidProperties.horizontalDecay(world, material);
+        int newLevel = minimumNeighborLevel + decay;
+        if (newLevel >= 8 || minimumNeighborLevel < 0) {
+            newLevel = NO_FLOW;
+        }
+
         BlockPos abovePos = pos.up();
         if (world.isBlockLoaded(abovePos)
-                && getDepth(world, abovePos, material) >= 0
                 && FluidShapeCalculator.canPassThroughWall(world, pos, EnumFacing.UP)) {
-            // FlowingFluid.getNewLiquid() creates a full falling state
-            // whenever matching fluid is directly above.
-            return FluidLevelMapper.toMetadata(8, true, false);
-        }
-
-        int amount = FluidProperties.nextHorizontalAmount(world, material, maxAmount);
-        if (amount <= 0) return NO_FLOW;
-        return FluidLevelMapper.toMetadata(amount, false, false);
-    }
-
-    private static void spread(World world, BlockPos pos, Material material, int level) {
-        BlockPos belowPos = pos.down();
-        if (!world.isBlockLoaded(belowPos)) return;
-
-        IBlockState belowState = world.getBlockState(belowPos);
-        boolean canPassDown = FluidShapeCalculator.canPassThroughWall(
-                world, pos, EnumFacing.DOWN);
-        boolean canEnterBelow = canPassDown && BlockGeometryAdapter.canFluidEnter(
-                world, belowPos, belowState, material, EnumFacing.DOWN);
-
-        if (canEnterBelow) {
-            int belowLevel = getNewLegacyLevel(world, belowPos, material);
-            if (belowLevel != NO_FLOW) {
-                if (material == Material.LAVA && belowState.getMaterial() == Material.WATER) {
-                    FluidMixingHandler.reactDownward(world, belowPos, belowState);
-                    return;
-                }
-
-                tryFlowInto(world, belowPos, belowState, material, belowLevel, EnumFacing.DOWN);
-
-                // Modern behavior: a source surrounded by three other sources
-                // can also replenish the horizontal sides while flowing down.
-                if (sourceNeighborCount(world, pos, material) >= 3) {
-                    spreadToSides(world, pos, material, level);
-                }
-                return;
+            int aboveLevel = getDepth(world, abovePos, material);
+            if (aboveLevel >= 0) {
+                newLevel = aboveLevel >= 8 ? aboveLevel : aboveLevel + 8;
             }
         }
 
-        // Flowing fluid does not spill sideways when a valid downward hole
-        // exists. Sources may always spread sideways.
-        if (level == 0 || !isWaterHole(world, pos, material)) {
-            spreadToSides(world, pos, material, level);
+        if (material == Material.WATER && adjacentSourceBlocks >= 2) {
+            BlockPos belowPos = pos.down();
+            if (world.isBlockLoaded(belowPos)) {
+                IBlockState belowState = world.getBlockState(belowPos);
+                if (belowState.getMaterial().isSolid()
+                        || getDepth(world, belowPos, Material.WATER)
+                        == FluidLevelMapper.SOURCE_METADATA) {
+                    newLevel = FluidLevelMapper.SOURCE_METADATA;
+                }
+            }
         }
+
+        return newLevel;
     }
 
-    private static void spreadToSides(World world, BlockPos pos,
-                                      Material material, int legacyLevel) {
-        int amount = FluidLevelMapper.amountFromMetadata(legacyLevel);
-        int nextAmount = FluidLevelMapper.isFallingMetadata(legacyLevel)
-                ? (int) FALLING_SIDE_AMOUNT
-                : FluidProperties.nextHorizontalAmount(world, material, amount);
-        if (nextAmount <= 0) return;
+    /**
+     * Vanilla legacy order: try downward flow first. Only when downward flow
+     * is blocked may a non-source flow spread sideways.
+     */
+    private static void spread(World world, BlockPos pos, Material material, int level) {
+        BlockPos belowPos = pos.down();
+        if (!world.isBlockLoaded(belowPos)) {
+            return;
+        }
+
+        IBlockState belowState = world.getBlockState(belowPos);
+        boolean canEnterBelow = canFlowInto(world, belowPos, belowState,
+                material, EnumFacing.DOWN);
+
+        if (canEnterBelow) {
+            if (material == Material.LAVA
+                    && belowState.getMaterial() == Material.WATER) {
+                FluidMixingHandler.reactDownward(world, belowPos, belowState);
+                return;
+            }
+
+            // The old engine adds the falling bit (8) to horizontal metadata.
+            // Already-falling fluid keeps its falling level when it drops again.
+            int downwardLevel = level >= 8 ? level : level + 8;
+            tryFlowInto(world, belowPos, belowState, material,
+                    downwardLevel, EnumFacing.DOWN);
+            return;
+        }
+
+        if (level < 0 || (level != FluidLevelMapper.SOURCE_METADATA
+                && !isBlocked(world, belowPos, belowState, material))) {
+            return;
+        }
 
         Set<EnumFacing> directions = FlowDirectionSearch.getBestDirections(
                 world, pos, material, FluidProperties.slopeFindDistance(world, material));
 
+        int horizontalLevel;
+        if (level >= 8) {
+            horizontalLevel = 1;
+        } else {
+            int amount = FluidLevelMapper.amountFromMetadata(level);
+            int nextAmount = FluidProperties.nextHorizontalAmount(
+                    world, material, amount);
+            if (nextAmount <= 0) {
+                return;
+            }
+            horizontalLevel = FluidLevelMapper.toMetadata(nextAmount, false, false);
+        }
+
+        if (horizontalLevel >= 8) {
+            return;
+        }
+
         for (EnumFacing direction : directions) {
             BlockPos targetPos = pos.offset(direction);
             if (!world.isBlockLoaded(targetPos)
-                    || !FluidShapeCalculator.canPassThroughWall(world, pos, direction)) continue;
-
-            IBlockState targetState = world.getBlockState(targetPos);
-            if (!BlockGeometryAdapter.canFluidEnter(
-                    world, targetPos, targetState, material, direction)) continue;
-
-            int targetLevel = getNewLegacyLevel(world, targetPos, material);
-            if (targetLevel == NO_FLOW) {
-                targetLevel = FluidLevelMapper.toMetadata(nextAmount, false, false);
+                    || !FluidShapeCalculator.canPassThroughWall(world, pos, direction)) {
+                continue;
             }
 
-            tryFlowInto(world, targetPos, targetState, material, targetLevel, direction);
+            IBlockState targetState = world.getBlockState(targetPos);
+            tryFlowInto(world, targetPos, targetState, material,
+                    horizontalLevel, direction);
         }
     }
 
-    private static boolean isWaterHole(World world, BlockPos pos, Material material) {
-        if (!world.isBlockLoaded(pos)
-                || !FluidShapeCalculator.canPassThroughWall(world, pos, EnumFacing.DOWN)) return false;
+    /**
+     * Matches legacy BlockDynamicLiquid.canFlowInto while adding the
+     * LiquidBlockContainer-style water capacity check for 1.13 waterlogging.
+     */
+    private static boolean canFlowInto(World world, BlockPos pos, IBlockState state,
+                                       Material material, EnumFacing direction) {
+        if (world == null || pos == null || state == null
+                || !world.isBlockLoaded(pos)) {
+            return false;
+        }
 
-        BlockPos belowPos = pos.down();
-        if (!world.isBlockLoaded(belowPos)) return false;
+        Material targetMaterial = state.getMaterial();
+        if (targetMaterial == material) {
+            return false;
+        }
 
-        IBlockState below = world.getBlockState(belowPos);
-        if (getDepth(world, belowPos, material) >= 0) return true;
+        // Legacy water never replaced lava. Contact is handled by the lava
+        // block's own neighbor mixing check, as in the 1.12/1.13 engine.
+        if (material == Material.WATER && targetMaterial == Material.LAVA) {
+            return false;
+        }
 
         return BlockGeometryAdapter.canFluidEnter(
-                world, belowPos, below, material, EnumFacing.DOWN);
+                world, pos, state, material, direction);
     }
 
-    private static int sourceNeighborCount(World world, BlockPos pos, Material material) {
-        int count = 0;
-        for (EnumFacing direction : EnumFacing.Plane.HORIZONTAL) {
-            BlockPos neighbor = pos.offset(direction);
-            if (!world.isBlockLoaded(neighbor)) continue;
-            if (getDepth(world, neighbor, material) == 0) count++;
+    /**
+     * Determines whether a block below supports lateral flow. A matching
+     * fluid (including a sidecar waterlogged source) is not a solid barrier.
+     */
+    private static boolean isBlocked(World world, BlockPos pos, IBlockState state,
+                                     Material material) {
+        if (world == null || pos == null || state == null
+                || !world.isBlockLoaded(pos)) {
+            return true;
         }
-        return count;
+
+        if (!FluidShapeCalculator.canPassThroughWall(world, pos, EnumFacing.UP)) {
+            return true;
+        }
+
+        FluidStateBridge fluid = FluidStateMapper.fromWorld(world, pos, state);
+        if (fluid != null) {
+            FluidStateBridge.FluidKind expected = material == Material.WATER
+                    ? FluidStateBridge.FluidKind.WATER
+                    : FluidStateBridge.FluidKind.LAVA;
+            if (fluid.getKind() == expected) {
+                return false;
+            }
+        }
+
+        if (material == Material.WATER
+                && WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
+            return !canFlowInto(world, pos, state, material, EnumFacing.DOWN);
+        }
+
+        return !canFlowInto(world, pos, state, material, EnumFacing.DOWN);
     }
 
     private static int getDepth(World world, BlockPos pos, Material material) {
-        if (world == null || pos == null || !world.isBlockLoaded(pos)) return -1;
+        if (world == null || pos == null || !world.isBlockLoaded(pos)) {
+            return NO_FLOW;
+        }
+
         IBlockState state = world.getBlockState(pos);
         FluidStateBridge fluid = FluidStateMapper.fromWorld(world, pos, state);
-        if (fluid == null) return -1;
-        FluidStateBridge.FluidKind kind = material == Material.WATER
-                ? FluidStateBridge.FluidKind.WATER : FluidStateBridge.FluidKind.LAVA;
-        if (fluid.getKind() != kind) return -1;
-        return fluid.toLegacyMetadata();
-    }
-
-    private static boolean isSlowerHorizontalLava(int oldLevel, int newLevel) {
-        if (oldLevel < 0 || newLevel < 0
-                || FluidLevelMapper.isFallingMetadata(oldLevel)
-                || FluidLevelMapper.isFallingMetadata(newLevel)) {
-            return false;
+        if (fluid == null) {
+            return NO_FLOW;
         }
-        // LavaFluid.getSpreadDelay() multiplies delay by four when the
-        // recomputed state has a greater height than the current one.
-        return FluidLevelMapper.amountFromMetadata(newLevel)
-                > FluidLevelMapper.amountFromMetadata(oldLevel);
+
+        FluidStateBridge.FluidKind expected = material == Material.WATER
+                ? FluidStateBridge.FluidKind.WATER
+                : FluidStateBridge.FluidKind.LAVA;
+        if (fluid.getKind() != expected) {
+            return NO_FLOW;
+        }
+        return fluid.toLegacyMetadata();
     }
 
     private static void tryFlowInto(World world, BlockPos pos, IBlockState state,
                                     Material material, int level, EnumFacing direction) {
-        if (!BlockGeometryAdapter.canFluidEnter(world, pos, state, material, direction)) return;
+        if (!canFlowInto(world, pos, state, material, direction)) {
+            return;
+        }
 
         if (material == Material.WATER
                 && WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
             WaterloggedFluidHandler.tryWaterlog(world, pos, state, level);
             return;
-        }
-
-        if (material == Material.WATER && state.getMaterial() == Material.LAVA) {
-            if (FluidMixingHandler.reactWaterIntoLava(world, pos, state)) {
-                return;
-            }
         }
 
         if (material == Material.LAVA && state.getMaterial() == Material.WATER
@@ -304,7 +356,8 @@ public final class FluidSpreadEngine {
     }
 
     private static BlockDynamicLiquid getFlowingBlock(Material material) {
-        return material == Material.WATER ? Blocks.FLOWING_WATER : Blocks.FLOWING_LAVA;
+        return material == Material.WATER
+                ? Blocks.FLOWING_WATER : Blocks.FLOWING_LAVA;
     }
 
     private static void placeStaticBlock(World world, BlockPos pos,
