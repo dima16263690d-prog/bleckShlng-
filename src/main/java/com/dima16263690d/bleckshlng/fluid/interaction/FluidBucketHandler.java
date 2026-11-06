@@ -58,6 +58,17 @@ public final class FluidBucketHandler {
         }
 
         IBlockState clickedState = world.getBlockState(pos);
+
+        // Vanilla waterlogging must be attempted on the clicked block before
+        // FluidUtil tries to place the bucket contents in the adjacent block.
+        if (held.getItem() == Items.WATER_BUCKET
+                && WaterloggedBlockRegistry.canWaterlog(clickedState.getBlock())) {
+            if (WaterloggedFluidHandler.tryWaterlog(world, pos, clickedState, 0)) {
+                replaceFilledBucket(player, hand, held, new ItemStack(Items.BUCKET));
+                event.setCanceled(true);
+                return;
+            }
+        }
         if (clickedState.getBlock() instanceof IFluidBlock
                 && held.getItem() == Items.BUCKET) {
             FluidActionResult pickup = FluidUtil.tryPickUpFluid(
@@ -82,19 +93,6 @@ public final class FluidBucketHandler {
                     return;
                 }
             }
-        }
-
-        if (held.getItem() == Items.WATER_BUCKET) {
-            if (!WaterloggedBlockRegistry.canWaterlog(world.getBlockState(pos).getBlock())) {
-                return;
-            }
-
-            if (WaterloggedFluidHandler.tryWaterlog(
-                    world, pos, world.getBlockState(pos), 0)) {
-                replaceFilledBucket(player, hand, held, new ItemStack(Items.BUCKET));
-                event.setCanceled(true);
-            }
-            return;
         }
 
         if (held.getItem() == Items.BUCKET) {
