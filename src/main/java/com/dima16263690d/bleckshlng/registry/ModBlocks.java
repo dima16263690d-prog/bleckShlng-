@@ -2,10 +2,6 @@ package com.dima16263690d.bleckshlng.registry;
 
 import com.dima16263690d.bleckshlng.BleckShlng;
 import com.dima16263690d.bleckshlng.block.BlockStrippedWood;
-import com.dima16263690d.bleckshlng.block.BlockChain;
-import com.dima16263690d.bleckshlng.block.BlockCandle;
-import com.dima16263690d.bleckshlng.block.BlockLantern;
-import com.dima16263690d.bleckshlng.block.BlockCampfire;
 import net.minecraft.block.Block;
 import net.minecraft.init.Blocks;
 import net.minecraftforge.event.RegistryEvent;
@@ -26,10 +22,6 @@ public final class ModBlocks {
     public static BlockStrippedWood STRIPPED_ACACIA_WOOD;
     public static BlockStrippedWood STRIPPED_DARK_OAK_LOG;
     public static BlockStrippedWood STRIPPED_DARK_OAK_WOOD;
-    public static BlockChain CHAIN;
-    public static BlockCandle CANDLE;
-    public static BlockLantern LANTERN;
-    public static BlockCampfire CAMPFIRE;
 
     private ModBlocks() {
     }
@@ -48,14 +40,6 @@ public final class ModBlocks {
         STRIPPED_ACACIA_WOOD = register(event, "stripped_acacia_wood");
         STRIPPED_DARK_OAK_LOG = register(event, "stripped_dark_oak_log");
         STRIPPED_DARK_OAK_WOOD = register(event, "stripped_dark_oak_wood");
-        CHAIN = new BlockChain();
-        event.getRegistry().register(CHAIN);
-        CANDLE = new BlockCandle();
-        event.getRegistry().register(CANDLE);
-        LANTERN = new BlockLantern();
-        event.getRegistry().register(LANTERN);
-        CAMPFIRE = new BlockCampfire();
-        event.getRegistry().register(CAMPFIRE);
     }
 
     private static BlockStrippedWood register(
