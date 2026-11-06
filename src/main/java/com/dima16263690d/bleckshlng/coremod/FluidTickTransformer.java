@@ -210,7 +210,8 @@ public final class FluidTickTransformer implements IClassTransformer {
 
 
     private static boolean isSpongeAbsorb(MethodNode method) {
-        if (!(method.name.equals("absorbWater")
+        if (!(method.name.equals("absorb")
+                || method.name.equals("absorbWater")
                 || method.name.equals("func_176312_b")
                 || method.name.equals("b"))) {
             return false;
@@ -223,25 +224,21 @@ public final class FluidTickTransformer implements IClassTransformer {
     }
 
     private static void injectBooleanSpongeHook(MethodNode method) {
-        for (org.objectweb.asm.tree.AbstractInsnNode instruction = method.instructions.getFirst();
-             instruction != null; ) {
-            org.objectweb.asm.tree.AbstractInsnNode next = instruction.getNext();
-            if (instruction.getOpcode() == Opcodes.IRETURN) {
-                InsnList hook = new InsnList();
-                // Vanilla absorbWater has already removed ordinary source/flowing
-                // water. The hook then removes only the stored water state,
-                // preserving the chest/stair/fence/sign occupying that position.
-                hook.add(new VarInsnNode(Opcodes.ALOAD, 1));
-                hook.add(new VarInsnNode(Opcodes.ALOAD, 2));
-                hook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
-                        HOOK_OWNER, "applyWaterloggedSpongeAbsorb",
-                        "(ZLnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;)Z",
-                        false));
-                method.instructions.insertBefore(instruction, hook);
-                method.maxStack = Math.max(method.maxStack, 3);
-            }
-            instruction = next;
-        }
+        LabelNode vanillaBody = new LabelNode();
+        InsnList hook = new InsnList();
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 2));
+        hook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                HOOK_OWNER, "tryAbsorbSpongeWater",
+                "(Lnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;)Z",
+                false));
+        hook.add(new JumpInsnNode(Opcodes.IFEQ, vanillaBody));
+        hook.add(new InsnNode(Opcodes.ICONST_1));
+        hook.add(new InsnNode(Opcodes.IRETURN));
+        hook.add(vanillaBody);
+        hook.add(new FrameNode(Opcodes.F_SAME, 0, null, 0, null));
+        method.instructions.insert(hook);
+        method.maxStack = Math.max(method.maxStack, 2);
     }
 
     private static boolean isLilyPadWaterCheck(MethodNode method) {
