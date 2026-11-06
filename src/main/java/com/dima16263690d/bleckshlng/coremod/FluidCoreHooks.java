@@ -214,6 +214,35 @@ public final class FluidCoreHooks {
 
 
     /**
+     * EntityFishHook checks Material.WATER and BlockLiquid.LEVEL directly
+     * instead of using Entity's generic water checks. Expose a waterlogged
+     * source as a temporary vanilla water state for the bobber's local test.
+     * The world block itself is never changed.
+     */
+    public static IBlockState getFishHookFluidState(World world, BlockPos pos,
+                                                    IBlockState originalState) {
+        if (world == null || pos == null || originalState == null) {
+            return originalState;
+        }
+
+        try {
+            FluidStateBridge fluid = com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper
+                    .fromWorld(world, pos, originalState);
+            if (fluid == null
+                    || fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
+                return originalState;
+            }
+
+            int metadata = fluid.toLegacyMetadata();
+            return Blocks.WATER.getDefaultState()
+                    .withProperty(BlockLiquid.LEVEL, Integer.valueOf(metadata));
+        } catch (Throwable error) {
+            LOGGER.error("Fishing bobber waterlogged-state check failed at {}", pos, error);
+            return originalState;
+        }
+    }
+
+    /**
      * Returns null when the block is not one of the vanilla liquids handled
      * here. The transformer then executes the original BlockLiquid method.
      */
