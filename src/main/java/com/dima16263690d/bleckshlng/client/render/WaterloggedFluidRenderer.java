@@ -123,8 +123,8 @@ public final class WaterloggedFluidRenderer {
         boolean wrote = false;
         double minX = pos.getX();
         double minZ = pos.getZ();
-        double uSpan = sprite.getMaxU() - sprite.getMinU();
-        double vSpan = sprite.getMaxV() - sprite.getMinV();
+        float uSpan = sprite.getMaxU() - sprite.getMinU();
+        float vSpan = sprite.getMaxV() - sprite.getMinV();
 
         for (int x = 0; x < GRID; x++) {
             for (int z = 0; z < GRID; z++) {
