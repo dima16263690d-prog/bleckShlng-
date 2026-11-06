@@ -198,100 +198,20 @@ public final class FluidCoreHooks {
     }
 
     /**
-     * Adds waterlogged states to the vanilla sponge's connected-water search.
-     * The host block is preserved; only its embedded fluid state is removed.
-     *
-     * The vanilla sponge method runs first. This hook handles any adjacent
-     * waterlogged chain that remains after vanilla source/flowing water was
-     * absorbed, and also supports direct waterlogged neighbors.
+     * Called before vanilla BlockSponge.absorb. The handler reproduces the
+     * bounded 1.12.2 water search and extends its fluid predicate to
+     * waterlogged sidecar states, preserving the host block.
      */
-    public static boolean applyWaterloggedSpongeAbsorb(boolean vanillaResult,
-                                                       World world, BlockPos spongePos) {
-        if (world == null || world.isRemote || spongePos == null) {
-            return vanillaResult;
-        }
-
+    public static boolean tryAbsorbSpongeWater(World world, BlockPos spongePos) {
         try {
-            com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData data =
-                    com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData.get(world);
-            java.util.ArrayDeque<BlockPos> queue = new java.util.ArrayDeque<BlockPos>();
-            java.util.Map<Long, Integer> depths = new java.util.HashMap<Long, Integer>();
-            java.util.Set<Long> visited = new java.util.HashSet<Long>();
-            int absorbed = 0;
-
-            for (net.minecraft.util.EnumFacing side : net.minecraft.util.EnumFacing.values()) {
-                BlockPos next = spongePos.offset(side);
-                if (world.isBlockLoaded(next)) {
-                    queue.add(next);
-                    depths.put(Long.valueOf(next.toLong()), Integer.valueOf(1));
-                }
-            }
-
-            while (!queue.isEmpty() && absorbed < 64) {
-                BlockPos pos = queue.removeFirst();
-                Long key = Long.valueOf(pos.toLong());
-                if (!visited.add(key) || !world.isBlockLoaded(pos)) {
-                    continue;
-                }
-
-                Integer depthValue = depths.get(key);
-                int depth = depthValue == null ? 1 : depthValue.intValue();
-                net.minecraft.block.state.IBlockState state = world.getBlockState(pos);
-                boolean hasSidecar = data != null && data.getWater(pos) != null;
-                boolean hasAdapterWater = state.getBlock()
-                        instanceof com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable
-                        && ((com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable)
-                        state.getBlock()).isWaterlogged(state);
-
-                if (hasSidecar || hasAdapterWater) {
-                    if (hasSidecar) {
-                        data.remove(pos);
-                    }
-                    if (hasAdapterWater) {
-                        com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable adapter =
-                                (com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable)
-                                        state.getBlock();
-                        net.minecraft.block.state.IBlockState dryState =
-                                adapter.withWaterlogged(state, false);
-                        if (dryState != null && dryState != state) {
-                            world.setBlockState(pos, dryState, 3);
-                        }
-                    }
-
-                    com.dima16263690d.bleckshlng.fluid.network.FluidNetwork.removeState(world, pos);
-                    world.notifyNeighborsOfStateChange(pos, state.getBlock(), false);
-                    com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator.invalidate(world, pos);
-                    ++absorbed;
-                } else if (state.getMaterial() != Material.WATER) {
-                    // Sponge absorption follows connected water only; it must
-                    // not jump across air or solid blocks.
-                    continue;
-                } else {
-                    // Vanilla water is handled by BlockSponge.absorbWater().
-                    // Retain it as a route only if the native method left it.
-                }
-
-                if (depth < 6) {
-                    for (net.minecraft.util.EnumFacing side : net.minecraft.util.EnumFacing.values()) {
-                        BlockPos next = pos.offset(side);
-                        if (!world.isBlockLoaded(next)) {
-                            continue;
-                        }
-                        Long nextKey = Long.valueOf(next.toLong());
-                        if (!visited.contains(nextKey) && !depths.containsKey(nextKey)) {
-                            depths.put(nextKey, Integer.valueOf(depth + 1));
-                            queue.addLast(next);
-                        }
-                    }
-                }
-            }
-
-            return vanillaResult || absorbed > 0;
+            return com.dima16263690d.bleckshlng.fluid.waterlogging.WaterloggedSpongeHandler
+                    .absorb(world, spongePos);
         } catch (Throwable error) {
             LOGGER.error("Waterlogged sponge absorption failed at {}", spongePos, error);
-            return vanillaResult;
+            return false;
         }
     }
+
 
     /**
      * Returns null when the block is not one of the vanilla liquids handled
