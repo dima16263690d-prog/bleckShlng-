@@ -27,6 +27,7 @@ public final class ModItems {
         register(event, ModBlocks.STRIPPED_ACACIA_WOOD);
         register(event, ModBlocks.STRIPPED_DARK_OAK_LOG);
         register(event, ModBlocks.STRIPPED_DARK_OAK_WOOD);
+        register(event, ModBlocks.CHAIN);
     }
 
     private static void register(RegistryEvent.Register<Item> event, Block block) {
