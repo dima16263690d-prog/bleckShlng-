@@ -224,6 +224,20 @@ public final class BlockCandle extends Block implements IFluidWaterloggable {
     }
 
     @Override
+    public void onWaterlogged(World world, BlockPos pos,
+                              IBlockState previousState, IBlockState waterloggedState) {
+        if (previousState.getValue(LIT).booleanValue()) {
+            for (int i = 0; i < previousState.getValue(CANDLES).intValue(); i++) {
+                world.spawnParticle(EnumParticleTypes.SMOKE_NORMAL,
+                        pos.getX() + 0.5D, pos.getY() + 0.45D, pos.getZ() + 0.5D,
+                        0.0D, 0.08D, 0.0D);
+            }
+            world.playSound(null, pos, SoundEvents.BLOCK_FIRE_EXTINGUISH,
+                    SoundCategory.BLOCKS, 1.0F, 1.0F);
+        }
+    }
+
+    @Override
     public void onBlockAdded(World world, BlockPos pos, IBlockState state) {
         super.onBlockAdded(world, pos, state);
         if (!world.isRemote && isWaterlogged(state)) {
