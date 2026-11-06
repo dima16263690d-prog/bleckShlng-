@@ -4,6 +4,8 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
+import net.minecraft.potion.PotionUtils;
+import net.minecraft.init.PotionTypes;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -58,6 +60,34 @@ public final class FluidBucketHandler {
         }
 
         IBlockState clickedState = world.getBlockState(pos);
+
+        // Java Edition 1.13 waterlogged states are recognized as water by
+        // glass bottles as well as buckets. Bottles take a sample and do not
+        // remove the stored source from the host block.
+        if (held.getItem() == Items.GLASS_BOTTLE) {
+            FluidStateBridge sampledWater = FluidStateMapper.fromWorld(
+                    world, pos, clickedState);
+            if (sampledWater != null
+                    && sampledWater.getKind() == FluidStateBridge.FluidKind.WATER
+                    && sampledWater.isSource()) {
+                ItemStack waterBottle = PotionUtils.addPotionToItemStack(
+                        new ItemStack(Items.POTIONITEM), PotionTypes.WATER);
+                if (player.capabilities.isCreativeMode) {
+                    if (!player.inventory.addItemStackToInventory(waterBottle)) {
+                        player.dropItem(waterBottle, false);
+                    }
+                } else if (held.getCount() <= 1) {
+                    player.setHeldItem(hand, waterBottle);
+                } else {
+                    held.shrink(1);
+                    if (!player.inventory.addItemStackToInventory(waterBottle)) {
+                        player.dropItem(waterBottle, false);
+                    }
+                }
+                event.setCanceled(true);
+                return;
+            }
+        }
 
         // Vanilla waterlogging must be attempted on the clicked block before
         // FluidUtil tries to place the bucket contents in the adjacent block.
