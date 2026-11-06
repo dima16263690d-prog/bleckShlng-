@@ -1,6 +1,9 @@
 package com.dima16263690d.bleckshlng.client.render;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BufferBuilder;
@@ -12,6 +15,7 @@ import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.block.BlockLiquid;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.world.World;
@@ -37,7 +41,6 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 public final class WaterloggedFluidRenderer {
     private static final int CHUNK_RADIUS = 2;
     private static final double RENDER_DISTANCE_SQ = 40.0D * 40.0D;
-    private static final int GRID = 4;
 
     private WaterloggedFluidRenderer() { }
 
@@ -124,37 +127,52 @@ public final class WaterloggedFluidRenderer {
                                              double cameraY, double cameraZ,
                                              TextureAtlasSprite sprite) {
         boolean wrote = false;
-        double minX = pos.getX();
-        double minZ = pos.getZ();
+        List<AxisAlignedBB> boxes = FluidShapeCalculator.getCollisionBoxes(
+                world, pos, state);
+        List<Double> xEdges = coordinateEdges(boxes, null, pos, true);
+        List<Double> zEdges = coordinateEdges(boxes, null, pos, false);
+        float fluidHeight = (float) (surfaceY - pos.getY() + 0.002D);
         float uSpan = sprite.getMaxU() - sprite.getMinU();
         float vSpan = sprite.getMaxV() - sprite.getMinV();
 
-        for (int x = 0; x < GRID; x++) {
-            for (int z = 0; z < GRID; z++) {
-                double centerX = minX + (x + 0.5D) / GRID;
-                double centerZ = minZ + (z + 0.5D) / GRID;
+        // Use the collision-box boundaries instead of a fixed 4x4 mask.
+        // This keeps thin panes, fence posts, walls and stair sub-shapes from
+        // falling between sample points.
+        for (int x = 0; x + 1 < xEdges.size(); x++) {
+            double x0 = xEdges.get(x).doubleValue();
+            double x1 = xEdges.get(x + 1).doubleValue();
+            if (x1 - x0 <= 1.0E-5D) continue;
+
+            for (int z = 0; z + 1 < zEdges.size(); z++) {
+                double z0 = zEdges.get(z).doubleValue();
+                double z1 = zEdges.get(z + 1).doubleValue();
+                if (z1 - z0 <= 1.0E-5D) continue;
+
+                double centerX = pos.getX() + (x0 + x1) * 0.5D;
+                double centerZ = pos.getZ() + (z0 + z1) * 0.5D;
                 if (!FluidShapeCalculator.containsFluidPoint(
                         world, pos, state, centerX, surfaceY, centerZ,
-                        (float) (surfaceY - pos.getY() + 0.002D))) continue;
+                        fluidHeight)) {
+                    continue;
+                }
 
-                double x0 = minX + (double) x / GRID;
-                double x1 = minX + (double) (x + 1) / GRID;
-                double z0 = minZ + (double) z / GRID;
-                double z1 = minZ + (double) (z + 1) / GRID;
+                float u0 = sprite.getMinU() + (float) x0 * uSpan;
+                float u1 = sprite.getMinU() + (float) x1 * uSpan;
+                float v0 = sprite.getMinV() + (float) z0 * vSpan;
+                float v1 = sprite.getMinV() + (float) z1 * vSpan;
 
-                float u0 = sprite.getMinU() + (float) x / GRID * uSpan;
-                float u1 = sprite.getMinU() + (float) (x + 1) / GRID * uSpan;
-                float v0 = sprite.getMinV() + (float) z / GRID * vSpan;
-                float v1 = sprite.getMinV() + (float) (z + 1) / GRID * vSpan;
-
-                addVertex(buffer, x0-cameraX, surfaceY-cameraY, z0-cameraZ,
-                        u0,v0,0.28F,0.52F,0.92F,0.62F);
-                addVertex(buffer, x0-cameraX, surfaceY-cameraY, z1-cameraZ,
-                        u0,v1,0.28F,0.52F,0.92F,0.62F);
-                addVertex(buffer, x1-cameraX, surfaceY-cameraY, z1-cameraZ,
-                        u1,v1,0.28F,0.52F,0.92F,0.62F);
-                addVertex(buffer, x1-cameraX, surfaceY-cameraY, z0-cameraZ,
-                        u1,v0,0.28F,0.52F,0.92F,0.62F);
+                addVertex(buffer, pos.getX() + x0 - cameraX,
+                        surfaceY - cameraY, pos.getZ() + z0 - cameraZ,
+                        u0, v0, 0.28F, 0.52F, 0.92F, 0.62F);
+                addVertex(buffer, pos.getX() + x0 - cameraX,
+                        surfaceY - cameraY, pos.getZ() + z1 - cameraZ,
+                        u0, v1, 0.28F, 0.52F, 0.92F, 0.62F);
+                addVertex(buffer, pos.getX() + x1 - cameraX,
+                        surfaceY - cameraY, pos.getZ() + z1 - cameraZ,
+                        u1, v1, 0.28F, 0.52F, 0.92F, 0.62F);
+                addVertex(buffer, pos.getX() + x1 - cameraX,
+                        surfaceY - cameraY, pos.getZ() + z0 - cameraZ,
+                        u1, v0, 0.28F, 0.52F, 0.92F, 0.62F);
                 wrote = true;
             }
         }
@@ -171,33 +189,48 @@ public final class WaterloggedFluidRenderer {
                                           FluidStateBridge currentFluid, float height,
                                           double cameraX, double cameraY, double cameraZ,
                                           TextureAtlasSprite sprite) {
+        if (height <= 0.0F) return false;
+
         boolean wrote = false;
         double xBase = pos.getX();
         double yBase = pos.getY();
         double zBase = pos.getZ();
         float uSpan = sprite.getMaxU() - sprite.getMinU();
         float vSpan = sprite.getMaxV() - sprite.getMinV();
+        List<AxisAlignedBB> currentBoxes = FluidShapeCalculator.getCollisionBoxes(
+                world, pos, state);
 
         for (EnumFacing direction : EnumFacing.Plane.HORIZONTAL) {
             BlockPos neighborPos = pos.offset(direction);
-            if (!world.isBlockLoaded(neighborPos)) {
-                continue;
-            }
+            if (!world.isBlockLoaded(neighborPos)) continue;
 
             IBlockState neighborState = world.getBlockState(neighborPos);
             FluidStateBridge neighborFluid = FluidStateMapper.fromWorld(
                     world, neighborPos, neighborState);
             boolean sameNeighborFluid = neighborFluid != null
                     && neighborFluid.getKind() == currentFluid.getKind();
+            float neighborHeight = sameNeighborFluid
+                    ? FluidHeightCalculator.getHeight(world, neighborPos, neighborFluid)
+                    : 1.0F;
 
-            for (int u = 0; u < GRID; u++) {
-                double u0 = (double) u / GRID;
-                double u1 = (double) (u + 1) / GRID;
+            List<AxisAlignedBB> neighborBoxes =
+                    FluidShapeCalculator.getCollisionBoxes(world, neighborPos, neighborState);
+            boolean useX = direction.getAxis() == EnumFacing.Axis.Z;
+            List<Double> uEdges = coordinateEdges(
+                    currentBoxes, neighborBoxes, pos, useX);
+            List<Double> yEdges = heightEdges(currentBoxes, neighborBoxes, pos,
+                    Math.max(height, neighborHeight), height, neighborHeight);
+
+            for (int u = 0; u + 1 < uEdges.size(); u++) {
+                double u0 = uEdges.get(u).doubleValue();
+                double u1 = uEdges.get(u + 1).doubleValue();
+                if (u1 - u0 <= 1.0E-5D) continue;
                 double uCenter = (u0 + u1) * 0.5D;
 
-                for (int y = 0; y < GRID; y++) {
-                    double y0 = (double) height * (double) y / GRID;
-                    double y1 = (double) height * (double) (y + 1) / GRID;
+                for (int y = 0; y + 1 < yEdges.size(); y++) {
+                    double y0 = yEdges.get(y).doubleValue();
+                    double y1 = yEdges.get(y + 1).doubleValue();
+                    if (y1 - y0 <= 1.0E-5D) continue;
                     double yCenter = (y0 + y1) * 0.5D;
                     double currentX;
                     double currentZ;
@@ -239,9 +272,6 @@ public final class WaterloggedFluidRenderer {
                         continue;
                     }
 
-                    float neighborHeight = sameNeighborFluid
-                            ? FluidHeightCalculator.getHeight(world, neighborPos, neighborFluid)
-                            : 1.0F;
                     boolean neighborFree = FluidShapeCalculator.containsFluidPoint(
                             world, neighborPos, neighborState, neighborX, currentY,
                             neighborZ, neighborHeight);
@@ -251,25 +281,7 @@ public final class WaterloggedFluidRenderer {
                         continue;
                     }
                     if (neighborState.getMaterial().blocksMovement() && !neighborFree) {
-                        // Do not draw a liquid face through a solid part of the
-                        // neighboring block (for example, the back of stairs).
                         continue;
-                    }
-
-                    double ax0;
-                    double ax1;
-                    double az0;
-                    double az1;
-                    if (direction.getAxis() == EnumFacing.Axis.X) {
-                        ax0 = xBase + (direction == EnumFacing.WEST ? 0.0D : 1.0D);
-                        ax1 = ax0;
-                        az0 = zBase + u0;
-                        az1 = zBase + u1;
-                    } else {
-                        ax0 = xBase + u0;
-                        ax1 = xBase + u1;
-                        az0 = zBase + (direction == EnumFacing.NORTH ? 0.0D : 1.0D);
-                        az1 = az0;
                     }
 
                     float texU0 = sprite.getMinU() + (float) u0 * uSpan;
@@ -278,47 +290,63 @@ public final class WaterloggedFluidRenderer {
                             + (float) (y0 / Math.max(0.001F, height)) * vSpan;
                     float texV1 = sprite.getMinV()
                             + (float) (y1 / Math.max(0.001F, height)) * vSpan;
+                    double x0;
+                    double x1;
+                    double z0;
+                    double z1;
+
+                    if (direction.getAxis() == EnumFacing.Axis.X) {
+                        x0 = xBase + (direction == EnumFacing.WEST ? 0.0D : 1.0D);
+                        x1 = x0;
+                        z0 = zBase + u0;
+                        z1 = zBase + u1;
+                    } else {
+                        x0 = xBase + u0;
+                        x1 = xBase + u1;
+                        z0 = zBase + (direction == EnumFacing.NORTH ? 0.0D : 1.0D);
+                        z1 = z0;
+                    }
 
                     switch (direction) {
                         case NORTH:
-                            addSideVertex(buffer, ax0-cameraX, yBase+y0-cameraY, az0-cameraZ,
-                                    texU0, texV0, direction);
-                            addSideVertex(buffer, ax1-cameraX, yBase+y0-cameraY, az1-cameraZ,
-                                    texU1, texV0, direction);
-                            addSideVertex(buffer, ax1-cameraX, yBase+y1-cameraY, az1-cameraZ,
-                                    texU1, texV1, direction);
-                            addSideVertex(buffer, ax0-cameraX, yBase+y1-cameraY, az0-cameraZ,
-                                    texU0, texV1, direction);
+                            addSideVertex(buffer, x0-cameraX, yBase+y0-cameraY,
+                                    z0-cameraZ, texU0, texV0, direction);
+                            addSideVertex(buffer, x1-cameraX, yBase+y0-cameraY,
+                                    z1-cameraZ, texU1, texV0, direction);
+                            addSideVertex(buffer, x1-cameraX, yBase+y1-cameraY,
+                                    z1-cameraZ, texU1, texV1, direction);
+                            addSideVertex(buffer, x0-cameraX, yBase+y1-cameraY,
+                                    z0-cameraZ, texU0, texV1, direction);
                             break;
                         case SOUTH:
-                            addSideVertex(buffer, ax1-cameraX, yBase+y0-cameraY, az1-cameraZ,
-                                    texU1, texV0, direction);
-                            addSideVertex(buffer, ax0-cameraX, yBase+y0-cameraY, az0-cameraZ,
-                                    texU0, texV0, direction);
-                            addSideVertex(buffer, ax0-cameraX, yBase+y1-cameraY, az0-cameraZ,
-                                    texU0, texV1, direction);
-                            addSideVertex(buffer, ax1-cameraX, yBase+y1-cameraY, az1-cameraZ,
-                                    texU1, texV1, direction);
+                            addSideVertex(buffer, x1-cameraX, yBase+y0-cameraY,
+                                    z1-cameraZ, texU1, texV0, direction);
+                            addSideVertex(buffer, x0-cameraX, yBase+y0-cameraY,
+                                    z0-cameraZ, texU0, texV0, direction);
+                            addSideVertex(buffer, x0-cameraX, yBase+y1-cameraY,
+                                    z0-cameraZ, texU0, texV1, direction);
+                            addSideVertex(buffer, x1-cameraX, yBase+y1-cameraY,
+                                    z1-cameraZ, texU1, texV1, direction);
                             break;
                         case WEST:
-                            addSideVertex(buffer, ax0-cameraX, yBase+y0-cameraY, az1-cameraZ,
-                                    texU1, texV0, direction);
-                            addSideVertex(buffer, ax1-cameraX, yBase+y0-cameraY, az0-cameraZ,
-                                    texU0, texV0, direction);
-                            addSideVertex(buffer, ax1-cameraX, yBase+y1-cameraY, az0-cameraZ,
-                                    texU0, texV1, direction);
-                            addSideVertex(buffer, ax0-cameraX, yBase+y1-cameraY, az1-cameraZ,
-                                    texU1, texV1, direction);
+                            addSideVertex(buffer, x0-cameraX, yBase+y0-cameraY,
+                                    z1-cameraZ, texU1, texV0, direction);
+                            addSideVertex(buffer, x1-cameraX, yBase+y0-cameraY,
+                                    z0-cameraZ, texU0, texV0, direction);
+                            addSideVertex(buffer, x1-cameraX, yBase+y1-cameraY,
+                                    z0-cameraZ, texU0, texV1, direction);
+                            addSideVertex(buffer, x0-cameraX, yBase+y1-cameraY,
+                                    z1-cameraZ, texU1, texV1, direction);
                             break;
                         case EAST:
-                            addSideVertex(buffer, ax1-cameraX, yBase+y0-cameraY, az0-cameraZ,
-                                    texU0, texV0, direction);
-                            addSideVertex(buffer, ax0-cameraX, yBase+y0-cameraY, az1-cameraZ,
-                                    texU1, texV0, direction);
-                            addSideVertex(buffer, ax0-cameraX, yBase+y1-cameraY, az1-cameraZ,
-                                    texU1, texV1, direction);
-                            addSideVertex(buffer, ax1-cameraX, yBase+y1-cameraY, az0-cameraZ,
-                                    texU0, texV1, direction);
+                            addSideVertex(buffer, x1-cameraX, yBase+y0-cameraY,
+                                    z0-cameraZ, texU0, texV0, direction);
+                            addSideVertex(buffer, x0-cameraX, yBase+y0-cameraY,
+                                    z1-cameraZ, texU1, texV0, direction);
+                            addSideVertex(buffer, x0-cameraX, yBase+y1-cameraY,
+                                    z1-cameraZ, texU1, texV1, direction);
+                            addSideVertex(buffer, x1-cameraX, yBase+y1-cameraY,
+                                    z0-cameraZ, texU0, texV1, direction);
                             break;
                         default:
                             break;
@@ -330,6 +358,63 @@ public final class WaterloggedFluidRenderer {
         return wrote;
     }
 
+    private static List<Double> coordinateEdges(List<AxisAlignedBB> first,
+                                                  List<AxisAlignedBB> second,
+                                                  BlockPos origin, boolean xAxis) {
+        TreeSet<Double> edges = new TreeSet<Double>();
+        edges.add(Double.valueOf(0.0D));
+        edges.add(Double.valueOf(1.0D));
+        addCoordinateEdges(edges, first, origin, xAxis);
+        addCoordinateEdges(edges, second, origin, xAxis);
+        return new ArrayList<Double>(edges);
+    }
+
+    private static void addCoordinateEdges(TreeSet<Double> edges,
+                                           List<AxisAlignedBB> boxes,
+                                           BlockPos origin, boolean xAxis) {
+        if (boxes == null) return;
+        for (AxisAlignedBB box : boxes) {
+            double min = xAxis ? box.minX - origin.getX() : box.minZ - origin.getZ();
+            double max = xAxis ? box.maxX - origin.getX() : box.maxZ - origin.getZ();
+            if (min > 1.0E-5D && min < 1.0D - 1.0E-5D) {
+                edges.add(Double.valueOf(min));
+            }
+            if (max > 1.0E-5D && max < 1.0D - 1.0E-5D) {
+                edges.add(Double.valueOf(max));
+            }
+        }
+    }
+
+    private static List<Double> heightEdges(List<AxisAlignedBB> first,
+                                             List<AxisAlignedBB> second,
+                                             BlockPos origin, double maxHeight,
+                                             double firstHeight, double secondHeight) {
+        TreeSet<Double> edges = new TreeSet<Double>();
+        edges.add(Double.valueOf(0.0D));
+        edges.add(Double.valueOf(maxHeight));
+        addHeightEdge(edges, firstHeight, maxHeight);
+        addHeightEdge(edges, secondHeight, maxHeight);
+        addVerticalEdges(edges, first, origin, maxHeight);
+        addVerticalEdges(edges, second, origin, maxHeight);
+        return new ArrayList<Double>(edges);
+    }
+
+    private static void addHeightEdge(TreeSet<Double> edges, double value,
+                                      double maxHeight) {
+        if (value > 1.0E-5D && value < maxHeight - 1.0E-5D) {
+            edges.add(Double.valueOf(value));
+        }
+    }
+
+    private static void addVerticalEdges(TreeSet<Double> edges,
+                                         List<AxisAlignedBB> boxes,
+                                         BlockPos origin, double maxHeight) {
+        if (boxes == null) return;
+        for (AxisAlignedBB box : boxes) {
+            addHeightEdge(edges, box.minY - origin.getY(), maxHeight);
+            addHeightEdge(edges, box.maxY - origin.getY(), maxHeight);
+        }
+    }
     private static void addSideVertex(BufferBuilder buffer, double x, double y, double z,
                                       float u, float v, EnumFacing normal) {
         buffer.pos(x, y, z)
