@@ -17,6 +17,8 @@ import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
 import com.dima16263690d.bleckshlng.fluid.state.FluidLevelMapper;
 import com.dima16263690d.bleckshlng.fluid.state.FluidProperties;
+import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
+import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 import com.dima16263690d.bleckshlng.fluid.waterlogging.WaterloggedFluidHandler;
 
 /**
@@ -108,7 +110,7 @@ public final class FluidSpreadEngine {
                     || !FluidShapeCalculator.canPassThroughWall(world, pos, direction)) continue;
 
             IBlockState neighbor = world.getBlockState(neighborPos);
-            int neighborLevel = getDepth(neighbor, material);
+            int neighborLevel = getDepth(world, neighborPos, material);
             if (neighborLevel < 0) continue;
 
             if (neighborLevel == 0) sourceCount++;
@@ -123,7 +125,7 @@ public final class FluidSpreadEngine {
             if (world.isBlockLoaded(belowPos)) {
                 IBlockState below = world.getBlockState(belowPos);
                 if (below.getMaterial().isSolid()
-                        || getDepth(below, Material.WATER) == 0) {
+                        || getDepth(world, belowPos, Material.WATER) == 0) {
                     return 0;
                 }
             }
@@ -132,7 +134,7 @@ public final class FluidSpreadEngine {
         // A matching fluid directly above creates the falling state.
         BlockPos abovePos = pos.up();
         if (world.isBlockLoaded(abovePos)
-                && getDepth(world.getBlockState(abovePos), material) >= 0
+                && getDepth(world, abovePos, material) >= 0
                 && FluidShapeCalculator.canPassThroughWall(world, pos, EnumFacing.UP)) {
             return FluidLevelMapper.toMetadata(8, true);
         }
@@ -226,21 +228,25 @@ public final class FluidSpreadEngine {
         for (EnumFacing direction : EnumFacing.Plane.HORIZONTAL) {
             BlockPos neighbor = pos.offset(direction);
             if (!world.isBlockLoaded(neighbor)) continue;
-            if (getDepth(world.getBlockState(neighbor), material) == 0) count++;
+            if (getDepth(world, neighbor, material) == 0) count++;
         }
         return count;
     }
 
     private static int getDepth(IBlockState state, Material material) {
-        if (state == null || state.getMaterial() != material
-                || !(state.getBlock() instanceof BlockLiquid)) return -1;
-        return state.getValue(BlockLiquid.LEVEL).intValue();
+        if (state == null) return -1;
+        FluidStateBridge fluid = FluidStateMapper.fromWorld(world, pos, state);
+        if (fluid == null) return -1;
+        FluidStateBridge.FluidKind kind = material == Material.WATER
+                ? FluidStateBridge.FluidKind.WATER : FluidStateBridge.FluidKind.LAVA;
+        if (fluid.getKind() != kind) return -1;
+        return fluid.toLegacyMetadata();
     }
 
     private static boolean isSlowerHorizontalLava(int oldLevel, int newLevel) {
         return oldLevel < 8 && newLevel >= 0 && newLevel < 8
                 && FluidLevelMapper.amountFromMetadata(newLevel)
-                < FluidLevelMapper.amountFromMetadata(oldLevel);
+                > FluidLevelMapper.amountFromMetadata(oldLevel);
     }
 
     private static void tryFlowInto(World world, BlockPos pos, IBlockState state,
