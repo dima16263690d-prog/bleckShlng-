@@ -31,6 +31,7 @@ public final class ClientModelRegistry {
         register(ModBlocks.STRIPPED_DARK_OAK_LOG);
         register(ModBlocks.STRIPPED_DARK_OAK_WOOD);
         register(ModBlocks.CHAIN);
+        register(ModBlocks.CANDLE);
     }
 
     private static void register(Block block) {
