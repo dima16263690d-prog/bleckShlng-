@@ -12,7 +12,7 @@ import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 
 /**
- * Waterlogging adapter for 1.12.2 blocks with 1.18.2 waterlogged counterparts.
+ * Java Edition 1.13.2 waterlogging adapter for legacy 1.12.2 vanilla blocks.
  * The target block itself is never replaced and its metadata stays unchanged.
  */
 public final class WaterloggedFluidHandler {
