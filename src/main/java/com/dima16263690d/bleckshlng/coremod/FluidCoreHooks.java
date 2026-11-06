@@ -31,6 +31,79 @@ public final class FluidCoreHooks {
     private FluidCoreHooks() {
     }
 
+    /**
+     * Mirrors the placement-time water capture used by 1.18 SlabBlock and
+     * StairBlock: when a waterloggable host is placed into source water, keep
+     * the host and transfer the displaced water into the sidecar state.
+     */
+    public static boolean captureWaterBeforeBlockSet(World world, BlockPos pos,
+                                                     IBlockState newState) {
+        if (world == null || world.isRemote || pos == null || newState == null
+                || !world.isBlockLoaded(pos)) {
+            return false;
+        }
+
+        try {
+            if (!com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry
+                    .canWaterlog(newState.getBlock())) {
+                return false;
+            }
+
+            IBlockState oldState = world.getBlockState(pos);
+            return oldState != null && oldState.getMaterial() == Material.WATER;
+        } catch (Throwable error) {
+            LOGGER.error("Could not inspect water before placing waterloggable block at {}", pos, error);
+            return false;
+        }
+    }
+
+    /**
+     * Runs after World.setBlockState returns. A failed placement must not
+     * consume the old source or create a phantom waterlogged state.
+     */
+    public static void onWorldBlockSet(boolean setSucceeded, boolean capturedWater,
+                                       World world, BlockPos pos, IBlockState placedState) {
+        if (!setSucceeded || !capturedWater || world == null || world.isRemote
+                || pos == null || placedState == null || !world.isBlockLoaded(pos)) {
+            return;
+        }
+
+        try {
+            IBlockState actualState = world.getBlockState(pos);
+            if (actualState == null || actualState.getBlock() != placedState.getBlock()
+                    || !com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry
+                    .canWaterlog(actualState.getBlock())) {
+                return;
+            }
+
+            if (actualState.getBlock() instanceof
+                    com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable) {
+                com.dima16263690d.bleckshlng.fluid.waterlogging.WaterloggedFluidHandler
+                        .tryWaterlog(world, pos, actualState, 0);
+                return;
+            }
+
+            com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData data =
+                    com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData.get(world);
+            if (data == null) {
+                return;
+            }
+
+            FluidStateBridge water = FluidStateBridge.source(FluidStateBridge.FluidKind.WATER);
+            if (data.putWater(pos, water)) {
+                com.dima16263690d.bleckshlng.fluid.network.FluidNetwork
+                        .syncState(world, pos, water);
+                com.dima16263690d.bleckshlng.fluid.waterlogging.FluidTickScheduler
+                        .schedule(world, pos, 5);
+                com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator
+                        .invalidate(world, pos);
+                world.notifyNeighborsOfStateChange(pos, actualState.getBlock(), false);
+            }
+        } catch (Throwable error) {
+            LOGGER.error("Could not transfer source water into placed block at {}", pos, error);
+        }
+    }
+
     public static boolean tryUpdateDynamicLiquid(World world, BlockPos pos,
                                                  IBlockState state, Random random) {
         // Do not take ownership of client ticks, modded liquids, or unrelated
