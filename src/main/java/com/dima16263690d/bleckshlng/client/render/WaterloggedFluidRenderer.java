@@ -239,19 +239,18 @@ public final class WaterloggedFluidRenderer {
                         continue;
                     }
 
-                    if (sameNeighborFluid) {
-                        float neighborHeight = FluidHeightCalculator.getHeight(
-                                world, neighborPos, neighborFluid);
-                        if (currentY < neighborPos.getY() + (double) neighborHeight
-                                && FluidShapeCalculator.containsFluidPoint(
-                                world, neighborPos, neighborState, neighborX, currentY,
-                                neighborZ, neighborHeight)) {
-                            continue;
-                        }
-                    } else if (neighborState.getMaterial().blocksMovement()
-                            && !FluidShapeCalculator.containsFluidPoint(
+                    float neighborHeight = sameNeighborFluid
+                            ? FluidHeightCalculator.getHeight(world, neighborPos, neighborFluid)
+                            : 1.0F;
+                    boolean neighborFree = FluidShapeCalculator.containsFluidPoint(
                             world, neighborPos, neighborState, neighborX, currentY,
-                            neighborZ, 1.0F)) {
+                            neighborZ, neighborHeight);
+                    if (sameNeighborFluid
+                            && currentY < neighborPos.getY() + (double) neighborHeight
+                            && neighborFree) {
+                        continue;
+                    }
+                    if (neighborState.getMaterial().blocksMovement() && !neighborFree) {
                         // Do not draw a liquid face through a solid part of the
                         // neighboring block (for example, the back of stairs).
                         continue;
