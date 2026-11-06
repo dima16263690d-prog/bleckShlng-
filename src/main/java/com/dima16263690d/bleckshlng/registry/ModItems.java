@@ -35,6 +35,10 @@ public final class ModItems {
         ItemBlock candleItem = new ItemBlock(ModBlocks.CANDLE);
         candleItem.setRegistryName(ModBlocks.CANDLE.getRegistryName());
         event.getRegistry().register(candleItem);
+
+        ItemBlock lanternItem = new ItemBlock(ModBlocks.LANTERN);
+        lanternItem.setRegistryName(ModBlocks.LANTERN.getRegistryName());
+        event.getRegistry().register(lanternItem);
     }
 
     private static void register(RegistryEvent.Register<Item> event, Block block) {
