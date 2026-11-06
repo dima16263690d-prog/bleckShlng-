@@ -7,6 +7,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
 import com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData;
+import com.dima16263690d.bleckshlng.fluid.network.ClientFluidStateCache;
 
 /**
  * Reads a fluid state from either the legacy BlockLiquid metadata or the
@@ -51,6 +52,10 @@ public final class FluidStateMapper {
             if (adapter.isWaterlogged(state)) {
                 return FluidStateBridge.source(FluidStateBridge.FluidKind.WATER);
             }
+        }
+
+        if (world.isRemote) {
+            return ClientFluidStateCache.get(world.provider.getDimension(), pos.toLong());
         }
 
         ChunkFluidData data = ChunkFluidData.get(world);

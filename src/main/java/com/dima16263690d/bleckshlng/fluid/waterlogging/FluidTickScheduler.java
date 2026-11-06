@@ -8,6 +8,8 @@ import java.util.WeakHashMap;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.event.world.ChunkEvent;
+import net.minecraftforge.event.world.ChunkWatchEvent;
+import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
 import net.minecraftforge.event.world.BlockEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
@@ -88,6 +90,16 @@ public final class FluidTickScheduler {
 
         for (BlockPos pos : data.getPositionsInChunk(event.getChunk().x, event.getChunk().z)) {
             schedule(world, pos, 1);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onChunkWatch(ChunkWatchEvent.Watch event) {
+        net.minecraft.entity.player.EntityPlayerMP player = event.getPlayer();
+        World world = player == null ? null : player.world;
+        net.minecraft.world.chunk.Chunk chunk = event.getChunkInstance();
+        if (chunk != null && world != null && !world.isRemote) {
+            FluidNetwork.syncChunkToPlayer(world, chunk, player);
         }
     }
 

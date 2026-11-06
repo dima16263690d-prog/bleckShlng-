@@ -1,8 +1,10 @@
 package com.dima16263690d.bleckshlng;
 
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.common.Mod.EventHandler;
+import net.minecraftforge.fml.common.SidedProxy;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
+import net.minecraftforge.fml.common.eventhandler.EventHandler;
+import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
 import org.apache.logging.log4j.Logger;
 
 @Mod(
@@ -18,9 +20,17 @@ public final class BleckShlng {
 
     public static Logger LOGGER;
 
+    @SidedProxy(clientSide = "com.dima16263690d.bleckshlng.client.ClientProxy",
+            serverSide = "com.dima16263690d.bleckshlng.CommonProxy")
+    public static CommonProxy PROXY;
+
     @EventHandler
     public void preInit(FMLPreInitializationEvent event) {
         LOGGER = event.getModLog();
+        FluidNetwork.init();
+        if (PROXY != null) {
+            PROXY.preInit(event);
+        }
         LOGGER.info("{} {} initialized for Minecraft 1.12.2", NAME, VERSION);
     }
 }
