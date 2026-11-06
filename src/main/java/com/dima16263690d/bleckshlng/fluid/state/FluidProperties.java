@@ -4,9 +4,9 @@ import net.minecraft.block.material.Material;
 import net.minecraft.world.World;
 
 /**
- * Runtime properties adapted from the Minecraft 1.18.2 fluid definitions.
- * Lava timing and Overworld/End horizontal reach include the requested
- * small gameplay increase; water retains the 1.18.2 values.
+ * Fluid timing and decay follow the Java Edition 1.13.2 baseline.
+ * Lava is intentionally a little faster and reaches one block farther in
+ * ordinary dimensions, as requested; water keeps the 1.13.2 values.
  */
 public final class FluidProperties {
     private FluidProperties() {
@@ -18,8 +18,8 @@ public final class FluidProperties {
         }
 
         if (material == Material.LAVA) {
-            // Slightly faster than the 1.18.2 baseline (30/10 ticks),
-            // while preserving the Overworld/Nether distinction.
+            // 1.13.2: 30 ticks in ordinary dimensions, 10 in the Nether.
+            // Small speed increase: 25 and 8 ticks respectively.
             return world != null && world.provider.doesWaterVaporize() ? 8 : 25;
         }
 
@@ -45,7 +45,7 @@ public final class FluidProperties {
     /**
      * Computes the amount carried into the next horizontal block.
      *
-     * Water and Nether lava keep the 1.18.2 one-level decay. Overworld/End
+     * Water and Nether lava keep the 1.13.2 one-level decay. Overworld/End
      * lava keeps its normal two-level decay, with a final one-level tail:
      * this extends the horizontal reach by one block without making the
      * flowing lava renewable or changing its source-conversion rules.
