@@ -172,9 +172,17 @@ public final class FluidSpreadEngine {
             BlockPos belowPos = pos.down();
             if (world.isBlockLoaded(belowPos)) {
                 IBlockState belowState = world.getBlockState(belowPos);
-                if (belowState.getMaterial().isSolid()
-                        || getDepth(world, belowPos, Material.WATER)
-                        == FluidLevelMapper.SOURCE_METADATA) {
+                boolean solidSupport = belowState.getMaterial().isSolid();
+                boolean closedBottomFace = FluidShapeCalculator.isFaceFullyCovered(
+                        world, pos, world.getBlockState(pos), EnumFacing.DOWN);
+                boolean waterSourceBelow = getDepth(
+                        world, belowPos, Material.WATER)
+                        == FluidLevelMapper.SOURCE_METADATA;
+
+                // 1.13.2 / legacy source conversion: two horizontal sources
+                // create a source when the block below is solid, the current
+                // block seals its downward face, or a water source is below.
+                if (solidSupport || closedBottomFace || waterSourceBelow) {
                     newLevel = FluidLevelMapper.SOURCE_METADATA;
                 }
             }
