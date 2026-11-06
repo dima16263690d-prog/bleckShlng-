@@ -38,6 +38,8 @@ public final class WaterloggedFluidHandler {
                 return false;
             }
 
+            FluidNetwork.syncState(world, pos,
+                    FluidStateBridge.source(FluidStateBridge.FluidKind.WATER));
             FluidTickScheduler.schedule(world, pos, 1);
             return true;
         }
@@ -72,8 +74,12 @@ public final class WaterloggedFluidHandler {
                 return false;
             }
             IBlockState changed = adapter.withWaterlogged(state, false);
-            return changed != null && changed != state
-                    && world.setBlockState(pos, changed, 3);
+            if (changed == null || changed == state
+                    || !world.setBlockState(pos, changed, 3)) {
+                return false;
+            }
+            FluidNetwork.removeState(world, pos);
+            return true;
         }
 
         ChunkFluidData data = ChunkFluidData.get(world);
