@@ -96,9 +96,10 @@ public final class FluidTickScheduler {
     @SubscribeEvent
     public static void onChunkWatch(ChunkWatchEvent.Watch event) {
         net.minecraft.entity.player.EntityPlayerMP player = event.getPlayer();
-        World world = player == null ? null : player.world;
         net.minecraft.world.chunk.Chunk chunk = event.getChunkInstance();
-        if (chunk != null && world != null && !world.isRemote) {
+        World world = chunk == null ? null : chunk.getWorld();
+        if (chunk != null && world != null && player != null && !world.isRemote
+                && player.world.provider.getDimension() == world.provider.getDimension()) {
             FluidNetwork.syncChunkToPlayer(world, chunk, player);
         }
     }
@@ -133,8 +134,8 @@ public final class FluidTickScheduler {
         World world = event.getWorld();
         if (world != null && !world.isRemote) {
             ChunkFluidData data = ChunkFluidData.get(world);
-            if (data != null) {
-                data.remove(event.getPos());
+            if (data != null && data.remove(event.getPos())) {
+                FluidNetwork.removeState(world, event.getPos());
             }
 
             Map<Long, Long> tasks = PENDING.get(world);

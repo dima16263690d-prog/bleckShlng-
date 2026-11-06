@@ -8,6 +8,7 @@ import net.minecraft.world.World;
 import com.dima16263690d.bleckshlng.fluid.engine.FluidFlowEngine;
 import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
+import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
 
 /**
  * Waterlogging adapter for 1.12.2 blocks that have modern waterlogged
@@ -36,6 +37,7 @@ public final class WaterloggedFluidHandler {
             }
             world.setBlockState(pos, changed, 3);
             world.notifyNeighborsOfStateChange(pos, changed.getBlock(), false);
+            FluidTickScheduler.schedule(world, pos, 1);
             return true;
         }
 
@@ -49,6 +51,7 @@ public final class WaterloggedFluidHandler {
             return false;
         }
 
+        FluidNetwork.syncState(world, pos, stored);
         world.notifyNeighborsOfStateChange(pos, blockState.getBlock(), false);
         FluidTickScheduler.schedule(world, pos, 1);
         return true;
@@ -81,7 +84,12 @@ public final class WaterloggedFluidHandler {
         if (fluid == null || !fluid.isSource()) {
             return false;
         }
-        return data.remove(pos);
+        boolean removed = data.remove(pos);
+        if (removed) {
+            FluidNetwork.removeState(world, pos);
+            world.notifyNeighborsOfStateChange(pos, state.getBlock(), false);
+        }
+        return removed;
     }
 
     public static void tick(World world, BlockPos pos) {

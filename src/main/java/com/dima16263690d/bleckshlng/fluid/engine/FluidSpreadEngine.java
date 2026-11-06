@@ -175,7 +175,7 @@ public final class FluidSpreadEngine {
 
         // Flowing fluid does not spill sideways when a valid downward hole
         // exists. Sources may always spread sideways.
-        if (level == 0 || !isWaterHole(world, belowPos, material)) {
+        if (level == 0 || !isWaterHole(world, pos, material)) {
             spreadToSides(world, pos, material, level);
         }
     }
@@ -258,6 +258,12 @@ public final class FluidSpreadEngine {
                 && WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
             WaterloggedFluidHandler.tryWaterlog(world, pos, state, level);
             return;
+        }
+
+        if (material == Material.WATER && state.getMaterial() == Material.LAVA) {
+            if (FluidMixingHandler.reactWaterIntoLava(world, pos, state)) {
+                return;
+            }
         }
 
         if (material == Material.LAVA && state.getMaterial() == Material.WATER

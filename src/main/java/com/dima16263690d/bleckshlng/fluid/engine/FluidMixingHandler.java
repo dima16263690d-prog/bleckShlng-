@@ -66,6 +66,33 @@ public final class FluidMixingHandler {
     }
 
     /**
+     * Water entering a lava block reacts with that lava before replacing it.
+     * Source lava becomes obsidian; flowing lava at level 4 or stronger
+     * (legacy metadata 1..4) becomes cobblestone.
+     */
+    public static boolean reactWaterIntoLava(World world, BlockPos pos,
+                                             IBlockState lavaState) {
+        if (world == null || world.isRemote || pos == null || lavaState == null
+                || lavaState.getMaterial() != Material.LAVA
+                || !(lavaState.getBlock() instanceof BlockLiquid)) {
+            return false;
+        }
+
+        int level = lavaState.getValue(BlockLiquid.LEVEL).intValue();
+        if (level == 0) {
+            world.setBlockState(pos, Blocks.OBSIDIAN.getDefaultState(), 3);
+            playExtinguishEffects(world, pos);
+            return true;
+        }
+        if (level <= 4) {
+            world.setBlockState(pos, Blocks.COBBLESTONE.getDefaultState(), 3);
+            playExtinguishEffects(world, pos);
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Vanilla 1.12.2 turns lava flowing directly down into water into stone.
      */
     public static boolean reactDownward(World world, BlockPos pos, IBlockState targetState) {

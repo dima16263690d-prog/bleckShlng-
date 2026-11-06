@@ -7,6 +7,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
 import com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData;
+import com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable;
 import com.dima16263690d.bleckshlng.fluid.network.ClientFluidStateCache;
 
 /**
