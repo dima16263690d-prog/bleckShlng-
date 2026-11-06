@@ -2,7 +2,6 @@ package com.dima16263690d.bleckshlng.block;
 
 import java.util.Random;
 
-import net.minecraft.util.BlockRenderLayer;
 import net.minecraft.block.BlockRotatedPillar;
 import net.minecraft.block.SoundType;
 import net.minecraft.block.material.Material;
@@ -116,11 +115,6 @@ public final class BlockChain extends BlockRotatedPillar implements IFluidWaterl
     @Override
     public boolean isOpaqueCube(IBlockState state) {
         return false;
-    }
-
-    @Override
-    public BlockRenderLayer getRenderLayer() {
-        return BlockRenderLayer.SOLID;
     }
 
     @Override
