@@ -120,6 +120,54 @@ public final class FluidCoreHooks {
     }
 
     /**
+     * BlockReed.canPlaceBlockAt normally requires water beside its soil.
+     * In 1.13.2 a waterlogged block is also a water source for this check.
+     */
+    public static boolean applyWaterloggedReedWater(boolean vanillaResult,
+                                                    World world, BlockPos reedPos) {
+        if (vanillaResult || world == null || world.isRemote || reedPos == null) {
+            return vanillaResult;
+        }
+
+        try {
+            BlockPos soilPos = reedPos.down();
+            if (!world.isBlockLoaded(soilPos)) {
+                return false;
+            }
+
+            net.minecraft.block.Block soil = world.getBlockState(soilPos).getBlock();
+            if (soil != Blocks.GRASS && soil != Blocks.DIRT
+                    && soil != Blocks.SAND && soil != Blocks.REEDS) {
+                return false;
+            }
+
+            com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData data =
+                    com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData.get(world);
+            if (data == null) {
+                return false;
+            }
+
+            for (net.minecraft.util.EnumFacing side : net.minecraft.util.EnumFacing.Plane.HORIZONTAL) {
+                BlockPos waterPos = soilPos.offset(side);
+                if (!world.isBlockLoaded(waterPos)) {
+                    continue;
+                }
+                com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge fluid =
+                        data.getWater(waterPos);
+                if (fluid != null
+                        && fluid.getKind()
+                        == com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge.FluidKind.WATER) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (Throwable error) {
+            LOGGER.error("Waterlogged sugar cane placement check failed at {}", reedPos, error);
+            return vanillaResult;
+        }
+    }
+
+    /**
      * Returns null when the block is not one of the vanilla liquids handled
      * here. The transformer then executes the original BlockLiquid method.
      */
