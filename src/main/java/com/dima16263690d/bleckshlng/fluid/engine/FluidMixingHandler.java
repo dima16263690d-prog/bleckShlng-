@@ -12,6 +12,8 @@ import net.minecraft.util.SoundCategory;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
+import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
+import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 
 /**
  * Water/lava reactions adapted to the legacy block registry.
@@ -37,8 +39,23 @@ public final class FluidMixingHandler {
             }
 
             BlockPos neighbor = pos.offset(side);
-            if (world.isBlockLoaded(neighbor)
-                    && world.getBlockState(neighbor).getMaterial() == Material.WATER) {
+            if (!world.isBlockLoaded(neighbor)
+                    || !FluidShapeCalculator.canPassThroughWall(world, pos, side)) {
+                continue;
+            }
+
+            IBlockState neighborState = world.getBlockState(neighbor);
+            if (neighborState.getMaterial() == Material.WATER) {
+                touchingWater = true;
+                break;
+            }
+
+            // In Java 1.13.2 a waterlogged source is still a source of water
+            // for lava contact and mixing, even though its host block remains.
+            FluidStateBridge neighborFluid = FluidStateMapper.fromWorld(
+                    world, neighbor, neighborState);
+            if (neighborFluid != null
+                    && neighborFluid.getKind() == FluidStateBridge.FluidKind.WATER) {
                 touchingWater = true;
                 break;
             }
