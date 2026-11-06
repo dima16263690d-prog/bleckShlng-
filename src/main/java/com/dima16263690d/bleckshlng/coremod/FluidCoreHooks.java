@@ -244,6 +244,39 @@ public final class FluidCoreHooks {
     }
 
     /**
+     * BlockBush.canPlaceBlockAt checks canSustainBush before BlockLilyPad's
+     * canBlockStay override is reached. Keep this exception restricted to
+     * lily pads so other plants retain their vanilla placement rules.
+     */
+    public static boolean applyWaterloggedLilyPadPlacement(
+            boolean vanillaResult, net.minecraft.block.BlockBush block,
+            World world, BlockPos lilyPos) {
+        if (vanillaResult) {
+            return true;
+        }
+        if (!(block instanceof net.minecraft.block.BlockLilyPad)
+                || world == null || world.isRemote || lilyPos == null) {
+            return false;
+        }
+
+        try {
+            BlockPos waterPos = lilyPos.down();
+            if (!world.isBlockLoaded(waterPos)) {
+                return false;
+            }
+            IBlockState waterBlock = world.getBlockState(waterPos);
+            FluidStateBridge fluid = com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper
+                    .fromWorld(world, waterPos, waterBlock);
+            return fluid != null
+                    && fluid.getKind() == FluidStateBridge.FluidKind.WATER
+                    && fluid.isSource();
+        } catch (Throwable error) {
+            LOGGER.error("Waterlogged lily pad placement check failed at {}", lilyPos, error);
+            return false;
+        }
+    }
+
+    /**
      * Returns null when the block is not one of the vanilla liquids handled
      * here. The transformer then executes the original BlockLiquid method.
      */
