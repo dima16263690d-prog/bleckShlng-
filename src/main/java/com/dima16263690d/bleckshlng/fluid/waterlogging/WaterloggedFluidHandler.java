@@ -38,6 +38,7 @@ public final class WaterloggedFluidHandler {
                 return false;
             }
 
+            adapter.onWaterlogged(world, pos, blockState, changed);
             FluidStateBridge stored = FluidStateBridge.source(FluidStateBridge.FluidKind.WATER);
             ChunkFluidData data = ChunkFluidData.get(world);
             if (data != null) {
