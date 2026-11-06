@@ -206,4 +206,5 @@ public final class FluidTickScheduler {
         if (hasSidecar || hasAdapterWater) {
             schedule(world, pos, 1);
         }
+    }
 }
