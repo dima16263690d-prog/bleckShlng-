@@ -149,7 +149,7 @@ public final class FluidTickTransformer implements IClassTransformer {
             if (spongeTarget) {
                 for (MethodNode method : classNode.methods) {
                     if (isSpongeAbsorb(method)
-                            && !containsHook(method, "applyWaterloggedSpongeAbsorb")) {
+                            && !containsHook(method, "tryAbsorbSpongeWater")) {
                         injectBooleanSpongeHook(method);
                         changed = true;
                         break;
