@@ -2,6 +2,7 @@ package com.dima16263690d.bleckshlng.fluid.waterlogging;
 
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.init.Blocks;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
@@ -142,11 +143,19 @@ public final class WaterloggedFluidHandler {
         }
 
         if (!WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
-            // The host block may have been replaced by an explosion or another
-            // mod without a player BreakEvent. Remove the stale client state too.
+            // Java Edition keeps the water source when a waterlogged block is
+            // destroyed (fixed in 18w14b). Convert the sidecar into a real
+            // vanilla source if the host position is now empty/replaceable.
+            boolean releaseIntoWorld = world.isAirBlock(pos)
+                    || state.getBlock().isReplaceable(world, pos);
             if (data.remove(pos)) {
                 FluidNetwork.removeState(world, pos);
-                world.notifyNeighborsOfStateChange(pos, state.getBlock(), false);
+                if (releaseIntoWorld) {
+                    world.setBlockState(pos, Blocks.WATER.getDefaultState(), 3);
+                } else {
+                    // A different solid block replaced the host before release.
+                    world.notifyNeighborsOfStateChange(pos, state.getBlock(), false);
+                }
             }
             return;
         }
