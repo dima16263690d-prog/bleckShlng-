@@ -14,6 +14,7 @@ import net.minecraft.world.World;
 
 import com.dima16263690d.bleckshlng.fluid.geometry.BlockGeometryAdapter;
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
+import com.dima16263690d.bleckshlng.fluid.geometry.FluidOcclusionCache;
 import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
 import com.dima16263690d.bleckshlng.fluid.state.FluidLevelMapper;
 import com.dima16263690d.bleckshlng.fluid.state.FluidProperties;
@@ -43,6 +44,7 @@ public final class FluidSpreadEngine {
         if (world == null || world.isRemote || pos == null || state == null
                 || random == null || !world.isBlockLoaded(pos)) return;
 
+        FluidOcclusionCache.beginFluidUpdate(world);
         Material material = state.getMaterial();
         if ((material != Material.WATER && material != Material.LAVA)
                 || !(state.getBlock() instanceof BlockLiquid)) return;
@@ -91,6 +93,7 @@ public final class FluidSpreadEngine {
      */
     public static void spreadWaterloggedSource(World world, BlockPos pos) {
         if (world == null || world.isRemote || pos == null || !world.isBlockLoaded(pos)) return;
+        FluidOcclusionCache.beginFluidUpdate(world);
         spread(world, pos, Material.WATER, 0);
     }
 
@@ -283,6 +286,7 @@ public final class FluidSpreadEngine {
         IBlockState flowingState = getFlowingBlock(material).getDefaultState()
                 .withProperty(BlockLiquid.LEVEL, Integer.valueOf(level));
         world.setBlockState(pos, flowingState, 3);
+        FluidShapeCalculator.invalidate(world, pos);
 
         if (material == Material.LAVA) {
             FluidMixingHandler.reactAt(world, pos, world.getBlockState(pos));
@@ -299,5 +303,6 @@ public final class FluidSpreadEngine {
                 ? Blocks.WATER : Blocks.LAVA).getDefaultState()
                 .withProperty(BlockLiquid.LEVEL, state.getValue(BlockLiquid.LEVEL));
         world.setBlockState(pos, staticState, 2);
+        FluidShapeCalculator.invalidate(world, pos);
     }
 }

@@ -11,6 +11,7 @@ import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 
 /**
  * Water/lava reactions adapted to the legacy block registry.
@@ -52,12 +53,14 @@ public final class FluidMixingHandler {
 
         if (level == 0) {
             world.setBlockState(pos, Blocks.OBSIDIAN.getDefaultState(), 3);
+            FluidShapeCalculator.invalidate(world, pos);
             playExtinguishEffects(world, pos);
             return true;
         }
 
         if (level <= 4) {
             world.setBlockState(pos, Blocks.COBBLESTONE.getDefaultState(), 3);
+            FluidShapeCalculator.invalidate(world, pos);
             playExtinguishEffects(world, pos);
             return true;
         }
@@ -101,6 +104,7 @@ public final class FluidMixingHandler {
         }
 
         world.setBlockState(pos, Blocks.STONE.getDefaultState(), 3);
+        FluidShapeCalculator.invalidate(world, pos);
         playExtinguishEffects(world, pos);
         return true;
     }

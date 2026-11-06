@@ -2,8 +2,10 @@ package com.dima16263690d.bleckshlng.fluid.waterlogging;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -25,6 +27,8 @@ public class ChunkFluidData extends WorldSavedData {
     private static final String DATA_NAME = "bleckshlng_fluid_states";
     private final Map<Long, FluidStateBridge> waterStates =
             new HashMap<Long, FluidStateBridge>();
+    private final Map<Long, Set<Long>> chunkIndex =
+            new HashMap<Long, Set<Long>>();
 
     public ChunkFluidData() {
         super(DATA_NAME);
@@ -65,6 +69,9 @@ public class ChunkFluidData extends WorldSavedData {
 
         Long key = Long.valueOf(pos.toLong());
         FluidStateBridge old = waterStates.put(key, state);
+        if (old == null) {
+            addToChunkIndex(key.longValue());
+        }
         if (!state.equals(old)) {
             markDirty();
         }
@@ -76,8 +83,10 @@ public class ChunkFluidData extends WorldSavedData {
             return false;
         }
 
-        FluidStateBridge removed = waterStates.remove(Long.valueOf(pos.toLong()));
+        long packed = pos.toLong();
+        FluidStateBridge removed = waterStates.remove(Long.valueOf(packed));
         if (removed != null) {
+            removeFromChunkIndex(packed);
             markDirty();
             return true;
         }
@@ -86,11 +95,12 @@ public class ChunkFluidData extends WorldSavedData {
 
     public List<BlockPos> getPositionsInChunk(int chunkX, int chunkZ) {
         List<BlockPos> result = new ArrayList<BlockPos>();
-        for (Long key : waterStates.keySet()) {
-            BlockPos pos = BlockPos.fromLong(key.longValue());
-            if ((pos.getX() >> 4) == chunkX && (pos.getZ() >> 4) == chunkZ) {
-                result.add(pos);
-            }
+        Set<Long> packedPositions = chunkIndex.get(Long.valueOf(chunkKey(chunkX, chunkZ)));
+        if (packedPositions == null) {
+            return result;
+        }
+        for (Long key : packedPositions) {
+            result.add(BlockPos.fromLong(key.longValue()));
         }
         return result;
     }
@@ -98,6 +108,7 @@ public class ChunkFluidData extends WorldSavedData {
     @Override
     public void readFromNBT(NBTTagCompound compound) {
         waterStates.clear();
+        chunkIndex.clear();
         NBTTagList entries = compound.getTagList("water", 10);
         for (int i = 0; i < entries.tagCount(); i++) {
             NBTTagCompound entry = entries.getCompoundTagAt(i);
@@ -110,6 +121,34 @@ public class ChunkFluidData extends WorldSavedData {
                     : FluidStateBridge.flowing(FluidStateBridge.FluidKind.WATER,
                             amount, falling);
             waterStates.put(Long.valueOf(packedPos), state);
+            addToChunkIndex(packedPos);
+        }
+    }
+
+    private static long chunkKey(int chunkX, int chunkZ) {
+        return ((long) chunkX << 32) ^ (chunkZ & 0xFFFFFFFFL);
+    }
+
+    private void addToChunkIndex(long packedPos) {
+        BlockPos pos = BlockPos.fromLong(packedPos);
+        Long key = Long.valueOf(chunkKey(pos.getX() >> 4, pos.getZ() >> 4));
+        Set<Long> positions = chunkIndex.get(key);
+        if (positions == null) {
+            positions = new HashSet<Long>();
+            chunkIndex.put(key, positions);
+        }
+        positions.add(Long.valueOf(packedPos));
+    }
+
+    private void removeFromChunkIndex(long packedPos) {
+        BlockPos pos = BlockPos.fromLong(packedPos);
+        Long key = Long.valueOf(chunkKey(pos.getX() >> 4, pos.getZ() >> 4));
+        Set<Long> positions = chunkIndex.get(key);
+        if (positions != null) {
+            positions.remove(Long.valueOf(packedPos));
+            if (positions.isEmpty()) {
+                chunkIndex.remove(key);
+            }
         }
     }
 
