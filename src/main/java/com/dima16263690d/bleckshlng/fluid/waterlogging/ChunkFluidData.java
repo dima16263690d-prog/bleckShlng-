@@ -104,9 +104,12 @@ public class ChunkFluidData extends WorldSavedData {
             long packedPos = entry.getLong("pos");
             int amount = entry.hasKey("amount") ? entry.getInteger("amount") : 8;
             boolean falling = entry.getBoolean("falling");
-            waterStates.put(Long.valueOf(packedPos),
-                    FluidStateBridge.flowing(FluidStateBridge.FluidKind.WATER,
-                            amount, falling));
+            boolean source = entry.hasKey("source") && entry.getBoolean("source");
+            FluidStateBridge state = source
+                    ? FluidStateBridge.source(FluidStateBridge.FluidKind.WATER)
+                    : FluidStateBridge.flowing(FluidStateBridge.FluidKind.WATER,
+                            amount, falling);
+            waterStates.put(Long.valueOf(packedPos), state);
         }
     }
 
@@ -118,6 +121,7 @@ public class ChunkFluidData extends WorldSavedData {
             tag.setLong("pos", entry.getKey().longValue());
             tag.setInteger("amount", entry.getValue().getAmount());
             tag.setBoolean("falling", entry.getValue().isFalling());
+            tag.setBoolean("source", entry.getValue().isSource());
             entries.appendTag(tag);
         }
         compound.setTag("water", entries);

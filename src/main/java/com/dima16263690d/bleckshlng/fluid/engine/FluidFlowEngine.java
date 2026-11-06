@@ -205,7 +205,6 @@ public final class FluidFlowEngine {
             }
         }
 
-        FluidTickScheduler.schedule(world, pos, FluidProperties.tickRate(world, material));
     }
 
     private static int getDepth(IBlockState state, Material material) {

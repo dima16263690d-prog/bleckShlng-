@@ -16,35 +16,61 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 /**
- * Injects an optional pre-hook into BlockDynamicLiquid.updateTick.
+ * Installs two guarded hooks:
+ * - BlockDynamicLiquid.updateTick: modernized server-side liquid update.
+ * - BlockLiquid.modifyAcceleration: modernized liquid current vector.
  *
- * If the mod hook declines or throws, the original bytecode remains available
- * and executes unchanged. This is intentionally not a full method replacement.
+ * Unknown/modded liquids fall through to their original methods.
  */
 public final class FluidTickTransformer implements IClassTransformer {
-    private static final String TARGET = "net.minecraft.block.BlockDynamicLiquid";
+    private static final String DYNAMIC_TARGET = "net.minecraft.block.BlockDynamicLiquid";
+    private static final String LIQUID_TARGET = "net.minecraft.block.BlockLiquid";
+
     private static final String HOOK_OWNER =
             "com/dima16263690d/bleckshlng/coremod/FluidCoreHooks";
-    private static final String HOOK_DESC =
+    private static final String TICK_HOOK_DESC =
             "(Lnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;"
             + "Lnet/minecraft/block/state/IBlockState;Ljava/util/Random;)Z";
+    private static final String ACCELERATION_HOOK_DESC =
+            "(Lnet/minecraft/block/BlockLiquid;Lnet/minecraft/world/World;"
+            + "Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/entity/Entity;"
+            + "Lnet/minecraft/util/math/Vec3d;)Lnet/minecraft/util/math/Vec3d;";
 
     @Override
     public byte[] transform(String name, String transformedName, byte[] basicClass) {
-        if (basicClass == null || !isTarget(name, transformedName)) {
+        if (basicClass == null) {
+            return basicClass;
+        }
+
+        boolean dynamicTarget = isTarget(name, transformedName, DYNAMIC_TARGET);
+        boolean liquidTarget = isTarget(name, transformedName, LIQUID_TARGET);
+        if (!dynamicTarget && !liquidTarget) {
             return basicClass;
         }
 
         try {
             ClassNode classNode = new ClassNode();
             new ClassReader(basicClass).accept(classNode, 0);
-
             boolean changed = false;
-            for (MethodNode method : classNode.methods) {
-                if (isUpdateTick(method)) {
-                    injectHook(method);
-                    changed = true;
-                    break;
+
+            if (dynamicTarget) {
+                for (MethodNode method : classNode.methods) {
+                    if (isUpdateTick(method) && !containsHook(method, "tryUpdateDynamicLiquid")) {
+                        injectTickHook(method);
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+
+            if (liquidTarget) {
+                for (MethodNode method : classNode.methods) {
+                    if (isModifyAcceleration(method)
+                            && !containsHook(method, "tryModifyAcceleration")) {
+                        injectAccelerationHook(method);
+                        changed = true;
+                        break;
+                    }
                 }
             }
 
@@ -56,16 +82,17 @@ public final class FluidTickTransformer implements IClassTransformer {
             classNode.accept(writer);
             return writer.toByteArray();
         } catch (Throwable error) {
-            System.err.println("[BleckShlng] Fluid transformer skipped BlockDynamicLiquid: "
-                    + error.getClass().getName() + ": " + error.getMessage());
+            System.err.println("[BleckShlng] Fluid transformer skipped "
+                    + transformedName + ": " + error.getClass().getName()
+                    + ": " + error.getMessage());
             return basicClass;
         }
     }
 
-    private static boolean isTarget(String name, String transformedName) {
-        return TARGET.equals(name)
-                || TARGET.equals(transformedName)
-                || (transformedName != null && transformedName.endsWith(".BlockDynamicLiquid"));
+    private static boolean isTarget(String name, String transformedName, String target) {
+        return target.equals(name) || target.equals(transformedName)
+                || (transformedName != null
+                && transformedName.endsWith("." + target.substring(target.lastIndexOf('.') + 1)));
     }
 
     private static boolean isUpdateTick(MethodNode method) {
@@ -75,29 +102,80 @@ public final class FluidTickTransformer implements IClassTransformer {
             return false;
         }
 
-        Type[] arguments = Type.getArgumentTypes(method.desc);
+        Type[] args = Type.getArgumentTypes(method.desc);
         return Type.VOID_TYPE.equals(Type.getReturnType(method.desc))
-                && arguments.length == 4
-                && arguments[3].getSort() == Type.OBJECT
-                && "java/util/Random".equals(arguments[3].getInternalName());
+                && args.length == 4
+                && "net/minecraft/world/World".equals(args[0].getInternalName())
+                && "net/minecraft/util/math/BlockPos".equals(args[1].getInternalName())
+                && "net/minecraft/block/state/IBlockState".equals(args[2].getInternalName())
+                && "java/util/Random".equals(args[3].getInternalName());
     }
 
-    private static void injectHook(MethodNode method) {
+    private static boolean isModifyAcceleration(MethodNode method) {
+        if (!(method.name.equals("modifyAcceleration")
+                || method.name.equals("func_176197_a")
+                || method.name.equals("a"))) {
+            return false;
+        }
+
+        Type[] args = Type.getArgumentTypes(method.desc);
+        return args.length == 4
+                && "net/minecraft/world/World".equals(args[0].getInternalName())
+                && "net/minecraft/util/math/BlockPos".equals(args[1].getInternalName())
+                && "net/minecraft/entity/Entity".equals(args[2].getInternalName())
+                && "net/minecraft/util/math/Vec3d".equals(args[3].getInternalName())
+                && "net/minecraft/util/math/Vec3d".equals(
+                        Type.getReturnType(method.desc).getInternalName());
+    }
+
+    private static boolean containsHook(MethodNode method, String hookName) {
+        for (org.objectweb.asm.tree.AbstractInsnNode instruction = method.instructions.getFirst();
+             instruction != null; instruction = instruction.getNext()) {
+            if (instruction instanceof MethodInsnNode) {
+                MethodInsnNode call = (MethodInsnNode) instruction;
+                if (HOOK_OWNER.equals(call.owner) && hookName.equals(call.name)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static void injectTickHook(MethodNode method) {
         LabelNode originalBody = new LabelNode();
         InsnList hook = new InsnList();
-
         hook.add(new VarInsnNode(Opcodes.ALOAD, 1));
         hook.add(new VarInsnNode(Opcodes.ALOAD, 2));
         hook.add(new VarInsnNode(Opcodes.ALOAD, 3));
         hook.add(new VarInsnNode(Opcodes.ALOAD, 4));
         hook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
-                HOOK_OWNER, "tryUpdateDynamicLiquid", HOOK_DESC, false));
+                HOOK_OWNER, "tryUpdateDynamicLiquid", TICK_HOOK_DESC, false));
         hook.add(new JumpInsnNode(Opcodes.IFEQ, originalBody));
         hook.add(new InsnNode(Opcodes.RETURN));
         hook.add(originalBody);
         hook.add(new FrameNode(Opcodes.F_SAME, 0, null, 0, null));
-
         method.instructions.insert(hook);
         method.maxStack = Math.max(method.maxStack, 4);
+    }
+
+    private static void injectAccelerationHook(MethodNode method) {
+        LabelNode originalBody = new LabelNode();
+        InsnList hook = new InsnList();
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 2));
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 3));
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 4));
+        hook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                HOOK_OWNER, "tryModifyAcceleration", ACCELERATION_HOOK_DESC, false));
+        hook.add(new InsnNode(Opcodes.DUP));
+        hook.add(new JumpInsnNode(Opcodes.IFNULL, originalBody));
+        hook.add(new InsnNode(Opcodes.ARETURN));
+        hook.add(originalBody);
+        hook.add(new FrameNode(Opcodes.F_SAME1, 0, null, 1,
+                new Object[] {"net/minecraft/util/math/Vec3d"}));
+        hook.add(new InsnNode(Opcodes.POP));
+        method.instructions.insert(hook);
+        method.maxStack = Math.max(method.maxStack, 5);
     }
 }

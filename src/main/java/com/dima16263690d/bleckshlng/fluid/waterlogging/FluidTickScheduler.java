@@ -92,6 +92,31 @@ public final class FluidTickScheduler {
     }
 
     @SubscribeEvent
+    public static void onNeighborNotify(BlockEvent.NeighborNotifyEvent event) {
+        World world = event.getWorld();
+        if (world == null || world.isRemote) {
+            return;
+        }
+
+        ChunkFluidData data = ChunkFluidData.get(world);
+        if (data == null) {
+            return;
+        }
+
+        BlockPos changed = event.getPos();
+        scheduleIfWaterlogged(data, world, changed);
+        for (net.minecraft.util.EnumFacing side : net.minecraft.util.EnumFacing.values()) {
+            scheduleIfWaterlogged(data, world, changed.offset(side));
+        }
+    }
+
+    private static void scheduleIfWaterlogged(ChunkFluidData data, World world, BlockPos pos) {
+        if (world.isBlockLoaded(pos) && data.getWater(pos) != null) {
+            schedule(world, pos, 1);
+        }
+    }
+
+    @SubscribeEvent
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         World world = event.getWorld();
         if (world != null && !world.isRemote) {
