@@ -29,6 +29,7 @@ public final class FluidTickTransformer implements IClassTransformer {
     private static final String FARMLAND_TARGET = "net.minecraft.block.BlockFarmland";
     private static final String REED_TARGET = "net.minecraft.block.BlockReed";
     private static final String LILYPAD_TARGET = "net.minecraft.block.BlockLilyPad";
+    private static final String BUSH_TARGET = "net.minecraft.block.BlockBush";
     private static final String SPONGE_TARGET = "net.minecraft.block.BlockSponge";
     private static final String FISH_HOOK_TARGET = "net.minecraft.entity.projectile.EntityFishHook";
 
@@ -58,11 +59,12 @@ public final class FluidTickTransformer implements IClassTransformer {
         boolean farmlandTarget = isTarget(name, transformedName, FARMLAND_TARGET);
         boolean reedTarget = isTarget(name, transformedName, REED_TARGET);
         boolean lilyPadTarget = isTarget(name, transformedName, LILYPAD_TARGET);
+        boolean bushTarget = isTarget(name, transformedName, BUSH_TARGET);
         boolean spongeTarget = isTarget(name, transformedName, SPONGE_TARGET);
         boolean fishHookTarget = isTarget(name, transformedName, FISH_HOOK_TARGET);
         if (!dynamicTarget && !liquidTarget && !entityTarget
                 && !farmlandTarget && !reedTarget && !lilyPadTarget
-                && !spongeTarget && !fishHookTarget) {
+                && !bushTarget && !spongeTarget && !fishHookTarget) {
             return basicClass;
         }
 
@@ -140,6 +142,17 @@ public final class FluidTickTransformer implements IClassTransformer {
                     if (isLilyPadWaterCheck(method)
                             && !containsHook(method, "applyWaterloggedLilyPadStay")) {
                         injectBooleanLilyPadHook(method);
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+
+            if (bushTarget) {
+                for (MethodNode method : classNode.methods) {
+                    if (isBushCanPlace(method)
+                            && !containsHook(method, "applyWaterloggedLilyPadPlacement")) {
+                        injectBooleanBushHook(method);
                         changed = true;
                         break;
                     }
@@ -318,6 +331,40 @@ public final class FluidTickTransformer implements IClassTransformer {
         hook.add(new FrameNode(Opcodes.F_SAME, 0, null, 0, null));
         method.instructions.insert(hook);
         method.maxStack = Math.max(method.maxStack, 2);
+    }
+
+    private static boolean isBushCanPlace(MethodNode method) {
+        if (!(method.name.equals("canPlaceBlockAt")
+                || method.name.equals("func_176196_c")
+                || method.name.equals("a"))) {
+            return false;
+        }
+        Type[] args = Type.getArgumentTypes(method.desc);
+        return Type.BOOLEAN_TYPE.equals(Type.getReturnType(method.desc))
+                && args.length == 2
+                && "net/minecraft/world/World".equals(args[0].getInternalName())
+                && "net/minecraft/util/math/BlockPos".equals(args[1].getInternalName());
+    }
+
+    private static void injectBooleanBushHook(MethodNode method) {
+        for (org.objectweb.asm.tree.AbstractInsnNode instruction = method.instructions.getFirst();
+             instruction != null; ) {
+            org.objectweb.asm.tree.AbstractInsnNode next = instruction.getNext();
+            if (instruction.getOpcode() == Opcodes.IRETURN) {
+                InsnList hook = new InsnList();
+                // Vanilla boolean result is already on the stack.
+                hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                hook.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                hook.add(new VarInsnNode(Opcodes.ALOAD, 2));
+                hook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                        HOOK_OWNER, "applyWaterloggedLilyPadPlacement",
+                        "(ZLnet/minecraft/block/BlockBush;Lnet/minecraft/world/World;"
+                        + "Lnet/minecraft/util/math/BlockPos;)Z", false));
+                method.instructions.insertBefore(instruction, hook);
+                method.maxStack = Math.max(method.maxStack, 4);
+            }
+            instruction = next;
+        }
     }
 
     private static boolean isLilyPadWaterCheck(MethodNode method) {
