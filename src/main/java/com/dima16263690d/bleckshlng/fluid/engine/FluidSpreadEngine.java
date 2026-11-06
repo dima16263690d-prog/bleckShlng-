@@ -68,9 +68,19 @@ public final class FluidSpreadEngine {
 
             if (newLevel == level) {
                 placeStaticBlock(world, pos, material, state);
-            } else if (newLevel < 0) {
+            } else if (newLevel == NO_FLOW) {
+                // A fluid that has lost all incoming neighbors disappears and
+                // must not perform one final spread from its old position.
                 world.setBlockToAir(pos);
-                level = NO_FLOW;
+                return;
+            } else if (material == Material.WATER
+                    && newLevel == FluidLevelMapper.SOURCE_METADATA) {
+                // Update Aquatic 18w16a: create the source immediately instead
+                // of placing a temporary flowing block that becomes a source
+                // on a later liquid tick.
+                world.setBlockState(pos, Blocks.WATER.getDefaultState(), 2);
+                FluidShapeCalculator.invalidate(world, pos);
+                level = FluidLevelMapper.SOURCE_METADATA;
             } else {
                 IBlockState changed = flowing.getDefaultState()
                         .withProperty(BlockLiquid.LEVEL, Integer.valueOf(newLevel));
@@ -184,7 +194,9 @@ public final class FluidSpreadEngine {
         }
 
         IBlockState belowState = world.getBlockState(belowPos);
-        boolean canEnterBelow = canFlowInto(world, belowPos, belowState,
+        boolean canEnterBelow = FluidShapeCalculator.canPassThroughWall(
+                world, pos, EnumFacing.DOWN)
+                && canFlowInto(world, belowPos, belowState,
                 material, EnumFacing.DOWN);
 
         if (canEnterBelow) {
@@ -256,8 +268,18 @@ public final class FluidSpreadEngine {
             return false;
         }
 
-        // Legacy water never replaced lava. Contact is handled by the lava
-        // block's own neighbor mixing check, as in the 1.12/1.13 engine.
+        // The 1.13.2 waterlogging rule: flowing water cannot occupy a
+        // waterloggable block. It may enter only when the destination would
+        // immediately become a source under the two-source rule (18w16a).
+        if (material == Material.WATER
+                && WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
+            return BlockGeometryAdapter.canFluidEnter(
+                    world, pos, state, material, direction)
+                    && getNewLegacyLevel(world, pos, Material.WATER)
+                    == FluidLevelMapper.SOURCE_METADATA;
+        }
+
+        // 1.12/1.13 water does not replace lava; lava handles contact reactions.
         if (material == Material.WATER && targetMaterial == Material.LAVA) {
             return false;
         }
@@ -327,7 +349,10 @@ public final class FluidSpreadEngine {
 
         if (material == Material.WATER
                 && WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
-            WaterloggedFluidHandler.tryWaterlog(world, pos, state, level);
+            // canFlowInto has already verified that this block becomes a source
+            // immediately under the 1.13.2 two-source rule.
+            WaterloggedFluidHandler.tryWaterlog(
+                    world, pos, state, FluidLevelMapper.SOURCE_METADATA);
             return;
         }
 
@@ -335,6 +360,13 @@ public final class FluidSpreadEngine {
                 && direction == EnumFacing.DOWN) {
             FluidMixingHandler.reactDownward(world, pos, state);
             return;
+        }
+
+        int placedLevel = level;
+        if (material == Material.WATER
+                && getNewLegacyLevel(world, pos, material)
+                == FluidLevelMapper.SOURCE_METADATA) {
+            placedLevel = FluidLevelMapper.SOURCE_METADATA;
         }
 
         if (state.getMaterial() != Material.AIR) {
@@ -345,8 +377,11 @@ public final class FluidSpreadEngine {
             }
         }
 
-        IBlockState flowingState = getFlowingBlock(material).getDefaultState()
-                .withProperty(BlockLiquid.LEVEL, Integer.valueOf(level));
+        IBlockState flowingState = placedLevel == FluidLevelMapper.SOURCE_METADATA
+                && material == Material.WATER
+                ? Blocks.WATER.getDefaultState()
+                : getFlowingBlock(material).getDefaultState()
+                        .withProperty(BlockLiquid.LEVEL, Integer.valueOf(placedLevel));
         world.setBlockState(pos, flowingState, 3);
         FluidShapeCalculator.invalidate(world, pos);
 
