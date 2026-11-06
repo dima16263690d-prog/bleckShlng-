@@ -106,11 +106,7 @@ public final class WaterloggedFluidRenderer {
                 }
             }
 
-            if (hasVertices) {
-                tessellator.draw();
-            } else {
-                buffer.finishDrawing();
-            }
+            tessellator.draw();
         } finally {
             GlStateManager.depthMask(true);
             GlStateManager.enableCull();

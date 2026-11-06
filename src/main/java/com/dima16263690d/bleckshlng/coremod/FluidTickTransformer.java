@@ -36,6 +36,10 @@ public final class FluidTickTransformer implements IClassTransformer {
             "(Lnet/minecraft/block/BlockLiquid;Lnet/minecraft/world/World;"
             + "Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/entity/Entity;"
             + "Lnet/minecraft/util/math/Vec3d;)Lnet/minecraft/util/math/Vec3d;";
+    private static final String ENTITY_MOVEMENT_DESC =
+            "(ZLnet/minecraft/entity/Entity;)Z";
+    private static final String ENTITY_MATERIAL_DESC =
+            "(ZLnet/minecraft/entity/Entity;Lnet/minecraft/block/material/Material;)Z";
 
     @Override
     public byte[] transform(String name, String transformedName, byte[] basicClass) {
