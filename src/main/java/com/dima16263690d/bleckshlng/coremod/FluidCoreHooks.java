@@ -1,5 +1,7 @@
 package com.dima16263690d.bleckshlng.coremod;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Random;
 
 import net.minecraft.block.BlockDynamicLiquid;
@@ -27,42 +29,60 @@ import com.dima16263690d.bleckshlng.fluid.physics.FluidEntityHandler;
  */
 public final class FluidCoreHooks {
     private static final Logger LOGGER = LogManager.getLogger("BleckShlng/Fluid");
+    private static final ThreadLocal<Deque<Boolean>> WORLD_BLOCK_SET_CAPTURE =
+            new ThreadLocal<Deque<Boolean>>() {
+                @Override
+                protected Deque<Boolean> initialValue() {
+                    return new ArrayDeque<Boolean>();
+                }
+            };
 
     private FluidCoreHooks() {
     }
 
     /**
-     * Mirrors the placement-time water capture used by 1.18 SlabBlock and
-     * StairBlock: when a waterloggable host is placed into source water, keep
-     * the host and transfer the displaced water into the sidecar state.
+     * Records whether this invocation replaces source water with a block
+     * supported by the 1.13/1.18 waterlogging rules.
+     *
+     * A ThreadLocal stack is used instead of an injected bytecode local so
+     * existing StackMapTable frames remain untouched. It also supports nested
+     * World.setBlockState calls.
      */
-    public static boolean captureWaterBeforeBlockSet(World world, BlockPos pos,
-                                                     IBlockState newState) {
-        if (world == null || world.isRemote || pos == null || newState == null
-                || !world.isBlockLoaded(pos)) {
-            return false;
-        }
-
-        try {
-            if (!com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry
-                    .canWaterlog(newState.getBlock())) {
-                return false;
+    public static void beginWorldBlockSet(World world, BlockPos pos,
+                                          IBlockState newState) {
+        boolean captured = false;
+        if (world != null && !world.isRemote && pos != null && newState != null
+                && world.isBlockLoaded(pos)) {
+            try {
+                if (com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry
+                        .canWaterlog(newState.getBlock())) {
+                    IBlockState oldState = world.getBlockState(pos);
+                    captured = oldState != null && oldState.getMaterial() == Material.WATER;
+                }
+            } catch (Throwable error) {
+                LOGGER.error("Could not inspect water before placing waterloggable block at {}", pos, error);
             }
-
-            IBlockState oldState = world.getBlockState(pos);
-            return oldState != null && oldState.getMaterial() == Material.WATER;
-        } catch (Throwable error) {
-            LOGGER.error("Could not inspect water before placing waterloggable block at {}", pos, error);
-            return false;
         }
+
+        WORLD_BLOCK_SET_CAPTURE.get().push(Boolean.valueOf(captured));
     }
 
     /**
-     * Runs after World.setBlockState returns. A failed placement must not
-     * consume the old source or create a phantom waterlogged state.
+     * Completes the capture after World.setBlockState. The original boolean
+     * return value is preserved by the transformer.
      */
-    public static void onWorldBlockSet(boolean setSucceeded, boolean capturedWater,
-                                       World world, BlockPos pos, IBlockState placedState) {
+    public static void onWorldBlockSet(boolean setSucceeded, World world,
+                                       BlockPos pos, IBlockState placedState) {
+        Deque<Boolean> captures = WORLD_BLOCK_SET_CAPTURE.get();
+        if (captures.isEmpty()) {
+            WORLD_BLOCK_SET_CAPTURE.remove();
+            return;
+        }
+        boolean capturedWater = captures.pop().booleanValue();
+        if (captures.isEmpty()) {
+            WORLD_BLOCK_SET_CAPTURE.remove();
+        }
+
         if (!setSucceeded || !capturedWater || world == null || world.isRemote
                 || pos == null || placedState == null || !world.isBlockLoaded(pos)) {
             return;
@@ -101,6 +121,17 @@ public final class FluidCoreHooks {
             }
         } catch (Throwable error) {
             LOGGER.error("Could not transfer source water into placed block at {}", pos, error);
+        }
+    }
+
+    /** Removes the pending capture when the intercepted method throws. */
+    public static void discardWorldBlockSet() {
+        Deque<Boolean> captures = WORLD_BLOCK_SET_CAPTURE.get();
+        if (!captures.isEmpty()) {
+            captures.pop();
+        }
+        if (captures.isEmpty()) {
+            WORLD_BLOCK_SET_CAPTURE.remove();
         }
     }
 
