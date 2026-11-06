@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/stripped-wood-backport
+      - тест-001
   pull_request:
     branches:
       - main
