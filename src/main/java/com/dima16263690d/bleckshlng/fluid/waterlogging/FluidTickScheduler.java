@@ -151,6 +151,42 @@ public final class FluidTickScheduler {
         }
     }
 
+    /**
+     * Fallback for player placement into an existing water block. The coremod
+     * World#setBlockState hook handles all world mutations; this Forge event
+     * also covers normal ItemBlock placement if another transformer changes
+     * the World method before our hook is applied.
+     */
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public static void onBlockPlace(BlockEvent.PlaceEvent event) {
+        World world = event.getWorld();
+        if (world == null || world.isRemote) {
+            return;
+        }
+
+        BlockPos pos = event.getPos();
+        if (pos == null || !world.isBlockLoaded(pos)) {
+            return;
+        }
+
+        net.minecraft.block.state.IBlockState placedState = world.getBlockState(pos);
+        if (!com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry
+                .canWaterlog(placedState.getBlock())) {
+            return;
+        }
+
+        net.minecraftforge.common.util.BlockSnapshot snapshot = event.getBlockSnapshot();
+        if (snapshot == null) {
+            return;
+        }
+
+        net.minecraft.block.state.IBlockState replacedState = snapshot.getReplacedBlock();
+        if (replacedState != null
+                && replacedState.getMaterial() == net.minecraft.block.material.Material.WATER) {
+            WaterloggedFluidHandler.tryWaterlog(world, pos, placedState, 0);
+        }
+    }
+
     @SubscribeEvent
     public static void onNeighborNotify(BlockEvent.NeighborNotifyEvent event) {
         World world = event.getWorld();
