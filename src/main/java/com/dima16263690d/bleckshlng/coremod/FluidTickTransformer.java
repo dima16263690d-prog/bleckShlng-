@@ -24,6 +24,7 @@ import org.objectweb.asm.tree.VarInsnNode;
  */
 public final class FluidTickTransformer implements IClassTransformer {
     private static final String DYNAMIC_TARGET = "net.minecraft.block.BlockDynamicLiquid";
+    private static final String WORLD_TARGET = "net.minecraft.world.World";
     private static final String LIQUID_TARGET = "net.minecraft.block.BlockLiquid";
     private static final String ENTITY_TARGET = "net.minecraft.entity.Entity";
     private static final String FARMLAND_TARGET = "net.minecraft.block.BlockFarmland";
@@ -35,6 +36,12 @@ public final class FluidTickTransformer implements IClassTransformer {
 
     private static final String HOOK_OWNER =
             "com/dima16263690d/bleckshlng/coremod/FluidCoreHooks";
+    private static final String WORLD_SET_HOOK_DESC =
+            "(ZZLnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;"
+            + "Lnet/minecraft/block/state/IBlockState;)V";
+    private static final String WORLD_CAPTURE_HOOK_DESC =
+            "(Lnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;"
+            + "Lnet/minecraft/block/state/IBlockState;)Z";
     private static final String TICK_HOOK_DESC =
             "(Lnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;"
             + "Lnet/minecraft/block/state/IBlockState;Ljava/util/Random;)Z";
@@ -54,6 +61,7 @@ public final class FluidTickTransformer implements IClassTransformer {
         }
 
         boolean dynamicTarget = isTarget(name, transformedName, DYNAMIC_TARGET);
+        boolean worldTarget = isTarget(name, transformedName, WORLD_TARGET);
         boolean liquidTarget = isTarget(name, transformedName, LIQUID_TARGET);
         boolean entityTarget = isTarget(name, transformedName, ENTITY_TARGET);
         boolean farmlandTarget = isTarget(name, transformedName, FARMLAND_TARGET);
@@ -62,7 +70,7 @@ public final class FluidTickTransformer implements IClassTransformer {
         boolean bushTarget = isTarget(name, transformedName, BUSH_TARGET);
         boolean spongeTarget = isTarget(name, transformedName, SPONGE_TARGET);
         boolean fishHookTarget = isTarget(name, transformedName, FISH_HOOK_TARGET);
-        if (!dynamicTarget && !liquidTarget && !entityTarget
+        if (!dynamicTarget && !worldTarget && !liquidTarget && !entityTarget
                 && !farmlandTarget && !reedTarget && !lilyPadTarget
                 && !bushTarget && !spongeTarget && !fishHookTarget) {
             return basicClass;
@@ -72,6 +80,16 @@ public final class FluidTickTransformer implements IClassTransformer {
             ClassNode classNode = new ClassNode();
             new ClassReader(basicClass).accept(classNode, 0);
             boolean changed = false;
+
+            if (worldTarget) {
+                for (MethodNode method : classNode.methods) {
+                    if (isSetBlockState(method) && !containsHook(method, "onWorldBlockSet")) {
+                        injectWorldBlockSetHook(method);
+                        changed = true;
+                        break;
+                    }
+                }
+            }
 
             if (dynamicTarget) {
                 for (MethodNode method : classNode.methods) {
@@ -200,6 +218,21 @@ public final class FluidTickTransformer implements IClassTransformer {
         return target.equals(name) || target.equals(transformedName)
                 || (transformedName != null
                 && transformedName.endsWith("." + target.substring(target.lastIndexOf('.') + 1)));
+    }
+
+    private static boolean isSetBlockState(MethodNode method) {
+        if (!(method.name.equals("setBlockState")
+                || method.name.equals("func_180501_a")
+                || method.name.equals("a"))) {
+            return false;
+        }
+
+        Type[] args = Type.getArgumentTypes(method.desc);
+        return Type.BOOLEAN_TYPE.equals(Type.getReturnType(method.desc))
+                && args.length == 3
+                && "net/minecraft/util/math/BlockPos".equals(args[0].getInternalName())
+                && "net/minecraft/block/state/IBlockState".equals(args[1].getInternalName())
+                && Type.INT_TYPE.equals(args[2]);
     }
 
     private static boolean isUpdateTick(MethodNode method) {
@@ -507,6 +540,43 @@ public final class FluidTickTransformer implements IClassTransformer {
             }
         }
         return false;
+    }
+
+    /**
+     * Captures a water source before World.setBlockState replaces it with a
+     * waterloggable host. The sidecar is committed only after successful placement.
+     */
+    private static void injectWorldBlockSetHook(MethodNode method) {
+        int capturedLocal = method.maxLocals++;
+        InsnList capture = new InsnList();
+        capture.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        capture.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        capture.add(new VarInsnNode(Opcodes.ALOAD, 2));
+        capture.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                HOOK_OWNER, "captureWaterBeforeBlockSet",
+                WORLD_CAPTURE_HOOK_DESC, false));
+        capture.add(new VarInsnNode(Opcodes.ISTORE, capturedLocal));
+        method.instructions.insert(capture);
+
+        for (org.objectweb.asm.tree.AbstractInsnNode instruction = method.instructions.getFirst();
+             instruction != null; ) {
+            org.objectweb.asm.tree.AbstractInsnNode next = instruction.getNext();
+            if (instruction.getOpcode() == Opcodes.IRETURN) {
+                InsnList callback = new InsnList();
+                // Keep the original boolean result on the operand stack.
+                callback.add(new InsnNode(Opcodes.DUP));
+                callback.add(new VarInsnNode(Opcodes.ILOAD, capturedLocal));
+                callback.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                callback.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                callback.add(new VarInsnNode(Opcodes.ALOAD, 2));
+                callback.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                        HOOK_OWNER, "onWorldBlockSet",
+                        WORLD_SET_HOOK_DESC, false));
+                method.instructions.insertBefore(instruction, callback);
+                method.maxStack = Math.max(method.maxStack, 6);
+            }
+            instruction = next;
+        }
     }
 
     private static void injectTickHook(MethodNode method) {
