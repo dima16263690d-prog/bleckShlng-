@@ -14,12 +14,10 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
-import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
 
 /**
- * Sponge absorption compatible with the Minecraft 1.12.2 search, extended to
- * treat sidecar waterlogged states as connected water without deleting their
- * host blocks.
+ * Java Edition 1.13.2 sponge absorption. Only actual water blocks are absorbed;
+ * water stored inside a waterlogged host is deliberately not removed.
  */
 public final class WaterloggedSpongeHandler {
     private static final int MAX_DEPTH = 6;
@@ -39,7 +37,8 @@ public final class WaterloggedSpongeHandler {
     }
 
     /**
-     * Absorbs connected vanilla water and waterlogged source states.
+     * Absorbs connected vanilla water blocks. Waterlogged host blocks are
+     * not removed and do not count as absorbable water.
      *
      * Returns true if at least one water position was absorbed. When true,
      * the transformer skips the original vanilla absorb method because this
@@ -51,7 +50,6 @@ public final class WaterloggedSpongeHandler {
             return false;
         }
 
-        ChunkFluidData data = ChunkFluidData.get(world);
         ArrayDeque<Node> queue = new ArrayDeque<Node>();
         Set<Long> visited = new HashSet<Long>();
         List<BlockPos> changedPositions = new ArrayList<BlockPos>();
@@ -75,33 +73,13 @@ public final class WaterloggedSpongeHandler {
                 }
 
                 IBlockState state = world.getBlockState(next);
-                boolean vanillaWater = state.getMaterial() == Material.WATER;
-                boolean sidecarWater = data != null && data.getWater(next) != null;
-                boolean adapterWater = state.getBlock() instanceof IFluidWaterloggable
-                        && ((IFluidWaterloggable) state.getBlock()).isWaterlogged(state);
-
-                if (!vanillaWater && !sidecarWater && !adapterWater) {
+                // In 1.13.2, sponges absorb water blocks but do not drain
+                // water stored inside waterlogged blocks (MC-126914).
+                if (state.getMaterial() != Material.WATER) {
                     continue;
                 }
 
-                if (vanillaWater) {
-                    world.setBlockState(next, Blocks.AIR.getDefaultState(), 2);
-                }
-
-                if (sidecarWater) {
-                    data.remove(next);
-                    FluidNetwork.removeState(world, next);
-                }
-
-                if (adapterWater) {
-                    IFluidWaterloggable adapter = (IFluidWaterloggable) state.getBlock();
-                    IBlockState dryState = adapter.withWaterlogged(state, false);
-                    if (dryState != null && dryState != state) {
-                        world.setBlockState(next, dryState, 3);
-                    }
-                    FluidNetwork.removeState(world, next);
-                }
-
+                world.setBlockState(next, Blocks.AIR.getDefaultState(), 2);
                 FluidShapeCalculator.invalidate(world, next);
                 changedPositions.add(next);
                 ++absorbed;
