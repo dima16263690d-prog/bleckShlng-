@@ -50,6 +50,13 @@ public final class FluidCoreHooks {
      */
     public static void beginWorldBlockSet(World world, BlockPos pos,
                                           IBlockState newState) {
+        // Collision boxes are cached on both logical sides. Any block-state
+        // replacement invalidates this position before the new shape is read.
+        if (world != null && pos != null) {
+            com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator
+                    .invalidate(world, pos);
+        }
+
         boolean captured = false;
         if (world != null && !world.isRemote && pos != null && newState != null
                 && world.isBlockLoaded(pos)) {
