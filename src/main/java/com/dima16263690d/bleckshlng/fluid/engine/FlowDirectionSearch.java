@@ -11,7 +11,6 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import com.dima16263690d.bleckshlng.fluid.geometry.BlockGeometryAdapter;
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
-import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
 
 /** Bounded shortest-slope search adapted from FlowingFluid.getSpread(). */
 public final class FlowDirectionSearch {
@@ -38,7 +37,10 @@ public final class FlowDirectionSearch {
                 result.clear();
                 bestDistance = distance;
             }
-            if (distance <= bestDistance && distance < NO_PATH) result.add(direction);
+            // Match FlowingFluid.getSpread(): directions with no reachable
+            // drop-off (distance == 1000) are still valid. On a flat floor,
+            // all equally distant directions must remain candidates.
+            if (distance <= bestDistance) result.add(direction);
         }
         return result;
     }
@@ -87,7 +89,8 @@ public final class FlowDirectionSearch {
             return state.getBlock() instanceof BlockLiquid
                     && state.getValue(BlockLiquid.LEVEL).intValue() > 0;
         }
-        if (fluidMaterial == Material.WATER && WaterloggedBlockRegistry.canWaterlog(state.getBlock())) return true;
+        // Use the same capacity check as FlowingFluid.canHoldFluid().
+        // Already waterlogged blocks must not be treated as empty routes.
         return BlockGeometryAdapter.canFluidEnter(world, pos, state, fluidMaterial, direction);
     }
 }
