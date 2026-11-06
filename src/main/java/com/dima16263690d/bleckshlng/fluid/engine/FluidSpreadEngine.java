@@ -232,6 +232,13 @@ public final class FluidSpreadEngine {
             int downwardLevel = level >= 8 ? level : level + 8;
             tryFlowInto(world, belowPos, belowState, material,
                     downwardLevel, EnumFacing.DOWN);
+
+            // Update Aquatic / FlowingFluid: a successful downward flow does
+            // not always end the update. A block with at least three adjacent
+            // source neighbors also spreads sideways in the same tick.
+            if (sourceNeighborCount(world, pos, material) >= 3) {
+                spreadHorizontally(world, pos, material, level);
+            }
             return;
         }
 
@@ -240,8 +247,27 @@ public final class FluidSpreadEngine {
             return;
         }
 
+        spreadHorizontally(world, pos, material, level);
+    }
+
+    private static int sourceNeighborCount(World world, BlockPos pos,
+                                             Material material) {
+        int count = 0;
+        for (EnumFacing direction : EnumFacing.Plane.HORIZONTAL) {
+            BlockPos neighborPos = pos.offset(direction);
+            if (getDepth(world, neighborPos, material)
+                    == FluidLevelMapper.SOURCE_METADATA) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static void spreadHorizontally(World world, BlockPos pos,
+                                           Material material, int level) {
         Set<EnumFacing> directions = FlowDirectionSearch.getBestDirections(
-                world, pos, material, FluidProperties.slopeFindDistance(world, material));
+                world, pos, material,
+                FluidProperties.slopeFindDistance(world, material));
 
         int horizontalLevel;
         if (level >= 8) {
@@ -289,15 +315,14 @@ public final class FluidSpreadEngine {
             return false;
         }
 
-        // The 1.13.2 waterlogging rule: flowing water cannot occupy a
-        // waterloggable block. It may enter only when the destination would
-        // immediately become a source under the two-source rule (18w16a).
+        // Match LiquidBlockContainer / SimpleWaterloggedBlock:
+        // any incoming water level may enter an empty waterloggable host.
+        // placeLiquid stores it as a waterlogged source; source conversion
+        // requirements apply to ordinary flowing blocks, not this container.
         if (material == Material.WATER
                 && WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
             return BlockGeometryAdapter.canFluidEnter(
-                    world, pos, state, material, direction)
-                    && getNewLegacyLevel(world, pos, Material.WATER)
-                    == FluidLevelMapper.SOURCE_METADATA;
+                    world, pos, state, material, direction);
         }
 
         // 1.12/1.13 water does not replace lava; lava handles contact reactions.
