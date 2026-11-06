@@ -51,15 +51,28 @@ public final class FluidBucketHandler {
             return;
         }
 
+        IBlockState clickedState = world.getBlockState(pos);
+
+        // Java Edition 1.13 water buckets waterlog the clicked host block
+        // before any adjacent-block placement logic is attempted. Keep this
+        // ahead of FluidUtil so a generic Forge handler cannot consume the
+        // interaction before the vanilla Update Aquatic behavior runs.
+        if (held.getItem() == Items.WATER_BUCKET
+                && WaterloggedBlockRegistry.canWaterlog(clickedState.getBlock())) {
+            if (WaterloggedFluidHandler.tryWaterlog(world, pos, clickedState, 0)) {
+                replaceFilledBucket(player, hand, held, new ItemStack(Items.BUCKET));
+                event.setCanceled(true);
+                return;
+            }
+        }
+
         // Prefer the official Forge capability/API path for modded tanks and
-        // container items before applying vanilla waterlogging rules.
+        // container items after the vanilla waterlogging target was checked.
         if (FluidUtil.interactWithFluidHandler(
                 player, hand, world, pos, event.getFace())) {
             event.setCanceled(true);
             return;
         }
-
-        IBlockState clickedState = world.getBlockState(pos);
 
         // Java Edition 1.13 waterlogged states are recognized as water by
         // glass bottles as well as buckets. Bottles take a sample and do not
@@ -89,16 +102,6 @@ public final class FluidBucketHandler {
             }
         }
 
-        // Vanilla waterlogging must be attempted on the clicked block before
-        // FluidUtil tries to place the bucket contents in the adjacent block.
-        if (held.getItem() == Items.WATER_BUCKET
-                && WaterloggedBlockRegistry.canWaterlog(clickedState.getBlock())) {
-            if (WaterloggedFluidHandler.tryWaterlog(world, pos, clickedState, 0)) {
-                replaceFilledBucket(player, hand, held, new ItemStack(Items.BUCKET));
-                event.setCanceled(true);
-                return;
-            }
-        }
         if (clickedState.getBlock() instanceof IFluidBlock
                 && held.getItem() == Items.BUCKET) {
             FluidActionResult pickup = FluidUtil.tryPickUpFluid(
