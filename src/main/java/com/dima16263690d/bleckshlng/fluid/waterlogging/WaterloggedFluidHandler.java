@@ -7,13 +7,12 @@ import net.minecraft.world.World;
 
 import com.dima16263690d.bleckshlng.fluid.engine.FluidFlowEngine;
 import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
+import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
-import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
-import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
 
 /**
- * Waterlogging adapter for 1.12.2 blocks that have modern waterlogged
- * counterparts. The target block itself is never replaced.
+ * Waterlogging adapter for 1.12.2 blocks with 1.18.2 waterlogged counterparts.
+ * The target block itself is never replaced and its metadata stays unchanged.
  */
 public final class WaterloggedFluidHandler {
     private WaterloggedFluidHandler() {
@@ -21,7 +20,8 @@ public final class WaterloggedFluidHandler {
 
     public static boolean tryWaterlog(World world, BlockPos pos,
                                       IBlockState blockState, int legacyLevel) {
-        if (world == null || world.isRemote || blockState == null
+        if (world == null || world.isRemote || pos == null || blockState == null
+                || !world.isBlockLoaded(pos)
                 || blockState.getMaterial() == Material.WATER
                 || !WaterloggedBlockRegistry.canWaterlog(blockState.getBlock())) {
             return false;
@@ -33,11 +33,11 @@ public final class WaterloggedFluidHandler {
                 return false;
             }
             IBlockState changed = adapter.withWaterlogged(blockState, true);
-            if (changed == null || changed == blockState) {
+            if (changed == null || changed == blockState
+                    || !world.setBlockState(pos, changed, 3)) {
                 return false;
             }
-            world.setBlockState(pos, changed, 3);
-            world.notifyNeighborsOfStateChange(pos, changed.getBlock(), false);
+
             FluidTickScheduler.schedule(world, pos, 1);
             return true;
         }
@@ -52,7 +52,8 @@ public final class WaterloggedFluidHandler {
             return false;
         }
 
-        FluidNetwork.syncState(world, pos, stored);
+        // The sidecar is not a block-state property, so explicitly notify
+        // neighbors and synchronize it to clients.
         FluidNetwork.syncState(world, pos, stored);
         world.notifyNeighborsOfStateChange(pos, blockState.getBlock(), false);
         FluidTickScheduler.schedule(world, pos, 1);
@@ -60,7 +61,8 @@ public final class WaterloggedFluidHandler {
     }
 
     public static boolean pickupWater(World world, BlockPos pos, IBlockState state) {
-        if (world == null || world.isRemote || pos == null || state == null) {
+        if (world == null || world.isRemote || pos == null || state == null
+                || !world.isBlockLoaded(pos)) {
             return false;
         }
 
@@ -70,43 +72,41 @@ public final class WaterloggedFluidHandler {
                 return false;
             }
             IBlockState changed = adapter.withWaterlogged(state, false);
-            if (changed == null || changed == state) {
-                return false;
-            }
-            world.setBlockState(pos, changed, 3);
-            world.notifyNeighborsOfStateChange(pos, changed.getBlock(), false);
-            FluidTickScheduler.schedule(world, pos, 1);
-            return true;
+            return changed != null && changed != state
+                    && world.setBlockState(pos, changed, 3);
         }
 
         ChunkFluidData data = ChunkFluidData.get(world);
         if (data == null) {
             return false;
         }
+
         FluidStateBridge fluid = data.getWater(pos);
         if (fluid == null || !fluid.isSource()) {
             return false;
         }
-        boolean removed = data.remove(pos);
-        if (removed) {
-            FluidNetwork.removeState(world, pos);
-            world.notifyNeighborsOfStateChange(pos, state.getBlock(), false);
+
+        if (!data.remove(pos)) {
+            return false;
         }
-        return removed;
+
+        FluidNetwork.removeState(world, pos);
+        world.notifyNeighborsOfStateChange(pos, state.getBlock(), false);
+        return true;
     }
 
     public static void tick(World world, BlockPos pos) {
-        if (world == null || world.isRemote || !world.isBlockLoaded(pos)) {
+        if (world == null || world.isRemote || pos == null
+                || !world.isBlockLoaded(pos)) {
             return;
         }
 
         IBlockState state = world.getBlockState(pos);
         if (state.getBlock() instanceof IFluidWaterloggable) {
             IFluidWaterloggable adapter = (IFluidWaterloggable) state.getBlock();
-            if (!adapter.isWaterlogged(state)) {
-                return;
+            if (adapter.isWaterlogged(state)) {
+                FluidFlowEngine.spreadWaterloggedSource(world, pos);
             }
-            FluidFlowEngine.spreadWaterloggedSource(world, pos);
             return;
         }
 
@@ -116,7 +116,12 @@ public final class WaterloggedFluidHandler {
         }
 
         if (!WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
-            data.remove(pos);
+            // The host block may have been replaced by an explosion or another
+            // mod without a player BreakEvent. Remove the stale client state too.
+            if (data.remove(pos)) {
+                FluidNetwork.removeState(world, pos);
+                world.notifyNeighborsOfStateChange(pos, state.getBlock(), false);
+            }
             return;
         }
 
