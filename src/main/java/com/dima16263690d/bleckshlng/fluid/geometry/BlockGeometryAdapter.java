@@ -12,6 +12,8 @@ import net.minecraft.world.World;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidHeightCalculator;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
+import com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData;
+import com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable;
 
 /** Adapts legacy material, replaceability and collision geometry to fluid rules. */
 public final class BlockGeometryAdapter {
@@ -51,7 +53,17 @@ public final class BlockGeometryAdapter {
             return direction == EnumFacing.DOWN && targetBlock instanceof BlockLiquid;
         }
 
-        if (fluidMaterial == Material.WATER && WaterloggedBlockRegistry.canWaterlog(targetBlock)) return true;
+        if (fluidMaterial == Material.WATER && WaterloggedBlockRegistry.canWaterlog(targetBlock)) {
+            if (targetBlock instanceof IFluidWaterloggable) {
+                return !((IFluidWaterloggable) targetBlock).isWaterlogged(state);
+            }
+
+            // Legacy vanilla shapes store water in the sidecar. Match
+            // SimpleWaterloggedBlock.canPlaceLiquid(): a filled block cannot
+            // accept a second fluid state.
+            ChunkFluidData data = ChunkFluidData.get(world);
+            return data == null || data.getWater(pos) == null;
+        }
         if (targetMaterial == Material.AIR) return true;
         if (!targetMaterial.blocksMovement()) return true;
         return targetBlock.isReplaceable(world, pos);
