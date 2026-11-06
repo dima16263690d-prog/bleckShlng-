@@ -19,6 +19,7 @@ import net.minecraft.init.Items;
 import net.minecraft.init.SoundEvents;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.DamageSource;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.EnumParticleTypes;
@@ -224,7 +225,7 @@ public final class BlockCampfire extends BlockContainer implements IFluidWaterlo
             world.spawnParticle(EnumParticleTypes.FLAME, x, y, z,
                     random.nextFloat() / 2.0D, 0.00005D, random.nextFloat() / 2.0D);
             world.spawnParticle(state.getValue(SIGNAL_FIRE)
-                            ? EnumParticleTypes.TOWN_AURA : EnumParticleTypes.SMOKE_NORMAL,
+                            ? EnumParticleTypes.SMOKE_LARGE : EnumParticleTypes.SMOKE_NORMAL,
                     x, y + (state.getValue(SIGNAL_FIRE) ? 0.8D : 0.0D), z,
                     0.0D, state.getValue(SIGNAL_FIRE) ? 0.07D : 0.02D, 0.0D);
         }
