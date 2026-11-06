@@ -31,6 +31,10 @@ public final class ModItems {
         ItemBlock chainItem = new ItemBlock(ModBlocks.CHAIN);
         chainItem.setRegistryName(ModBlocks.CHAIN.getRegistryName());
         event.getRegistry().register(chainItem);
+
+        ItemBlock candleItem = new ItemBlock(ModBlocks.CANDLE);
+        candleItem.setRegistryName(ModBlocks.CANDLE.getRegistryName());
+        event.getRegistry().register(candleItem);
     }
 
     private static void register(RegistryEvent.Register<Item> event, Block block) {
