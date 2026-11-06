@@ -136,12 +136,12 @@ public final class FluidSpreadEngine {
         if (world.isBlockLoaded(abovePos)
                 && getDepth(world, abovePos, material) >= 0
                 && FluidShapeCalculator.canPassThroughWall(world, pos, EnumFacing.UP)) {
-            return FluidLevelMapper.toMetadata(8, true);
+            return FluidLevelMapper.toMetadata(8, true, false);
         }
 
         int amount = maxAmount - FluidProperties.horizontalDecay(world, material);
         if (amount <= 0) return NO_FLOW;
-        return FluidLevelMapper.toMetadata(amount, false);
+        return FluidLevelMapper.toMetadata(amount, false, false);
     }
 
     private static void spread(World world, BlockPos pos, Material material, int level) {
@@ -202,7 +202,7 @@ public final class FluidSpreadEngine {
 
             int targetLevel = getNewLegacyLevel(world, targetPos, material);
             if (targetLevel == NO_FLOW) {
-                targetLevel = FluidLevelMapper.toMetadata(nextAmount, false);
+                targetLevel = FluidLevelMapper.toMetadata(nextAmount, false, false);
             }
 
             tryFlowInto(world, targetPos, targetState, material, targetLevel, direction);
