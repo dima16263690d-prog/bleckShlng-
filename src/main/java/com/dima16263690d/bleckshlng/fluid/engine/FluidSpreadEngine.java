@@ -194,18 +194,26 @@ public final class FluidSpreadEngine {
         }
 
         IBlockState belowState = world.getBlockState(belowPos);
-        boolean canEnterBelow = FluidShapeCalculator.canPassThroughWall(
-                world, pos, EnumFacing.DOWN)
-                && canFlowInto(world, belowPos, belowState,
-                material, EnumFacing.DOWN);
+        boolean openDownFace = FluidShapeCalculator.canPassThroughWall(
+                world, pos, EnumFacing.DOWN);
 
-        if (canEnterBelow) {
-            if (material == Material.LAVA
-                    && belowState.getMaterial() == Material.WATER) {
+        // Java Edition 1.13.2 treats waterlogged hosts as water for lava
+        // contact. Lava cannot replace the host block with stone, but it
+        // still produces the extinguish reaction when flowing onto it.
+        if (material == Material.LAVA && openDownFace) {
+            FluidStateBridge belowFluid = FluidStateMapper.fromWorld(
+                    world, belowPos, belowState);
+            if (belowFluid != null
+                    && belowFluid.getKind() == FluidStateBridge.FluidKind.WATER) {
                 FluidMixingHandler.reactDownward(world, belowPos, belowState);
                 return;
             }
+        }
 
+        boolean canEnterBelow = openDownFace && canFlowInto(
+                world, belowPos, belowState, material, EnumFacing.DOWN);
+
+        if (canEnterBelow) {
             // The old engine adds the falling bit (8) to horizontal metadata.
             // Already-falling fluid keeps its falling level when it drops again.
             int downwardLevel = level >= 8 ? level : level + 8;
