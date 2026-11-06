@@ -32,8 +32,8 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 
 /**
  * Renders the visible water surface in the free volume of legacy waterlogged
- * blocks. The 4x4 surface mask follows the host collision boxes, so top-half
- * stairs, bottom slabs and fences do not get a solid full-block water overlay.
+ * blocks. Surface and side patches are split at the host collision-box
+ * boundaries, preserving narrow openings in stairs, slabs, fences and panes.
  *
  * This is a surface renderer; it does not replace vanilla fluid block models.
  */
