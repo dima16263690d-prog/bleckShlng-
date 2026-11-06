@@ -142,14 +142,14 @@ public final class FluidFlowEngine {
         }
 
         IBlockState downState = world.getBlockState(down);
-        if (canFlowInto(world, down, downState, material)) {
+        if (canFlowInto(world, down, downState, material, EnumFacing.DOWN)) {
             if (material == Material.LAVA && downState.getMaterial() == Material.WATER) {
                 FluidMixingHandler.reactDownward(world, down, downState);
                 return;
             }
 
             int fallingLevel = level >= 8 ? level : level + 8;
-            tryFlowInto(world, down, downState, material, fallingLevel);
+            tryFlowInto(world, down, downState, material, fallingLevel, EnumFacing.DOWN);
             return;
         }
 
@@ -167,7 +167,7 @@ public final class FluidFlowEngine {
                 BlockPos target = pos.offset(direction);
                 if (world.isBlockLoaded(target)) {
                     tryFlowInto(world, target, world.getBlockState(target),
-                            material, nextLevel);
+                            material, nextLevel, direction);
                 }
             }
         }
@@ -186,8 +186,8 @@ public final class FluidFlowEngine {
         BlockPos down = pos.down();
         if (world.isBlockLoaded(down)) {
             IBlockState below = world.getBlockState(down);
-            if (canFlowInto(world, down, below, material)) {
-                tryFlowInto(world, down, below, material, 8);
+            if (canFlowInto(world, down, below, material, EnumFacing.DOWN)) {
+                tryFlowInto(world, down, below, material, 8, EnumFacing.DOWN);
                 return;
             }
         }
@@ -200,7 +200,7 @@ public final class FluidFlowEngine {
                 BlockPos target = pos.offset(direction);
                 if (world.isBlockLoaded(target)) {
                     tryFlowInto(world, target, world.getBlockState(target),
-                            material, 1);
+                            material, 1, direction);
                 }
             }
         }
@@ -223,13 +223,14 @@ public final class FluidFlowEngine {
     }
 
     private static boolean canFlowInto(World world, BlockPos pos,
-                                       IBlockState state, Material material) {
-        return BlockGeometryAdapter.canFluidEnter(world, pos, state, material);
+                                       IBlockState state, Material material,
+                                       EnumFacing direction) {
+        return BlockGeometryAdapter.canFluidEnter(world, pos, state, material, direction);
     }
 
     private static void tryFlowInto(World world, BlockPos pos, IBlockState state,
-                                    Material material, int level) {
-        if (!canFlowInto(world, pos, state, material)) {
+                                    Material material, int level, EnumFacing direction) {
+        if (!canFlowInto(world, pos, state, material, direction)) {
             return;
         }
 

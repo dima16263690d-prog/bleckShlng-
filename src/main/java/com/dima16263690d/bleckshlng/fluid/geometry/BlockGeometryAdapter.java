@@ -2,87 +2,65 @@ package com.dima16263690d.bleckshlng.fluid.geometry;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockDoor;
-import net.minecraft.block.state.BlockFaceShape;
+import net.minecraft.block.BlockLiquid;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
 import net.minecraft.block.material.Material;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
+import com.dima16263690d.bleckshlng.fluid.state.FluidHeightCalculator;
+import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 
-/**
- * Adapts 1.12.2 block shape/material checks to the fluid engine.
- * It deliberately does not replace or mutate the target block.
- */
+/** Adapts legacy material, replaceability and collision geometry to fluid rules. */
 public final class BlockGeometryAdapter {
-    private BlockGeometryAdapter() {
-    }
+    private BlockGeometryAdapter() { }
 
     public static boolean isBlocked(World world, BlockPos pos, Material fluidMaterial) {
-        if (world == null || pos == null || !world.isBlockLoaded(pos)) {
-            return true;
-        }
-
+        if (world == null || pos == null || !world.isBlockLoaded(pos)) return true;
         IBlockState state = world.getBlockState(pos);
         Material material = state.getMaterial();
         Block block = state.getBlock();
+        if (material == fluidMaterial || material == Material.AIR) return false;
+        if (fluidMaterial == Material.WATER && WaterloggedBlockRegistry.canWaterlog(block)) return false;
+        if (isNeverFluidContainer(block, material)) return true;
+        return material.blocksMovement() && FluidShapeCalculator.fillsBlock(world, pos, state);
+    }
 
-        if (material == fluidMaterial || material == Material.AIR) {
-            return false;
-        }
-
-        if (fluidMaterial == Material.WATER && WaterloggedBlockRegistry.canWaterlog(block)) {
-            return false;
-        }
-
-        if (block instanceof BlockDoor
-                || block == Blocks.STANDING_SIGN
-                || block == Blocks.WALL_SIGN
-                || block == Blocks.LADDER
-                || block == Blocks.REEDS) {
-            return true;
-        }
-
-        if (material == Material.PORTAL || material == Material.STRUCTURE_VOID) {
-            return true;
-        }
-
-        if (!material.blocksMovement()) {
-            return false;
-        }
-
-        /*
-         * Face shape is more precise than material alone. A block with a
-         * non-solid upper face is not treated as a full-height wall for
-         * horizontal slope searching. Placement still checks replaceability
-         * or the waterlogging registry, so this cannot overwrite that block.
-         */
-        BlockFaceShape upperFace = state.getBlockFaceShape(world, pos, EnumFacing.UP);
-        return state.isFullBlock() || upperFace == BlockFaceShape.SOLID;
+    public static boolean canFluidEnter(World world, BlockPos pos, IBlockState state, Material fluidMaterial) {
+        return canFluidEnter(world, pos, state, fluidMaterial, EnumFacing.DOWN);
     }
 
     public static boolean canFluidEnter(World world, BlockPos pos, IBlockState state,
-                                        Material fluidMaterial) {
-        if (world == null || pos == null || state == null) {
-            return false;
-        }
-
+                                        Material fluidMaterial, EnumFacing direction) {
+        if (world == null || pos == null || state == null || direction == null) return false;
         Material targetMaterial = state.getMaterial();
+        Block targetBlock = state.getBlock();
+        if (targetMaterial == fluidMaterial || isNeverFluidContainer(targetBlock, targetMaterial)) return false;
 
-        if (targetMaterial == fluidMaterial || targetMaterial == Material.LAVA) {
-            return false;
+        // 1.18 LavaFluid permits water to replace lava whose own height is >= 4/9.
+        if (fluidMaterial == Material.WATER && targetMaterial == Material.LAVA) {
+            FluidStateBridge targetFluid = FluidStateMapper.fromBlockState(state);
+            return targetFluid != null
+                    && FluidHeightCalculator.getOwnHeight(targetFluid) >= 0.44444445F;
         }
 
-        if (fluidMaterial == Material.WATER
-                && WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
-            return true;
-        }
-
+        // Lava displaces water only while flowing down; the lava handler turns it to stone.
         if (fluidMaterial == Material.LAVA && targetMaterial == Material.WATER) {
-            return true;
+            return direction == EnumFacing.DOWN && targetBlock instanceof BlockLiquid;
         }
 
-        return state.getBlock().isReplaceable(world, pos)
-                && !isBlocked(world, pos, fluidMaterial);
+        if (fluidMaterial == Material.WATER && WaterloggedBlockRegistry.canWaterlog(targetBlock)) return true;
+        if (targetMaterial == Material.AIR) return true;
+        if (!targetMaterial.blocksMovement()) return true;
+        return targetBlock.isReplaceable(world, pos);
+    }
+
+    private static boolean isNeverFluidContainer(Block block, Material material) {
+        return block instanceof BlockDoor || block == Blocks.STANDING_SIGN
+                || block == Blocks.WALL_SIGN || block == Blocks.LADDER
+                || block == Blocks.REEDS || material == Material.PORTAL
+                || material == Material.STRUCTURE_VOID;
     }
 }

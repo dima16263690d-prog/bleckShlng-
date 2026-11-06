@@ -1,7 +1,6 @@
 package com.dima16263690d.bleckshlng.fluid.physics;
 
 import net.minecraft.block.material.Material;
-import net.minecraft.block.state.BlockFaceShape;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
@@ -11,6 +10,7 @@ import net.minecraft.world.World;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidHeightCalculator;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
+import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 
 /**
  * Flow vector adapted from 1.18.2 FlowingFluid.getFlow().
@@ -87,9 +87,9 @@ public final class FluidFlowVector {
                     continue;
                 }
 
-                if (isSolidFace(world, side, direction)
+                if (isSolidFace(world, side, direction, current)
                         || (world.isBlockLoaded(side.up())
-                        && isSolidFace(world, side.up(), direction))) {
+                        && isSolidFace(world, side.up(), direction, current))) {
                     flow = flow.normalize().addVector(0.0D, -6.0D, 0.0D);
                     break;
                 }
@@ -99,23 +99,13 @@ public final class FluidFlowVector {
         return flow.normalize();
     }
 
-    private static boolean isSolidFace(World world, BlockPos pos, EnumFacing face) {
+    private static boolean isSolidFace(World world, BlockPos pos, EnumFacing face,
+                                       FluidStateBridge current) {
         IBlockState state = world.getBlockState(pos);
-        FluidStateBridge fluid = FluidStateMapper.fromWorld(world, pos, state);
-
-        if (fluid != null && fluid.getKind() == FluidStateBridge.FluidKind.WATER
-                && state.getMaterial() == Material.WATER) {
-            return false;
-        }
-
-        if (face == EnumFacing.UP) {
-            return true;
-        }
-
-        if (state.getMaterial() == Material.ICE) {
-            return false;
-        }
-
-        return state.getBlockFaceShape(world, pos, face) == BlockFaceShape.SOLID;
+        FluidStateBridge neighbor = FluidStateMapper.fromWorld(world, pos, state);
+        if (current.isSameKind(neighbor)) return false;
+        if (face == EnumFacing.UP) return true;
+        if (state.getMaterial() == Material.ICE) return false;
+        return FluidShapeCalculator.isFaceFullyCovered(world, pos, state, face);
     }
 }
