@@ -1,0 +1,16 @@
+{
+  "variants": {
+    "hanging=false,waterlogged=false": {
+      "model": "bleckshlng:lantern"
+    },
+    "hanging=false,waterlogged=true": {
+      "model": "bleckshlng:lantern"
+    },
+    "hanging=true,waterlogged=false": {
+      "model": "bleckshlng:lantern_hanging"
+    },
+    "hanging=true,waterlogged=true": {
+      "model": "bleckshlng:lantern_hanging"
+    }
+  }
+}
