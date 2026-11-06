@@ -122,6 +122,57 @@ public final class FluidShapeCalculator {
         }
     }
 
+    /**
+     * Tests whether an entity AABB overlaps the free volume of a waterlogged
+     * block. The host block's actual collision boxes are excluded.
+     */
+    public static boolean intersectsFluidSpace(World world, BlockPos pos,
+                                               IBlockState state, AxisAlignedBB bounds,
+                                               float fluidHeight) {
+        if (world == null || pos == null || state == null || bounds == null
+                || fluidHeight <= 0.0F || !world.isBlockLoaded(pos)) {
+            return false;
+        }
+
+        double minX = Math.max(bounds.minX, pos.getX());
+        double maxX = Math.min(bounds.maxX, pos.getX() + 1.0D);
+        double minY = Math.max(bounds.minY, pos.getY());
+        double maxY = Math.min(bounds.maxY, pos.getY() + (double) fluidHeight);
+        double minZ = Math.max(bounds.minZ, pos.getZ());
+        double maxZ = Math.min(bounds.maxZ, pos.getZ() + 1.0D);
+        if (maxX - minX <= EPSILON || maxY - minY <= EPSILON
+                || maxZ - minZ <= EPSILON) {
+            return false;
+        }
+
+        List<AxisAlignedBB> boxes = getCollisionBoxes(world, pos, state);
+        for (int x = 0; x < 4; x++) {
+            for (int y = 0; y < 4; y++) {
+                for (int z = 0; z < 4; z++) {
+                    double px = minX + (maxX - minX) * (x + 0.5D) / 4.0D;
+                    double py = minY + (maxY - minY) * (y + 0.5D) / 4.0D;
+                    double pz = minZ + (maxZ - minZ) * (z + 0.5D) / 4.0D;
+                    if (!insideAny(boxes, px, py, pz)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    public static boolean containsFluidPoint(World world, BlockPos pos,
+                                             IBlockState state, double x,
+                                             double y, double z, float fluidHeight) {
+        if (world == null || pos == null || state == null || !world.isBlockLoaded(pos)
+                || x < pos.getX() || x >= pos.getX() + 1.0D
+                || y < pos.getY() || y >= pos.getY() + (double) fluidHeight
+                || z < pos.getZ() || z >= pos.getZ() + 1.0D) {
+            return false;
+        }
+        return !insideAny(getCollisionBoxes(world, pos, state), x, y, z);
+    }
+
     private static boolean facePointCovered(List<AxisAlignedBB> boxes, BlockPos pos,
                                             EnumFacing face, double a, double b) {
         double x, y, z;

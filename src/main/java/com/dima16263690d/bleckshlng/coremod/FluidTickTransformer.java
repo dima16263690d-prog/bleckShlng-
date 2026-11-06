@@ -25,6 +25,7 @@ import org.objectweb.asm.tree.VarInsnNode;
 public final class FluidTickTransformer implements IClassTransformer {
     private static final String DYNAMIC_TARGET = "net.minecraft.block.BlockDynamicLiquid";
     private static final String LIQUID_TARGET = "net.minecraft.block.BlockLiquid";
+    private static final String ENTITY_TARGET = "net.minecraft.entity.Entity";
 
     private static final String HOOK_OWNER =
             "com/dima16263690d/bleckshlng/coremod/FluidCoreHooks";
@@ -44,7 +45,8 @@ public final class FluidTickTransformer implements IClassTransformer {
 
         boolean dynamicTarget = isTarget(name, transformedName, DYNAMIC_TARGET);
         boolean liquidTarget = isTarget(name, transformedName, LIQUID_TARGET);
-        if (!dynamicTarget && !liquidTarget) {
+        boolean entityTarget = isTarget(name, transformedName, ENTITY_TARGET);
+        if (!dynamicTarget && !liquidTarget && !entityTarget) {
             return basicClass;
         }
 
@@ -70,6 +72,27 @@ public final class FluidTickTransformer implements IClassTransformer {
                         injectAccelerationHook(method);
                         changed = true;
                         break;
+                    }
+                }
+            }
+
+            if (entityTarget) {
+                for (MethodNode method : classNode.methods) {
+                    if (isHandleWaterMovement(method)
+                            && !containsHook(method, "applyWaterloggedMovement")) {
+                        injectBooleanEntityHook(method, "applyWaterloggedMovement",
+                                ENTITY_MOVEMENT_DESC, false);
+                        changed = true;
+                    } else if (isInWater(method)
+                            && !containsHook(method, "applyWaterloggedInWater")) {
+                        injectBooleanEntityHook(method, "applyWaterloggedInWater",
+                                ENTITY_MOVEMENT_DESC, false);
+                        changed = true;
+                    } else if (isInsideOfMaterial(method)
+                            && !containsHook(method, "applyWaterloggedMaterialCheck")) {
+                        injectBooleanEntityHook(method, "applyWaterloggedMaterialCheck",
+                                ENTITY_MATERIAL_DESC, true);
+                        changed = true;
                     }
                 }
             }
@@ -126,6 +149,51 @@ public final class FluidTickTransformer implements IClassTransformer {
                 && "net/minecraft/util/math/Vec3d".equals(args[3].getInternalName())
                 && "net/minecraft/util/math/Vec3d".equals(
                         Type.getReturnType(method.desc).getInternalName());
+    }
+
+    private static boolean isHandleWaterMovement(MethodNode method) {
+        return (method.name.equals("handleWaterMovement")
+                || method.name.equals("func_70072_I"))
+                && Type.BOOLEAN_TYPE.equals(Type.getReturnType(method.desc))
+                && Type.getArgumentTypes(method.desc).length == 0;
+    }
+
+    private static boolean isInWater(MethodNode method) {
+        return (method.name.equals("isInWater")
+                || method.name.equals("func_70090_H"))
+                && Type.BOOLEAN_TYPE.equals(Type.getReturnType(method.desc))
+                && Type.getArgumentTypes(method.desc).length == 0;
+    }
+
+    private static boolean isInsideOfMaterial(MethodNode method) {
+        if (!(method.name.equals("isInsideOfMaterial")
+                || method.name.equals("func_70055_a"))) {
+            return false;
+        }
+        Type[] args = Type.getArgumentTypes(method.desc);
+        return Type.BOOLEAN_TYPE.equals(Type.getReturnType(method.desc))
+                && args.length == 1
+                && "net/minecraft/block/material/Material".equals(args[0].getInternalName());
+    }
+
+    private static void injectBooleanEntityHook(MethodNode method, String hookName,
+                                                String descriptor, boolean withMaterial) {
+        for (org.objectweb.asm.tree.AbstractInsnNode instruction = method.instructions.getFirst();
+             instruction != null; ) {
+            org.objectweb.asm.tree.AbstractInsnNode next = instruction.getNext();
+            if (instruction.getOpcode() == Opcodes.IRETURN) {
+                InsnList hook = new InsnList();
+                hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                if (withMaterial) {
+                    hook.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                }
+                hook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                        HOOK_OWNER, hookName, descriptor, false));
+                method.instructions.insertBefore(instruction, hook);
+                method.maxStack = Math.max(method.maxStack, withMaterial ? 3 : 2);
+            }
+            instruction = next;
+        }
     }
 
     private static boolean containsHook(MethodNode method, String hookName) {

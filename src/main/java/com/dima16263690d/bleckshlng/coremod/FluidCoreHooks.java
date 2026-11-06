@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.dima16263690d.bleckshlng.fluid.engine.FluidFlowEngine;
 import com.dima16263690d.bleckshlng.fluid.physics.FluidFlowVector;
+import com.dima16263690d.bleckshlng.fluid.physics.FluidEntityHandler;
 
 /**
  * Runtime bridge called by the guarded coremod transformers.
@@ -57,6 +58,43 @@ public final class FluidCoreHooks {
      * Returns null when the block is not one of the vanilla liquids handled
      * here. The transformer then executes the original BlockLiquid method.
      */
+    public static boolean applyWaterloggedMovement(boolean vanillaResult, Entity entity) {
+        if (vanillaResult) {
+            return true;
+        }
+        try {
+            return FluidEntityHandler.updateWaterloggedMovement(entity);
+        } catch (Throwable error) {
+            LOGGER.error("Waterlogged entity movement check failed; keeping vanilla result", error);
+            return false;
+        }
+    }
+
+    public static boolean applyWaterloggedInWater(boolean vanillaResult, Entity entity) {
+        if (vanillaResult) {
+            return true;
+        }
+        try {
+            return FluidEntityHandler.isInWaterloggedFluid(entity);
+        } catch (Throwable error) {
+            LOGGER.error("Waterlogged isInWater check failed; keeping vanilla result", error);
+            return false;
+        }
+    }
+
+    public static boolean applyWaterloggedMaterialCheck(boolean vanillaResult,
+                                                        Entity entity, Material material) {
+        if (vanillaResult || material != Material.WATER) {
+            return vanillaResult;
+        }
+        try {
+            return FluidEntityHandler.isEyeInWaterloggedFluid(entity);
+        } catch (Throwable error) {
+            LOGGER.error("Waterlogged eye-fluid check failed; keeping vanilla result", error);
+            return false;
+        }
+    }
+
     public static Vec3d tryModifyAcceleration(BlockLiquid block, World world,
                                                BlockPos pos, Entity entity,
                                                Vec3d originalMotion) {
