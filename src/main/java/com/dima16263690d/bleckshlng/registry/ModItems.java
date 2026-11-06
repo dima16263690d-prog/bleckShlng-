@@ -39,6 +39,10 @@ public final class ModItems {
         ItemBlock lanternItem = new ItemBlock(ModBlocks.LANTERN);
         lanternItem.setRegistryName(ModBlocks.LANTERN.getRegistryName());
         event.getRegistry().register(lanternItem);
+
+        ItemBlock campfireItem = new ItemBlock(ModBlocks.CAMPFIRE);
+        campfireItem.setRegistryName(ModBlocks.CAMPFIRE.getRegistryName());
+        event.getRegistry().register(campfireItem);
     }
 
     private static void register(RegistryEvent.Register<Item> event, Block block) {
