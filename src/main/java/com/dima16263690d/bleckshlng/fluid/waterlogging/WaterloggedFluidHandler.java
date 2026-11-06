@@ -38,8 +38,12 @@ public final class WaterloggedFluidHandler {
                 return false;
             }
 
-            FluidNetwork.syncState(world, pos,
-                    FluidStateBridge.source(FluidStateBridge.FluidKind.WATER));
+            FluidStateBridge stored = FluidStateBridge.source(FluidStateBridge.FluidKind.WATER);
+            ChunkFluidData data = ChunkFluidData.get(world);
+            if (data != null) {
+                data.putWater(pos, stored);
+            }
+            FluidNetwork.syncState(world, pos, stored);
             FluidTickScheduler.schedule(world, pos, 1);
             return true;
         }
@@ -78,6 +82,10 @@ public final class WaterloggedFluidHandler {
                     || !world.setBlockState(pos, changed, 3)) {
                 return false;
             }
+            ChunkFluidData data = ChunkFluidData.get(world);
+            if (data != null) {
+                data.remove(pos);
+            }
             FluidNetwork.removeState(world, pos);
             return true;
         }
@@ -111,7 +119,19 @@ public final class WaterloggedFluidHandler {
         if (state.getBlock() instanceof IFluidWaterloggable) {
             IFluidWaterloggable adapter = (IFluidWaterloggable) state.getBlock();
             if (adapter.isWaterlogged(state)) {
+                ChunkFluidData data = ChunkFluidData.get(world);
+                if (data != null && data.getWater(pos) == null) {
+                    FluidStateBridge stored = FluidStateBridge.source(
+                            FluidStateBridge.FluidKind.WATER);
+                    data.putWater(pos, stored);
+                    FluidNetwork.syncState(world, pos, stored);
+                }
                 FluidFlowEngine.spreadWaterloggedSource(world, pos);
+            } else {
+                ChunkFluidData data = ChunkFluidData.get(world);
+                if (data != null && data.remove(pos)) {
+                    FluidNetwork.removeState(world, pos);
+                }
             }
             return;
         }
