@@ -70,8 +70,9 @@ public final class BlockGeometryAdapter {
     }
 
     private static boolean isNeverFluidContainer(Block block, Material material) {
-        return block instanceof BlockDoor || block == Blocks.STANDING_SIGN
-                || block == Blocks.WALL_SIGN || block == Blocks.LADDER
+        // Signs and ladders are waterloggable in Java Edition 1.13.2.
+        // Doors, sugar cane, portals and structure void remain excluded.
+        return block instanceof BlockDoor
                 || block == Blocks.REEDS || material == Material.PORTAL
                 || material == Material.STRUCTURE_VOID;
     }
