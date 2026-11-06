@@ -29,6 +29,7 @@ public final class FluidTickTransformer implements IClassTransformer {
     private static final String FARMLAND_TARGET = "net.minecraft.block.BlockFarmland";
     private static final String REED_TARGET = "net.minecraft.block.BlockReed";
     private static final String LILYPAD_TARGET = "net.minecraft.block.BlockLilyPad";
+    private static final String SPONGE_TARGET = "net.minecraft.block.BlockSponge";
 
     private static final String HOOK_OWNER =
             "com/dima16263690d/bleckshlng/coremod/FluidCoreHooks";
@@ -56,8 +57,9 @@ public final class FluidTickTransformer implements IClassTransformer {
         boolean farmlandTarget = isTarget(name, transformedName, FARMLAND_TARGET);
         boolean reedTarget = isTarget(name, transformedName, REED_TARGET);
         boolean lilyPadTarget = isTarget(name, transformedName, LILYPAD_TARGET);
+        boolean spongeTarget = isTarget(name, transformedName, SPONGE_TARGET);
         if (!dynamicTarget && !liquidTarget && !entityTarget
-                && !farmlandTarget && !reedTarget && !lilyPadTarget) {
+                && !farmlandTarget && !reedTarget && !lilyPadTarget && !spongeTarget) {
             return basicClass;
         }
 
@@ -141,6 +143,17 @@ public final class FluidTickTransformer implements IClassTransformer {
                 }
             }
 
+            if (spongeTarget) {
+                for (MethodNode method : classNode.methods) {
+                    if (isSpongeAbsorb(method)
+                            && !containsHook(method, "applyWaterloggedSpongeAbsorb")) {
+                        injectBooleanSpongeHook(method);
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+
             if (!changed) {
                 return basicClass;
             }
@@ -195,6 +208,41 @@ public final class FluidTickTransformer implements IClassTransformer {
                         Type.getReturnType(method.desc).getInternalName());
     }
 
+
+    private static boolean isSpongeAbsorb(MethodNode method) {
+        if (!(method.name.equals("absorbWater")
+                || method.name.equals("func_176312_b")
+                || method.name.equals("b"))) {
+            return false;
+        }
+        Type[] args = Type.getArgumentTypes(method.desc);
+        return Type.BOOLEAN_TYPE.equals(Type.getReturnType(method.desc))
+                && args.length == 2
+                && "net/minecraft/world/World".equals(args[0].getInternalName())
+                && "net/minecraft/util/math/BlockPos".equals(args[1].getInternalName());
+    }
+
+    private static void injectBooleanSpongeHook(MethodNode method) {
+        for (org.objectweb.asm.tree.AbstractInsnNode instruction = method.instructions.getFirst();
+             instruction != null; ) {
+            org.objectweb.asm.tree.AbstractInsnNode next = instruction.getNext();
+            if (instruction.getOpcode() == Opcodes.IRETURN) {
+                InsnList hook = new InsnList();
+                // Vanilla absorbWater has already removed ordinary source/flowing
+                // water. The hook then removes only the stored water state,
+                // preserving the chest/stair/fence/sign occupying that position.
+                hook.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                hook.add(new VarInsnNode(Opcodes.ALOAD, 2));
+                hook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                        HOOK_OWNER, "applyWaterloggedSpongeAbsorb",
+                        "(ZLnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;)Z",
+                        false));
+                method.instructions.insertBefore(instruction, hook);
+                method.maxStack = Math.max(method.maxStack, 3);
+            }
+            instruction = next;
+        }
+    }
 
     private static boolean isLilyPadWaterCheck(MethodNode method) {
         if (!(method.name.equals("canBlockStay")
