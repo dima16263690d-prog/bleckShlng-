@@ -19,9 +19,10 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 /**
  * Entity/fluid bridge for water stored inside legacy blocks.
  *
- * It follows the 1.18.2 updateFluidHeightAndDoFluidPushing model: scan the
- * entity bounds, compute the greatest fluid depth, average local flow vectors,
- * then apply the water acceleration coefficient 0.014.
+ * It extends the 1.13.2 "waterlogged counts as water" behavior to the
+ * legacy 1.12.2 entity checks. The entity bounds are tested against the free
+ * volume inside the host block, and the legacy water-current coefficient
+ * (0.014) is applied from the stored source state.
  */
 public final class FluidEntityHandler {
     private static final double WATER_PUSH = 0.014D;
