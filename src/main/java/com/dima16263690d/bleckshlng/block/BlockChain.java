@@ -20,6 +20,8 @@ import net.minecraft.world.World;
 
 import com.dima16263690d.bleckshlng.BleckShlng;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
+import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
+import com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData;
 import com.dima16263690d.bleckshlng.fluid.waterlogging.FluidTickScheduler;
 import com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable;
 
@@ -143,6 +145,13 @@ public final class BlockChain extends BlockRotatedPillar implements IFluidWaterl
     public void onBlockAdded(World world, BlockPos pos, IBlockState state) {
         super.onBlockAdded(world, pos, state);
         if (!world.isRemote && isWaterlogged(state)) {
+            FluidStateBridge stored = FluidStateBridge.source(
+                    FluidStateBridge.FluidKind.WATER);
+            ChunkFluidData data = ChunkFluidData.get(world);
+            if (data != null) {
+                data.putWater(pos, stored);
+            }
+            FluidNetwork.syncState(world, pos, stored);
             FluidTickScheduler.schedule(world, pos, 1);
         }
     }
