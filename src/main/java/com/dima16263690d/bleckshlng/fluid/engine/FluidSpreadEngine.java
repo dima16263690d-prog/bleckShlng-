@@ -315,12 +315,18 @@ public final class FluidSpreadEngine {
             return false;
         }
 
-        // Match LiquidBlockContainer / SimpleWaterloggedBlock:
-        // any incoming water level may enter an empty waterloggable host.
-        // placeLiquid stores it as a waterlogged source; source conversion
-        // requirements apply to ordinary flowing blocks, not this container.
+        // Java 1.13.2 Update Aquatic waterlogging rules:
+        // ordinary flowing water passes by waterloggable hosts. It may only
+        // enter one when this position qualifies to become a new source
+        // (18w16a infinite-source rule: two horizontal sources plus support).
+        // Bucket placement and placing a host into existing water are handled
+        // separately by WaterloggedFluidHandler / the World placement hook.
         if (material == Material.WATER
                 && WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
+            if (getNewLegacyLevel(world, pos, material)
+                    != FluidLevelMapper.SOURCE_METADATA) {
+                return false;
+            }
             return BlockGeometryAdapter.canFluidEnter(
                     world, pos, state, material, direction);
         }
