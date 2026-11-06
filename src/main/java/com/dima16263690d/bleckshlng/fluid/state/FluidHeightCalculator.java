@@ -5,7 +5,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
 /**
- * 1.18-style fluid height calculations mapped to 1.12.2 block metadata.
+ * Java Edition 1.13.2 fluid height calculations mapped to 1.12.2 metadata.
  */
 public final class FluidHeightCalculator {
     private FluidHeightCalculator() {
