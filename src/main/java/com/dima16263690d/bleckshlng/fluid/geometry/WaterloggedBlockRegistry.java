@@ -2,6 +2,10 @@ package com.dima16263690d.bleckshlng.fluid.geometry;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockFence;
+import net.minecraft.block.BlockChest;
+import net.minecraft.block.BlockEnderChest;
+import net.minecraft.block.BlockLadder;
+import net.minecraft.block.BlockSign;
 import net.minecraft.block.BlockPane;
 import net.minecraft.block.BlockSlab;
 import net.minecraft.block.BlockStairs;
@@ -39,10 +43,17 @@ public final class WaterloggedBlockRegistry {
             return !((BlockSlab) block).isDouble();
         }
 
-        return block instanceof BlockStairs
+        // Exact Java Edition 1.13 / Update Aquatic waterlogging set:
+        // chests, trapped chests, ender chests, stairs, single slabs,
+        // fences, walls, trapdoors, ladders, signs, iron bars and panes.
+        return block instanceof BlockChest
+                || block instanceof BlockEnderChest
+                || block instanceof BlockStairs
                 || block instanceof BlockFence
                 || block instanceof BlockWall
                 || block instanceof BlockTrapDoor
+                || block instanceof BlockLadder
+                || block instanceof BlockSign
                 || block instanceof BlockPane;
     }
 }
