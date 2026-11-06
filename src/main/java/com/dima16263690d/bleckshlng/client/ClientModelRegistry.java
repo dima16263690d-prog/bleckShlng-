@@ -33,6 +33,7 @@ public final class ClientModelRegistry {
         register(ModBlocks.CHAIN);
         register(ModBlocks.CANDLE);
         register(ModBlocks.LANTERN);
+        register(ModBlocks.CAMPFIRE);
     }
 
     private static void register(Block block) {
