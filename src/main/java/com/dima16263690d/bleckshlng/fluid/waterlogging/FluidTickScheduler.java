@@ -159,10 +159,6 @@ public final class FluidTickScheduler {
         }
 
         ChunkFluidData data = ChunkFluidData.get(world);
-        if (data == null) {
-            return;
-        }
-
         BlockPos changed = event.getPos();
         scheduleIfWaterlogged(data, world, changed);
         for (EnumFacing side : EnumFacing.values()) {
@@ -171,7 +167,21 @@ public final class FluidTickScheduler {
     }
 
     private static void scheduleIfWaterlogged(ChunkFluidData data, World world, BlockPos pos) {
-        if (world.isBlockLoaded(pos) && data.getWater(pos) != null) {
+        if (!world.isBlockLoaded(pos)) {
+            return;
+        }
+
+        boolean hasSidecar = data != null && data.getWater(pos) != null;
+        if (hasSidecar) {
+            schedule(world, pos, 1);
+            return;
+        }
+
+        // A backported or third-party block may keep WATERLOGGED directly in
+        // its block state instead of using the sidecar NBT storage.
+        net.minecraft.block.state.IBlockState state = world.getBlockState(pos);
+        if (state.getBlock() instanceof IFluidWaterloggable
+                && ((IFluidWaterloggable) state.getBlock()).isWaterlogged(state)) {
             schedule(world, pos, 1);
         }
     }
