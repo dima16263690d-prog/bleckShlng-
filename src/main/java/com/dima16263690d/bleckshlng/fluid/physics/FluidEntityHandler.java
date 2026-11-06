@@ -1,5 +1,6 @@
 package com.dima16263690d.bleckshlng.fluid.physics;
 
+import net.minecraft.block.BlockLiquid;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
@@ -69,6 +70,12 @@ public final class FluidEntityHandler {
                 for (int z = minZ; z < maxZ; z++) {
                     BlockPos pos = new BlockPos(x, y, z);
                     IBlockState blockState = entity.world.getBlockState(pos);
+                    // The vanilla Entity/BlockLiquid hook already applies
+                    // current and buoyancy for these blocks. This extra pass
+                    // must include only water stored inside a host block.
+                    if (blockState.getBlock() instanceof BlockLiquid) {
+                        continue;
+                    }
                     FluidStateBridge fluid = FluidStateMapper.fromWorld(
                             entity.world, pos, blockState);
                     if (fluid == null
@@ -151,6 +158,9 @@ public final class FluidEntityHandler {
                         continue;
                     }
                     IBlockState blockState = entity.world.getBlockState(pos);
+                    if (blockState.getBlock() instanceof BlockLiquid) {
+                        continue;
+                    }
                     FluidStateBridge fluid = FluidStateMapper.fromWorld(
                             entity.world, pos, blockState);
                     if (fluid == null
@@ -181,6 +191,9 @@ public final class FluidEntityHandler {
         }
 
         IBlockState state = entity.world.getBlockState(pos);
+        if (state.getBlock() instanceof BlockLiquid) {
+            return false;
+        }
         FluidStateBridge fluid = FluidStateMapper.fromWorld(entity.world, pos, state);
         if (fluid == null || fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
             return false;
