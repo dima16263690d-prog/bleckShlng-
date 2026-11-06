@@ -2,7 +2,7 @@ package com.dima16263690d.bleckshlng.block;
 
 import java.util.Random;
 
-import net.minecraft.block.BlockRenderLayer;
+import net.minecraft.util.BlockRenderLayer;
 import net.minecraft.block.BlockRotatedPillar;
 import net.minecraft.block.SoundType;
 import net.minecraft.block.material.Material;
