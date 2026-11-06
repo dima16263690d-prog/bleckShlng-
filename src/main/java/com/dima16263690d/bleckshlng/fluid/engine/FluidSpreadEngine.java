@@ -117,10 +117,9 @@ public final class FluidSpreadEngine {
             if (neighborLevel < 0) continue;
 
             if (neighborLevel == 0) sourceCount++;
-            // Legacy levels >= 8 are falling fluids. FlowingFluid treats
-            // them as a zero horizontal level when finding adjacent flow.
-            int amount = neighborLevel >= 8
-                    ? 0 : FluidLevelMapper.amountFromMetadata(neighborLevel);
+            // FluidState.getAmount() is independent of the FALLING flag.
+            // For legacy levels 8..15, the lower three bits still encode amount.
+            int amount = FluidLevelMapper.amountFromMetadata(neighborLevel);
             if (amount > maxAmount) maxAmount = amount;
         }
 
@@ -140,14 +139,11 @@ public final class FluidSpreadEngine {
         // A matching fluid directly above creates the falling state.
         BlockPos abovePos = pos.up();
         if (world.isBlockLoaded(abovePos)
+                && getDepth(world, abovePos, material) >= 0
                 && FluidShapeCalculator.canPassThroughWall(world, pos, EnumFacing.UP)) {
-            int aboveLevel = getDepth(world, abovePos, material);
-            if (aboveLevel >= 0) {
-                // Falling metadata preserves the level from the fluid above:
-                // source 0 -> falling 8, level 7 -> falling 15.
-                return aboveLevel >= 8
-                        ? aboveLevel : aboveLevel + 8;
-            }
+            // FlowingFluid.getNewLiquid() creates a full falling state
+            // whenever matching fluid is directly above.
+            return FluidLevelMapper.toMetadata(8, true, false);
         }
 
         int amount = maxAmount - FluidProperties.horizontalDecay(world, material);
@@ -256,10 +252,15 @@ public final class FluidSpreadEngine {
     }
 
     private static boolean isSlowerHorizontalLava(int oldLevel, int newLevel) {
-        // Same condition as the legacy flow engine: horizontal metadata
-        // increases while the liquid amount decreases.
-        return oldLevel < 8 && newLevel >= 0 && newLevel < 8
-                && newLevel > oldLevel;
+        if (oldLevel < 0 || newLevel < 0
+                || FluidLevelMapper.isFallingMetadata(oldLevel)
+                || FluidLevelMapper.isFallingMetadata(newLevel)) {
+            return false;
+        }
+        // LavaFluid.getSpreadDelay() multiplies delay by four when the
+        // recomputed state has a greater height than the current one.
+        return FluidLevelMapper.amountFromMetadata(newLevel)
+                > FluidLevelMapper.amountFromMetadata(oldLevel);
     }
 
     private static void tryFlowInto(World world, BlockPos pos, IBlockState state,
