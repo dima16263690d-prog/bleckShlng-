@@ -45,7 +45,7 @@ public final class WaterloggedFluidHandler {
                 data.putWater(pos, stored);
             }
             FluidNetwork.syncState(world, pos, stored);
-            FluidTickScheduler.schedule(world, pos, 1);
+            FluidTickScheduler.schedule(world, pos, 5);
             return true;
         }
 
@@ -63,7 +63,7 @@ public final class WaterloggedFluidHandler {
         // neighbors and synchronize it to clients.
         FluidNetwork.syncState(world, pos, stored);
         world.notifyNeighborsOfStateChange(pos, blockState.getBlock(), false);
-        FluidTickScheduler.schedule(world, pos, 1);
+        FluidTickScheduler.schedule(world, pos, 5);
         return true;
     }
 
