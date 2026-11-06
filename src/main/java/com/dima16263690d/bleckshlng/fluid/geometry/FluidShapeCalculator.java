@@ -2,6 +2,7 @@ package com.dima16263690d.bleckshlng.fluid.geometry;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeSet;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.EnumFacing;
@@ -11,7 +12,6 @@ import net.minecraft.world.World;
 
 /** Reads actual collision boxes for fluid pass-through decisions. */
 public final class FluidShapeCalculator {
-    private static final int FACE_SAMPLES = 8;
     private static final int VOLUME_SAMPLES = 6;
     private static final double EPSILON = 1.0E-5D;
 
@@ -35,22 +35,11 @@ public final class FluidShapeCalculator {
     public static boolean isFaceFullyCovered(World world, BlockPos pos, IBlockState state, EnumFacing face) {
         Boolean cached = FluidOcclusionCache.getFaceCoverage(world, pos, face);
         if (cached != null) return cached.booleanValue();
+
         List<AxisAlignedBB> boxes = getCollisionBoxes(world, pos, state);
-        if (boxes.isEmpty()) {
-            FluidOcclusionCache.putFaceCoverage(world, pos, face, false);
-            return false;
-        }
-        for (int u = 0; u < FACE_SAMPLES; u++) {
-            for (int v = 0; v < FACE_SAMPLES; v++) {
-                if (!facePointCovered(boxes, pos, face,
-                        (u + 0.5D) / FACE_SAMPLES, (v + 0.5D) / FACE_SAMPLES)) {
-                    FluidOcclusionCache.putFaceCoverage(world, pos, face, false);
-                    return false;
-                }
-            }
-        }
-        FluidOcclusionCache.putFaceCoverage(world, pos, face, true);
-        return true;
+        boolean covered = !boxes.isEmpty() && isFaceCoveredExactly(boxes, pos, face);
+        FluidOcclusionCache.putFaceCoverage(world, pos, face, covered);
+        return covered;
     }
 
     public static boolean isMergedFaceOccluded(World world, BlockPos pos, EnumFacing direction) {
@@ -61,26 +50,12 @@ public final class FluidShapeCalculator {
             FluidOcclusionCache.putMergedFace(world, pos, direction, true);
             return true;
         }
-        List<AxisAlignedBB> first = getCollisionBoxes(world, pos, world.getBlockState(pos));
-        List<AxisAlignedBB> second = getCollisionBoxes(world, otherPos, world.getBlockState(otherPos));
-        if (first.isEmpty() || second.isEmpty()) {
-            FluidOcclusionCache.putMergedFace(world, pos, direction, false);
-            return false;
-        }
-        EnumFacing opposite = direction.getOpposite();
-        for (int u = 0; u < FACE_SAMPLES; u++) {
-            for (int v = 0; v < FACE_SAMPLES; v++) {
-                double a = (u + 0.5D) / FACE_SAMPLES;
-                double b = (v + 0.5D) / FACE_SAMPLES;
-                if (!facePointCovered(first, pos, direction, a, b)
-                        || !facePointCovered(second, otherPos, opposite, a, b)) {
-                    FluidOcclusionCache.putMergedFace(world, pos, direction, false);
-                    return false;
-                }
-            }
-        }
-        FluidOcclusionCache.putMergedFace(world, pos, direction, true);
-        return true;
+        IBlockState firstState = world.getBlockState(pos);
+        IBlockState secondState = world.getBlockState(otherPos);
+        boolean occluded = isFaceFullyCovered(world, pos, firstState, direction)
+                && isFaceFullyCovered(world, otherPos, secondState, direction.getOpposite());
+        FluidOcclusionCache.putMergedFace(world, pos, direction, occluded);
+        return occluded;
     }
 
     public static boolean canPassThroughWall(World world, BlockPos pos, EnumFacing direction) {
@@ -171,6 +146,93 @@ public final class FluidShapeCalculator {
             return false;
         }
         return !insideAny(getCollisionBoxes(world, pos, state), x, y, z);
+    }
+
+    /**
+     * Exact axis-aligned rectangle coverage for a block face. Coordinate
+     * compression tests every rectangle cell boundary, avoiding the missed
+     * narrow gaps that a fixed 8x8 sample grid can produce on fences, panes,
+     * walls and stair collision shapes.
+     */
+    private static boolean isFaceCoveredExactly(List<AxisAlignedBB> boxes,
+                                                 BlockPos pos, EnumFacing face) {
+        TreeSet<Double> uEdges = new TreeSet<Double>();
+        TreeSet<Double> vEdges = new TreeSet<Double>();
+        uEdges.add(Double.valueOf(0.0D));
+        uEdges.add(Double.valueOf(1.0D));
+        vEdges.add(Double.valueOf(0.0D));
+        vEdges.add(Double.valueOf(1.0D));
+
+        for (AxisAlignedBB box : boxes) {
+            if (!touchesFace(box, pos, face)) {
+                continue;
+            }
+
+            double minU;
+            double maxU;
+            double minV;
+            double maxV;
+            switch (face) {
+                case DOWN:
+                case UP:
+                    minU = box.minX - pos.getX();
+                    maxU = box.maxX - pos.getX();
+                    minV = box.minZ - pos.getZ();
+                    maxV = box.maxZ - pos.getZ();
+                    break;
+                case NORTH:
+                case SOUTH:
+                    minU = box.minX - pos.getX();
+                    maxU = box.maxX - pos.getX();
+                    minV = box.minY - pos.getY();
+                    maxV = box.maxY - pos.getY();
+                    break;
+                case WEST:
+                case EAST:
+                    minU = box.minY - pos.getY();
+                    maxU = box.maxY - pos.getY();
+                    minV = box.minZ - pos.getZ();
+                    maxV = box.maxZ - pos.getZ();
+                    break;
+                default:
+                    return false;
+            }
+
+            addClippedEdge(uEdges, minU);
+            addClippedEdge(uEdges, maxU);
+            addClippedEdge(vEdges, minV);
+            addClippedEdge(vEdges, maxV);
+        }
+
+        List<Double> u = new ArrayList<Double>(uEdges);
+        List<Double> v = new ArrayList<Double>(vEdges);
+        for (int i = 0; i + 1 < u.size(); i++) {
+            double u0 = u.get(i).doubleValue();
+            double u1 = u.get(i + 1).doubleValue();
+            if (u1 - u0 <= EPSILON) {
+                continue;
+            }
+
+            for (int j = 0; j + 1 < v.size(); j++) {
+                double v0 = v.get(j).doubleValue();
+                double v1 = v.get(j + 1).doubleValue();
+                if (v1 - v0 <= EPSILON) {
+                    continue;
+                }
+
+                if (!facePointCovered(boxes, pos, face,
+                        (u0 + u1) * 0.5D, (v0 + v1) * 0.5D)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static void addClippedEdge(TreeSet<Double> edges, double value) {
+        if (value > EPSILON && value < 1.0D - EPSILON) {
+            edges.add(Double.valueOf(value));
+        }
     }
 
     private static boolean facePointCovered(List<AxisAlignedBB> boxes, BlockPos pos,
