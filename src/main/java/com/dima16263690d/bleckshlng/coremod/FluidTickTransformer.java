@@ -37,11 +37,11 @@ public final class FluidTickTransformer implements IClassTransformer {
     private static final String HOOK_OWNER =
             "com/dima16263690d/bleckshlng/coremod/FluidCoreHooks";
     private static final String WORLD_SET_HOOK_DESC =
-            "(ZZLnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;"
+            "(ZLnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;"
             + "Lnet/minecraft/block/state/IBlockState;)V";
-    private static final String WORLD_CAPTURE_HOOK_DESC =
+    private static final String WORLD_BEGIN_HOOK_DESC =
             "(Lnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;"
-            + "Lnet/minecraft/block/state/IBlockState;)Z";
+            + "Lnet/minecraft/block/state/IBlockState;)V";
     private static final String TICK_HOOK_DESC =
             "(Lnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;"
             + "Lnet/minecraft/block/state/IBlockState;Ljava/util/Random;)Z";
@@ -547,25 +547,24 @@ public final class FluidTickTransformer implements IClassTransformer {
      * waterloggable host. The sidecar is committed only after successful placement.
      */
     private static void injectWorldBlockSetHook(MethodNode method) {
-        int capturedLocal = method.maxLocals++;
-        InsnList capture = new InsnList();
-        capture.add(new VarInsnNode(Opcodes.ALOAD, 0));
-        capture.add(new VarInsnNode(Opcodes.ALOAD, 1));
-        capture.add(new VarInsnNode(Opcodes.ALOAD, 2));
-        capture.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
-                HOOK_OWNER, "captureWaterBeforeBlockSet",
-                WORLD_CAPTURE_HOOK_DESC, false));
-        capture.add(new VarInsnNode(Opcodes.ISTORE, capturedLocal));
-        method.instructions.insert(capture);
+        InsnList begin = new InsnList();
+        begin.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        begin.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        begin.add(new VarInsnNode(Opcodes.ALOAD, 2));
+        begin.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                HOOK_OWNER, "beginWorldBlockSet",
+                WORLD_BEGIN_HOOK_DESC, false));
+        method.instructions.insert(begin);
+        method.maxStack = Math.max(method.maxStack, 3);
 
         for (org.objectweb.asm.tree.AbstractInsnNode instruction = method.instructions.getFirst();
              instruction != null; ) {
             org.objectweb.asm.tree.AbstractInsnNode next = instruction.getNext();
             if (instruction.getOpcode() == Opcodes.IRETURN) {
                 InsnList callback = new InsnList();
-                // Keep the original boolean result on the operand stack.
+                // Preserve the original return value; the hook pops the
+                // matching capture from its thread-local call stack.
                 callback.add(new InsnNode(Opcodes.DUP));
-                callback.add(new VarInsnNode(Opcodes.ILOAD, capturedLocal));
                 callback.add(new VarInsnNode(Opcodes.ALOAD, 0));
                 callback.add(new VarInsnNode(Opcodes.ALOAD, 1));
                 callback.add(new VarInsnNode(Opcodes.ALOAD, 2));
@@ -573,7 +572,13 @@ public final class FluidTickTransformer implements IClassTransformer {
                         HOOK_OWNER, "onWorldBlockSet",
                         WORLD_SET_HOOK_DESC, false));
                 method.instructions.insertBefore(instruction, callback);
-                method.maxStack = Math.max(method.maxStack, 6);
+                method.maxStack = Math.max(method.maxStack, 5);
+            } else if (instruction.getOpcode() == Opcodes.ATHROW) {
+                InsnList cleanup = new InsnList();
+                cleanup.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                        HOOK_OWNER, "discardWorldBlockSet", "()V", false));
+                method.instructions.insertBefore(instruction, cleanup);
+                method.maxStack = Math.max(method.maxStack, 1);
             }
             instruction = next;
         }
