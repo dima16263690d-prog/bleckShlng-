@@ -105,7 +105,7 @@ public final class FluidTickScheduler {
         }
 
         for (BlockPos pos : data.getPositionsInChunk(event.getChunk().x, event.getChunk().z)) {
-            schedule(world, pos, 1);
+            schedule(world, pos, 5);
         }
     }
 
@@ -173,7 +173,7 @@ public final class FluidTickScheduler {
 
         boolean hasSidecar = data != null && data.getWater(pos) != null;
         if (hasSidecar) {
-            schedule(world, pos, 1);
+            schedule(world, pos, 5);
             return;
         }
 
@@ -182,7 +182,7 @@ public final class FluidTickScheduler {
         net.minecraft.block.state.IBlockState state = world.getBlockState(pos);
         if (state.getBlock() instanceof IFluidWaterloggable
                 && ((IFluidWaterloggable) state.getBlock()).isWaterlogged(state)) {
-            schedule(world, pos, 1);
+            schedule(world, pos, 5);
         }
     }
 
