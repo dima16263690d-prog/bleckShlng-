@@ -3,7 +3,6 @@ package com.dima16263690d.bleckshlng.registry;
 import com.dima16263690d.bleckshlng.BleckShlng;
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
-import net.minecraft.item.ItemBlock;
 
 import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -28,21 +27,6 @@ public final class ModItems {
         register(event, ModBlocks.STRIPPED_ACACIA_WOOD);
         register(event, ModBlocks.STRIPPED_DARK_OAK_LOG);
         register(event, ModBlocks.STRIPPED_DARK_OAK_WOOD);
-        ItemBlock chainItem = new ItemBlock(ModBlocks.CHAIN);
-        chainItem.setRegistryName(ModBlocks.CHAIN.getRegistryName());
-        event.getRegistry().register(chainItem);
-
-        ItemBlock candleItem = new ItemBlock(ModBlocks.CANDLE);
-        candleItem.setRegistryName(ModBlocks.CANDLE.getRegistryName());
-        event.getRegistry().register(candleItem);
-
-        ItemBlock lanternItem = new ItemBlock(ModBlocks.LANTERN);
-        lanternItem.setRegistryName(ModBlocks.LANTERN.getRegistryName());
-        event.getRegistry().register(lanternItem);
-
-        ItemBlock campfireItem = new ItemBlock(ModBlocks.CAMPFIRE);
-        campfireItem.setRegistryName(ModBlocks.CAMPFIRE.getRegistryName());
-        event.getRegistry().register(campfireItem);
     }
 
     private static void register(RegistryEvent.Register<Item> event, Block block) {
