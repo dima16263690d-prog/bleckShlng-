@@ -1,7 +1,6 @@
 package com.dima16263690d.bleckshlng.block;
 
 import java.util.List;
-import java.util.Random;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.SoundType;
@@ -11,7 +10,6 @@ import net.minecraft.block.state.BlockStateContainer;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.entity.Entity;
-import net.minecraft.util.BlockRenderLayer;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
@@ -86,7 +84,10 @@ public final class BlockLantern extends Block implements IFluidWaterloggable {
         IBlockState state = getDefaultState()
                 .withProperty(HANGING, Boolean.valueOf(hanging))
                 .withProperty(WATERLOGGED, Boolean.valueOf(waterlogged));
-        return canSurvive(state, world, pos) ? state : null;
+        if (!canSurvive(state, world, pos)) {
+            state = state.withProperty(HANGING, Boolean.valueOf(!hanging));
+        }
+        return state;
     }
 
     @Override
@@ -181,14 +182,4 @@ public final class BlockLantern extends Block implements IFluidWaterloggable {
         }
     }
 
-    @Override
-    public void randomDisplayTick(IBlockState state, World world, BlockPos pos, Random random) {
-        if (random.nextInt(10) == 0) {
-            double x = pos.getX() + 0.5D;
-            double y = pos.getY() + (state.getValue(HANGING).booleanValue() ? 0.65D : 0.55D);
-            double z = pos.getZ() + 0.5D;
-            world.spawnParticle(net.minecraft.util.EnumParticleTypes.SMOKE_NORMAL,
-                    x, y, z, 0.0D, 0.01D, 0.0D);
-        }
-    }
 }
