@@ -1,23 +1,29 @@
 package com.dima16263690d.bleckshlng.fluid.waterlogging;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
+import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import net.minecraftforge.event.world.BlockEvent;
 import net.minecraftforge.event.world.ChunkEvent;
 import net.minecraftforge.event.world.ChunkWatchEvent;
-import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
-import net.minecraftforge.event.world.BlockEvent;
+import net.minecraftforge.event.world.WorldEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.eventhandler.EventPriority;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 
+import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
+
 /**
  * Server-thread scheduler for fluid states stored inside ordinary blocks.
- * Scheduled positions are only accessed when their chunk is already loaded.
+ * Tasks are only executed while their chunk is already loaded.
  */
 @Mod.EventBusSubscriber(modid = "bleckshlng")
 public final class FluidTickScheduler {
@@ -58,6 +64,7 @@ public final class FluidTickScheduler {
         }
 
         long now = event.world.getTotalWorldTime();
+        List<BlockPos> duePositions = new ArrayList<BlockPos>();
         Iterator<Map.Entry<Long, Long>> iterator = tasks.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<Long, Long> task = iterator.next();
@@ -67,11 +74,20 @@ public final class FluidTickScheduler {
 
             BlockPos pos = BlockPos.fromLong(task.getKey().longValue());
             if (!event.world.isBlockLoaded(pos)) {
+                // A chunk unload removes its tasks; this is a defensive fallback
+                // for a task that became unloaded during the current tick.
                 task.setValue(Long.valueOf(now + 20L));
                 continue;
             }
 
             iterator.remove();
+            duePositions.add(pos);
+        }
+
+        // Run callbacks only after iteration. Fluid updates can schedule more
+        // waterlogged positions, and mutating the same HashMap from inside the
+        // iterator would otherwise throw ConcurrentModificationException.
+        for (BlockPos pos : duePositions) {
             WaterloggedFluidHandler.tick(event.world, pos);
         }
     }
@@ -90,6 +106,37 @@ public final class FluidTickScheduler {
 
         for (BlockPos pos : data.getPositionsInChunk(event.getChunk().x, event.getChunk().z)) {
             schedule(world, pos, 1);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onChunkUnload(ChunkEvent.Unload event) {
+        World world = event.getWorld();
+        if (world == null || world.isRemote) {
+            return;
+        }
+
+        Map<Long, Long> tasks = PENDING.get(world);
+        if (tasks == null || tasks.isEmpty()) {
+            return;
+        }
+
+        int chunkX = event.getChunk().x;
+        int chunkZ = event.getChunk().z;
+        Iterator<Long> iterator = tasks.keySet().iterator();
+        while (iterator.hasNext()) {
+            BlockPos pos = BlockPos.fromLong(iterator.next().longValue());
+            if ((pos.getX() >> 4) == chunkX && (pos.getZ() >> 4) == chunkZ) {
+                iterator.remove();
+            }
+        }
+    }
+
+    @SubscribeEvent
+    public static void onWorldUnload(WorldEvent.Unload event) {
+        World world = event.getWorld();
+        if (world != null && !world.isRemote) {
+            PENDING.remove(world);
         }
     }
 
@@ -118,7 +165,7 @@ public final class FluidTickScheduler {
 
         BlockPos changed = event.getPos();
         scheduleIfWaterlogged(data, world, changed);
-        for (net.minecraft.util.EnumFacing side : net.minecraft.util.EnumFacing.values()) {
+        for (EnumFacing side : EnumFacing.values()) {
             scheduleIfWaterlogged(data, world, changed.offset(side));
         }
     }
@@ -129,19 +176,23 @@ public final class FluidTickScheduler {
         }
     }
 
-    @SubscribeEvent
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         World world = event.getWorld();
-        if (world != null && !world.isRemote) {
-            ChunkFluidData data = ChunkFluidData.get(world);
-            if (data != null && data.remove(event.getPos())) {
-                FluidNetwork.removeState(world, event.getPos());
-            }
+        if (world == null || world.isRemote) {
+            return;
+        }
 
-            Map<Long, Long> tasks = PENDING.get(world);
-            if (tasks != null) {
-                tasks.remove(Long.valueOf(event.getPos().toLong()));
-            }
+        // LOWEST priority with receiveCanceled=false avoids deleting the fluid
+        // sidecar when another mod cancels the player's block-break event.
+        ChunkFluidData data = ChunkFluidData.get(world);
+        if (data != null && data.remove(event.getPos())) {
+            FluidNetwork.removeState(world, event.getPos());
+        }
+
+        Map<Long, Long> tasks = PENDING.get(world);
+        if (tasks != null) {
+            tasks.remove(Long.valueOf(event.getPos().toLong()));
         }
     }
 }
