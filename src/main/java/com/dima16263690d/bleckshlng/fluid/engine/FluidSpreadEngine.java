@@ -217,7 +217,7 @@ public final class FluidSpreadEngine {
         if (!world.isBlockLoaded(belowPos)) return false;
 
         IBlockState below = world.getBlockState(belowPos);
-        if (getDepth(below, material) >= 0) return true;
+        if (getDepth(world, belowPos, material) >= 0) return true;
 
         return BlockGeometryAdapter.canFluidEnter(
                 world, belowPos, below, material, EnumFacing.DOWN);
@@ -233,8 +233,9 @@ public final class FluidSpreadEngine {
         return count;
     }
 
-    private static int getDepth(IBlockState state, Material material) {
-        if (state == null) return -1;
+    private static int getDepth(World world, BlockPos pos, Material material) {
+        if (world == null || pos == null || !world.isBlockLoaded(pos)) return -1;
+        IBlockState state = world.getBlockState(pos);
         FluidStateBridge fluid = FluidStateMapper.fromWorld(world, pos, state);
         if (fluid == null) return -1;
         FluidStateBridge.FluidKind kind = material == Material.WATER
