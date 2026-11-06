@@ -46,6 +46,13 @@ public final class FluidStateMapper {
             return null;
         }
 
+        if (state.getBlock() instanceof IFluidWaterloggable) {
+            IFluidWaterloggable adapter = (IFluidWaterloggable) state.getBlock();
+            if (adapter.isWaterlogged(state)) {
+                return FluidStateBridge.source(FluidStateBridge.FluidKind.WATER);
+            }
+        }
+
         ChunkFluidData data = ChunkFluidData.get(world);
         return data == null ? null : data.getWater(pos);
     }

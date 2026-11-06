@@ -26,6 +26,10 @@ public final class WaterloggedBlockRegistry {
             return false;
         }
 
+        if (block instanceof IFluidWaterloggable) {
+            return true;
+        }
+
         if (block instanceof BlockSlab) {
             return !((BlockSlab) block).isDouble();
         }
