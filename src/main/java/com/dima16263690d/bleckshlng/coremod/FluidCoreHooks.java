@@ -78,6 +78,48 @@ public final class FluidCoreHooks {
     }
 
     /**
+     * Extends BlockFarmland's vanilla 9x2x9 water search to water stored
+     * inside legacy blocks. Vanilla water is still handled by its own check.
+     */
+    public static boolean applyWaterloggedFarmlandWater(boolean vanillaResult,
+                                                        World world, BlockPos farmlandPos) {
+        if (vanillaResult || world == null || world.isRemote || farmlandPos == null) {
+            return vanillaResult;
+        }
+
+        try {
+            com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData data =
+                    com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData.get(world);
+            if (data == null) {
+                return false;
+            }
+
+            for (int x = -4; x <= 4; x++) {
+                for (int y = 0; y <= 1; y++) {
+                    for (int z = -4; z <= 4; z++) {
+                        BlockPos waterPos = farmlandPos.add(x, y, z);
+                        if (!world.isBlockLoaded(waterPos)) {
+                            continue;
+                        }
+
+                        com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge fluid =
+                                data.getWater(waterPos);
+                        if (fluid != null
+                                && fluid.getKind()
+                                == com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge.FluidKind.WATER) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        } catch (Throwable error) {
+            LOGGER.error("Waterlogged farmland hydration check failed at {}", farmlandPos, error);
+            return vanillaResult;
+        }
+    }
+
+    /**
      * Returns null when the block is not one of the vanilla liquids handled
      * here. The transformer then executes the original BlockLiquid method.
      */
