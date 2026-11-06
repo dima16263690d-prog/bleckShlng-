@@ -40,6 +40,8 @@ public final class WaterloggedFluidHandler {
             }
 
             FluidStateBridge stored = FluidStateBridge.source(FluidStateBridge.FluidKind.WATER);
+            com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator
+                    .invalidate(world, pos);
             ChunkFluidData data = ChunkFluidData.get(world);
             if (data != null) {
                 data.putWater(pos, stored);
@@ -55,6 +57,8 @@ public final class WaterloggedFluidHandler {
         }
 
         FluidStateBridge stored = FluidStateBridge.source(FluidStateBridge.FluidKind.WATER);
+        com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator
+                .invalidate(world, pos);
         if (!data.putWater(pos, stored)) {
             return false;
         }
@@ -106,6 +110,8 @@ public final class WaterloggedFluidHandler {
         }
 
         FluidNetwork.removeState(world, pos);
+        com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator
+                .invalidate(world, pos);
         world.notifyNeighborsOfStateChange(pos, state.getBlock(), false);
         return true;
     }
