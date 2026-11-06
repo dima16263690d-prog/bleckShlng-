@@ -4,8 +4,9 @@ import net.minecraft.block.material.Material;
 import net.minecraft.world.World;
 
 /**
- * Runtime properties adapted from the modern fluid definitions.
- * Timings retain vanilla 1.12.2 values for compatibility.
+ * Runtime properties adapted from the Minecraft 1.18.2 fluid definitions.
+ * Lava timing and Overworld/End horizontal reach include the requested
+ * small gameplay increase; water retains the 1.18.2 values.
  */
 public final class FluidProperties {
     private FluidProperties() {
