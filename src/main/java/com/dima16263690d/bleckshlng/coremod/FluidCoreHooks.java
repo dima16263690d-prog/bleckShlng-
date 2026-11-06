@@ -199,9 +199,9 @@ public final class FluidCoreHooks {
     }
 
     /**
-     * Called before vanilla BlockSponge.absorb. The handler reproduces the
-     * bounded 1.12.2 water search and extends its fluid predicate to
-     * waterlogged sidecar states, preserving the host block.
+     * Applies the 1.13.2 sponge rule around waterlogged hosts.
+     * Ordinary water blocks are absorbed using the bounded vanilla search;
+     * water stored inside a waterlogged block is deliberately left intact.
      */
     public static boolean tryAbsorbSpongeWater(World world, BlockPos spongePos) {
         try {
