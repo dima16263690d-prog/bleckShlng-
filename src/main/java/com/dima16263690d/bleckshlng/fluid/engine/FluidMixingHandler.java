@@ -116,12 +116,25 @@ public final class FluidMixingHandler {
      * Vanilla 1.12.2 turns lava flowing directly down into water into stone.
      */
     public static boolean reactDownward(World world, BlockPos pos, IBlockState targetState) {
-        if (targetState.getMaterial() != Material.WATER) {
+        if (world == null || world.isRemote || pos == null || targetState == null) {
             return false;
         }
 
-        world.setBlockState(pos, Blocks.STONE.getDefaultState(), 3);
-        FluidShapeCalculator.invalidate(world, pos);
+        FluidStateBridge targetFluid = FluidStateMapper.fromWorld(
+                world, pos, targetState);
+        if (targetFluid == null
+                || targetFluid.getKind() != FluidStateBridge.FluidKind.WATER) {
+            return false;
+        }
+
+        // 1.13.2: waterlogged blocks react as water, but lava does not replace
+        // the host block with stone. Ordinary water blocks still become stone.
+        if (targetState.getBlock() instanceof BlockLiquid
+                && targetState.getMaterial() == Material.WATER) {
+            world.setBlockState(pos, Blocks.STONE.getDefaultState(), 3);
+            FluidShapeCalculator.invalidate(world, pos);
+        }
+
         playExtinguishEffects(world, pos);
         return true;
     }
