@@ -195,9 +195,14 @@ public final class FluidTickScheduler {
 
         // LOWEST priority with receiveCanceled=false avoids deleting the fluid
         // sidecar when another mod cancels the player's block-break event.
+        BlockPos pos = event.getPos();
         ChunkFluidData data = ChunkFluidData.get(world);
-        if (data != null && data.remove(event.getPos())) {
-            FluidNetwork.removeState(world, event.getPos());
+        boolean removedSidecar = data != null && data.remove(pos);
+        net.minecraft.block.state.IBlockState state = world.getBlockState(pos);
+        boolean removedAdapterState = state.getBlock() instanceof IFluidWaterloggable
+                && ((IFluidWaterloggable) state.getBlock()).isWaterlogged(state);
+        if (removedSidecar || removedAdapterState) {
+            FluidNetwork.removeState(world, pos);
         }
 
         Map<Long, Long> tasks = PENDING.get(world);
