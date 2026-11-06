@@ -13,7 +13,7 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 
 /**
- * Flow vector adapted from 1.18.2 FlowingFluid.getFlow().
+ * Flow vector for the 1.13.2 waterlogged-source compatibility layer.
  * Uses one immutable fluid-state read per neighbor and never loads chunks.
  */
 public final class FluidFlowVector {
