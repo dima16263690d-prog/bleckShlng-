@@ -3,6 +3,7 @@ package com.dima16263690d.bleckshlng.registry;
 import com.dima16263690d.bleckshlng.BleckShlng;
 import com.dima16263690d.bleckshlng.block.BlockStrippedWood;
 import com.dima16263690d.bleckshlng.block.BlockChain;
+import com.dima16263690d.bleckshlng.block.BlockCandle;
 import net.minecraft.block.Block;
 import net.minecraft.init.Blocks;
 import net.minecraftforge.event.RegistryEvent;
@@ -24,6 +25,7 @@ public final class ModBlocks {
     public static BlockStrippedWood STRIPPED_DARK_OAK_LOG;
     public static BlockStrippedWood STRIPPED_DARK_OAK_WOOD;
     public static BlockChain CHAIN;
+    public static BlockCandle CANDLE;
 
     private ModBlocks() {
     }
@@ -44,6 +46,8 @@ public final class ModBlocks {
         STRIPPED_DARK_OAK_WOOD = register(event, "stripped_dark_oak_wood");
         CHAIN = new BlockChain();
         event.getRegistry().register(CHAIN);
+        CANDLE = new BlockCandle();
+        event.getRegistry().register(CANDLE);
     }
 
     private static BlockStrippedWood register(
