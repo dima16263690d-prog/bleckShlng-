@@ -92,7 +92,7 @@ public final class BlockLantern extends Block implements IFluidWaterloggable {
 
     @Override
     public boolean canPlaceBlockAt(World world, BlockPos pos) {
-        if (!world.getBlockState(pos).getBlock().material.isReplaceable()) return false;
+        if (!world.getBlockState(pos).getMaterial().isReplaceable()) return false;
         return world.isSideSolid(pos.down(), EnumFacing.UP, true)
                 || world.isSideSolid(pos.up(), EnumFacing.DOWN, true);
     }
