@@ -134,7 +134,7 @@ public final class WaterloggedFluidRenderer {
                 world, pos, state);
         List<Double> xEdges = coordinateEdges(boxes, null, pos, true);
         List<Double> zEdges = coordinateEdges(boxes, null, pos, false);
-        float fluidHeight = (float) (surfaceY - pos.getY() + 0.002D);
+        float nominalFluidHeight = (float) (surfaceY - pos.getY() + 0.002D);
         float uSpan = sprite.getMaxU() - sprite.getMinU();
         float vSpan = sprite.getMaxV() - sprite.getMinV();
 
@@ -153,9 +153,19 @@ public final class WaterloggedFluidRenderer {
 
                 double centerX = pos.getX() + (x0 + x1) * 0.5D;
                 double centerZ = pos.getZ() + (z0 + z1) * 0.5D;
+                float columnHeight = FluidShapeCalculator.getFluidColumnHeight(
+                        world, pos, state, centerX, centerZ, nominalFluidHeight);
+                if (columnHeight <= 1.0E-5F) {
+                    continue;
+                }
+
+                // Water in an upper slab or the raised part of a stair is
+                // capped by the underside of the solid shape instead of
+                // drawing a surface through the block model.
+                double columnSurfaceY = pos.getY() + (double) columnHeight - 0.002D;
                 if (!FluidShapeCalculator.containsFluidPoint(
-                        world, pos, state, centerX, surfaceY, centerZ,
-                        fluidHeight)) {
+                        world, pos, state, centerX, columnSurfaceY, centerZ,
+                        columnHeight)) {
                     continue;
                 }
 
@@ -165,16 +175,16 @@ public final class WaterloggedFluidRenderer {
                 float v1 = sprite.getMinV() + (float) z1 * vSpan;
 
                 addVertex(buffer, pos.getX() + x0 - cameraX,
-                        surfaceY - cameraY, pos.getZ() + z0 - cameraZ,
+                        columnSurfaceY - cameraY, pos.getZ() + z0 - cameraZ,
                         u0, v0, 0.28F, 0.52F, 0.92F, 0.62F, skyLight, blockLight);
                 addVertex(buffer, pos.getX() + x0 - cameraX,
-                        surfaceY - cameraY, pos.getZ() + z1 - cameraZ,
+                        columnSurfaceY - cameraY, pos.getZ() + z1 - cameraZ,
                         u0, v1, 0.28F, 0.52F, 0.92F, 0.62F, skyLight, blockLight);
                 addVertex(buffer, pos.getX() + x1 - cameraX,
-                        surfaceY - cameraY, pos.getZ() + z1 - cameraZ,
+                        columnSurfaceY - cameraY, pos.getZ() + z1 - cameraZ,
                         u1, v1, 0.28F, 0.52F, 0.92F, 0.62F, skyLight, blockLight);
                 addVertex(buffer, pos.getX() + x1 - cameraX,
-                        surfaceY - cameraY, pos.getZ() + z0 - cameraZ,
+                        columnSurfaceY - cameraY, pos.getZ() + z0 - cameraZ,
                         u1, v0, 0.28F, 0.52F, 0.92F, 0.62F, skyLight, blockLight);
                 wrote = true;
             }
