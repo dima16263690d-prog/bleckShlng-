@@ -1,0 +1,52 @@
+{
+  "variants": {
+    "candles=1,lit=false,waterlogged=false": {
+      "model": "bleckshlng:candle_1"
+    },
+    "candles=1,lit=false,waterlogged=true": {
+      "model": "bleckshlng:candle_1"
+    },
+    "candles=1,lit=true,waterlogged=false": {
+      "model": "bleckshlng:candle_1"
+    },
+    "candles=1,lit=true,waterlogged=true": {
+      "model": "bleckshlng:candle_1"
+    },
+    "candles=2,lit=false,waterlogged=false": {
+      "model": "bleckshlng:candle_2"
+    },
+    "candles=2,lit=false,waterlogged=true": {
+      "model": "bleckshlng:candle_2"
+    },
+    "candles=2,lit=true,waterlogged=false": {
+      "model": "bleckshlng:candle_2"
+    },
+    "candles=2,lit=true,waterlogged=true": {
+      "model": "bleckshlng:candle_2"
+    },
+    "candles=3,lit=false,waterlogged=false": {
+      "model": "bleckshlng:candle_3"
+    },
+    "candles=3,lit=false,waterlogged=true": {
+      "model": "bleckshlng:candle_3"
+    },
+    "candles=3,lit=true,waterlogged=false": {
+      "model": "bleckshlng:candle_3"
+    },
+    "candles=3,lit=true,waterlogged=true": {
+      "model": "bleckshlng:candle_3"
+    },
+    "candles=4,lit=false,waterlogged=false": {
+      "model": "bleckshlng:candle_4"
+    },
+    "candles=4,lit=false,waterlogged=true": {
+      "model": "bleckshlng:candle_4"
+    },
+    "candles=4,lit=true,waterlogged=false": {
+      "model": "bleckshlng:candle_4"
+    },
+    "candles=4,lit=true,waterlogged=true": {
+      "model": "bleckshlng:candle_4"
+    }
+  }
+}
