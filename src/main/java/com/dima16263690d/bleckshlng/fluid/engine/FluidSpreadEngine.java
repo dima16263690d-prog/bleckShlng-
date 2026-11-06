@@ -11,6 +11,7 @@ import net.minecraft.init.Blocks;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import net.minecraftforge.event.ForgeEventFactory;
 
 import com.dima16263690d.bleckshlng.fluid.geometry.BlockGeometryAdapter;
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidOcclusionCache;
@@ -168,7 +169,9 @@ public final class FluidSpreadEngine {
             }
         }
 
-        if (material == Material.WATER && adjacentSourceBlocks >= 2) {
+        if (material == Material.WATER && adjacentSourceBlocks >= 2
+                && ForgeEventFactory.canCreateFluidSource(world, pos,
+                Blocks.FLOWING_WATER.getDefaultState(), true)) {
             BlockPos belowPos = pos.down();
             if (world.isBlockLoaded(belowPos)) {
                 IBlockState belowState = world.getBlockState(belowPos);
@@ -177,11 +180,13 @@ public final class FluidSpreadEngine {
                         world, pos, world.getBlockState(pos), EnumFacing.DOWN);
                 boolean waterSourceBelow = getDepth(
                         world, belowPos, Material.WATER)
-                        == FluidLevelMapper.SOURCE_METADATA;
+                        == FluidLevelMapper.SOURCE_METADATA
+                        && FluidShapeCalculator.canPassThroughWall(
+                        world, belowPos, EnumFacing.UP);
 
-                // 1.13.2 / legacy source conversion: two horizontal sources
-                // create a source when the block below is solid, the current
-                // block seals its downward face, or a water source is below.
+                // 1.13.2 / Forge source conversion: two horizontal sources
+                // create a source when the floor is solid, the current block
+                // seals its downward face, or connected source water is below.
                 if (solidSupport || closedBottomFace || waterSourceBelow) {
                     newLevel = FluidLevelMapper.SOURCE_METADATA;
                 }
