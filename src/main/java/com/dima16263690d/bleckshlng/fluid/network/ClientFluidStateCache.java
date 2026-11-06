@@ -79,6 +79,30 @@ public final class ClientFluidStateCache {
         CHUNKS.remove(key);
     }
 
+
+    public static synchronized void clearChunk(int dimension, int chunkX, int chunkZ) {
+        Integer dimensionKey = Integer.valueOf(dimension);
+        Map<Long, Set<Long>> chunks = CHUNKS.get(dimensionKey);
+        Map<Long, FluidStateBridge> states = STATES.get(dimensionKey);
+        if (chunks == null || states == null) {
+            return;
+        }
+
+        Set<Long> positions = chunks.remove(Long.valueOf(chunkKey(chunkX, chunkZ)));
+        if (positions != null) {
+            for (Long packedPosition : positions) {
+                states.remove(packedPosition);
+            }
+        }
+
+        if (states.isEmpty()) {
+            STATES.remove(dimensionKey);
+        }
+        if (chunks.isEmpty()) {
+            CHUNKS.remove(dimensionKey);
+        }
+    }
+
     public static synchronized void clearAll() {
         STATES.clear();
         CHUNKS.clear();
