@@ -28,6 +28,7 @@ public final class FluidTickTransformer implements IClassTransformer {
     private static final String ENTITY_TARGET = "net.minecraft.entity.Entity";
     private static final String FARMLAND_TARGET = "net.minecraft.block.BlockFarmland";
     private static final String REED_TARGET = "net.minecraft.block.BlockReed";
+    private static final String LILYPAD_TARGET = "net.minecraft.block.BlockLilyPad";
 
     private static final String HOOK_OWNER =
             "com/dima16263690d/bleckshlng/coremod/FluidCoreHooks";
@@ -54,8 +55,9 @@ public final class FluidTickTransformer implements IClassTransformer {
         boolean entityTarget = isTarget(name, transformedName, ENTITY_TARGET);
         boolean farmlandTarget = isTarget(name, transformedName, FARMLAND_TARGET);
         boolean reedTarget = isTarget(name, transformedName, REED_TARGET);
+        boolean lilyPadTarget = isTarget(name, transformedName, LILYPAD_TARGET);
         if (!dynamicTarget && !liquidTarget && !entityTarget
-                && !farmlandTarget && !reedTarget) {
+                && !farmlandTarget && !reedTarget && !lilyPadTarget) {
             return basicClass;
         }
 
@@ -128,6 +130,17 @@ public final class FluidTickTransformer implements IClassTransformer {
                 }
             }
 
+            if (lilyPadTarget) {
+                for (MethodNode method : classNode.methods) {
+                    if (isLilyPadWaterCheck(method)
+                            && !containsHook(method, "applyWaterloggedLilyPadStay")) {
+                        injectBooleanLilyPadHook(method);
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+
             if (!changed) {
                 return basicClass;
             }
@@ -182,6 +195,40 @@ public final class FluidTickTransformer implements IClassTransformer {
                         Type.getReturnType(method.desc).getInternalName());
     }
 
+
+    private static boolean isLilyPadWaterCheck(MethodNode method) {
+        if (!(method.name.equals("canBlockStay")
+                || method.name.equals("func_180671_f")
+                || method.name.equals("f"))) {
+            return false;
+        }
+        Type[] args = Type.getArgumentTypes(method.desc);
+        return Type.BOOLEAN_TYPE.equals(Type.getReturnType(method.desc))
+                && args.length == 3
+                && "net/minecraft/world/World".equals(args[0].getInternalName())
+                && "net/minecraft/util/math/BlockPos".equals(args[1].getInternalName())
+                && "net/minecraft/block/state/IBlockState".equals(args[2].getInternalName());
+    }
+
+    private static void injectBooleanLilyPadHook(MethodNode method) {
+        for (org.objectweb.asm.tree.AbstractInsnNode instruction = method.instructions.getFirst();
+             instruction != null; ) {
+            org.objectweb.asm.tree.AbstractInsnNode next = instruction.getNext();
+            if (instruction.getOpcode() == Opcodes.IRETURN) {
+                InsnList hook = new InsnList();
+                hook.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                hook.add(new VarInsnNode(Opcodes.ALOAD, 2));
+                hook.add(new VarInsnNode(Opcodes.ALOAD, 3));
+                hook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                        HOOK_OWNER, "applyWaterloggedLilyPadStay",
+                        "(ZLnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;"
+                        + "Lnet/minecraft/block/state/IBlockState;)Z", false));
+                method.instructions.insertBefore(instruction, hook);
+                method.maxStack = Math.max(method.maxStack, 4);
+            }
+            instruction = next;
+        }
+    }
 
     private static boolean isReedWaterCheck(MethodNode method) {
         if (!(method.name.equals("canPlaceBlockAt")
