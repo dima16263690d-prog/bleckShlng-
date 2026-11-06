@@ -2,7 +2,6 @@ package com.dima16263690d.bleckshlng.client;
 
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
-import net.minecraftforge.event.world.WorldEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
@@ -37,14 +36,6 @@ public final class ClientProxy extends CommonProxy {
                         message.createState(), message.removed);
             }
         });
-    }
-
-    @SubscribeEvent
-    public static void onWorldUnload(WorldEvent.Unload event) {
-        if (event.getWorld() != null && event.getWorld().isRemote) {
-            ClientFluidStateCache.clearDimension(
-                    event.getWorld().provider.getDimension());
-        }
     }
 
     @SubscribeEvent
