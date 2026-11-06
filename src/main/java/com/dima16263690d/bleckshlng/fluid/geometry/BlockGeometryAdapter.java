@@ -41,13 +41,6 @@ public final class BlockGeometryAdapter {
         Block targetBlock = state.getBlock();
         if (targetMaterial == fluidMaterial || isNeverFluidContainer(targetBlock, targetMaterial)) return false;
 
-        // 1.18 LavaFluid permits water to replace lava whose own height is >= 4/9.
-        if (fluidMaterial == Material.WATER && targetMaterial == Material.LAVA) {
-            FluidStateBridge targetFluid = FluidStateMapper.fromBlockState(state);
-            return targetFluid != null
-                    && FluidHeightCalculator.getOwnHeight(targetFluid) >= 0.44444445F;
-        }
-
         // Lava displaces water only while flowing down; the lava handler turns it to stone.
         if (fluidMaterial == Material.LAVA && targetMaterial == Material.WATER) {
             return direction == EnumFacing.DOWN && targetBlock instanceof BlockLiquid;
@@ -62,7 +55,7 @@ public final class BlockGeometryAdapter {
             // SimpleWaterloggedBlock.canPlaceLiquid(): a filled block cannot
             // accept a second fluid state.
             ChunkFluidData data = ChunkFluidData.get(world);
-            return data == null || data.getWater(pos) == null;
+            return data != null && data.getWater(pos) == null;
         }
         if (targetMaterial == Material.AIR) return true;
         if (!targetMaterial.blocksMovement()) return true;
