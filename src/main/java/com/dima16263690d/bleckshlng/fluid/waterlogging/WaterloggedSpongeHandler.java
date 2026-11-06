@@ -23,7 +23,7 @@ import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
  */
 public final class WaterloggedSpongeHandler {
     private static final int MAX_DEPTH = 6;
-    private static final int MAX_WATER_BLOCKS = 64;
+    private static final int MAX_WATER_BLOCKS = 65;
 
     private WaterloggedSpongeHandler() {
     }
