@@ -23,12 +23,12 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 import com.dima16263690d.bleckshlng.fluid.waterlogging.WaterloggedFluidHandler;
 
 /**
- * Liquid update order based on the legacy BlockDynamicLiquid algorithm used
- * before the 1.13 Update Aquatic waterlogging changes.
+ * Java Edition 1.13.2 liquid behavior adapted to the existing 1.12.2
+ * BlockDynamicLiquid metadata and scheduled-tick system.
  *
- * The old metadata-level recomputation and down-before-sideways order are
- * retained. The 1.13-era additions are isolated to fluid capacity,
- * collision-shape pass-through and waterlogged source storage.
+ * The legacy level encoding is retained for old-world compatibility, while
+ * Update Aquatic rules govern source conversion, waterlogging capacity,
+ * collision-shape pass-through and reactions with waterlogged sources.
  */
 public final class FluidSpreadEngine {
     private static final int NO_FLOW = -1;
