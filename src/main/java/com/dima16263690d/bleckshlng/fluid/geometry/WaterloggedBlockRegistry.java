@@ -15,12 +15,12 @@ import net.minecraft.block.BlockWall;
 import com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable;
 
 /**
- * Explicit compatibility list for legacy vanilla blocks whose 1.18.2
- * counterparts expose a waterlogged state.
+ * Java Edition 1.13.2 / Update Aquatic waterlogging set, mapped to the
+ * existing Minecraft 1.12.2 vanilla block classes.
  *
- * Stairs, single slabs, fences, walls, trapdoors, glass panes and iron bars
- * are waterloggable. Signs and ladders are deliberately excluded: the
- * 1.18.2 FlowingFluid.canHoldFluid() rejects both, as it does doors.
+ * Includes chests, trapped chests, ender chests, stairs, single slabs,
+ * fences, walls, iron bars, glass panes, trapdoors, ladders and signs.
+ * Doors and sugar cane are not waterloggable.
  *
  * The 1.12.2 block state and metadata stay unchanged. Their water state is
  * stored separately by ChunkFluidData.
