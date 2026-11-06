@@ -30,6 +30,7 @@ public final class FluidTickTransformer implements IClassTransformer {
     private static final String REED_TARGET = "net.minecraft.block.BlockReed";
     private static final String LILYPAD_TARGET = "net.minecraft.block.BlockLilyPad";
     private static final String SPONGE_TARGET = "net.minecraft.block.BlockSponge";
+    private static final String FISH_HOOK_TARGET = "net.minecraft.entity.projectile.EntityFishHook";
 
     private static final String HOOK_OWNER =
             "com/dima16263690d/bleckshlng/coremod/FluidCoreHooks";
@@ -58,8 +59,10 @@ public final class FluidTickTransformer implements IClassTransformer {
         boolean reedTarget = isTarget(name, transformedName, REED_TARGET);
         boolean lilyPadTarget = isTarget(name, transformedName, LILYPAD_TARGET);
         boolean spongeTarget = isTarget(name, transformedName, SPONGE_TARGET);
+        boolean fishHookTarget = isTarget(name, transformedName, FISH_HOOK_TARGET);
         if (!dynamicTarget && !liquidTarget && !entityTarget
-                && !farmlandTarget && !reedTarget && !lilyPadTarget && !spongeTarget) {
+                && !farmlandTarget && !reedTarget && !lilyPadTarget
+                && !spongeTarget && !fishHookTarget) {
             return basicClass;
         }
 
@@ -154,6 +157,17 @@ public final class FluidTickTransformer implements IClassTransformer {
                 }
             }
 
+            if (fishHookTarget) {
+                for (MethodNode method : classNode.methods) {
+                    if (isFishHookUpdate(method)
+                            && !containsHook(method, "getFishHookFluidState")) {
+                        injectFishHookFluidState(method);
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+
             if (!changed) {
                 return basicClass;
             }
@@ -208,6 +222,71 @@ public final class FluidTickTransformer implements IClassTransformer {
                         Type.getReturnType(method.desc).getInternalName());
     }
 
+
+    private static boolean isFishHookUpdate(MethodNode method) {
+        return (method.name.equals("onUpdate")
+                || method.name.equals("func_70071_h_")
+                || method.name.equals("h"))
+                && Type.VOID_TYPE.equals(Type.getReturnType(method.desc))
+                && Type.getArgumentTypes(method.desc).length == 0;
+    }
+
+    private static void injectFishHookFluidState(MethodNode method) {
+        for (org.objectweb.asm.tree.AbstractInsnNode instruction = method.instructions.getFirst();
+             instruction != null; instruction = instruction.getNext()) {
+            if (!(instruction instanceof MethodInsnNode)) {
+                continue;
+            }
+
+            MethodInsnNode call = (MethodInsnNode) instruction;
+            if (!"net/minecraft/world/World".equals(call.owner)
+                    || !("getBlockState".equals(call.name)
+                    || "func_180495_p".equals(call.name))
+                    || !"(Lnet/minecraft/util/math/BlockPos;)Lnet/minecraft/block/state/IBlockState;"
+                    .equals(call.desc)) {
+                continue;
+            }
+
+            // In EntityFishHook.onUpdate, the first World.getBlockState call
+            // reads the block occupied by the bobber. The immediately preceding
+            // ALOAD (other than the world field load) is its BlockPos local.
+            int posLocal = -1;
+            for (org.objectweb.asm.tree.AbstractInsnNode previous = instruction.getPrevious();
+                 previous != null; previous = previous.getPrevious()) {
+                if (previous instanceof VarInsnNode
+                        && previous.getOpcode() == Opcodes.ALOAD) {
+                    posLocal = ((VarInsnNode) previous).var;
+                    break;
+                }
+            }
+
+            org.objectweb.asm.tree.AbstractInsnNode store = instruction.getNext();
+            while (store != null && !(store instanceof VarInsnNode
+                    && store.getOpcode() == Opcodes.ASTORE)) {
+                store = store.getNext();
+            }
+            if (posLocal < 0 || !(store instanceof VarInsnNode)) {
+                return;
+            }
+
+            int stateLocal = ((VarInsnNode) store).var;
+            InsnList hook = new InsnList();
+            hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+            hook.add(new org.objectweb.asm.tree.FieldInsnNode(Opcodes.GETFIELD,
+                    "net/minecraft/entity/Entity", "world", "Lnet/minecraft/world/World;"));
+            hook.add(new VarInsnNode(Opcodes.ALOAD, posLocal));
+            hook.add(new VarInsnNode(Opcodes.ALOAD, stateLocal));
+            hook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                    HOOK_OWNER, "getFishHookFluidState",
+                    "(Lnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;"
+                    + "Lnet/minecraft/block/state/IBlockState;)"
+                    + "Lnet/minecraft/block/state/IBlockState;", false));
+            hook.add(new VarInsnNode(Opcodes.ASTORE, stateLocal));
+            method.instructions.insert(store, hook);
+            method.maxStack = Math.max(method.maxStack, 4);
+            return;
+        }
+    }
 
     private static boolean isSpongeAbsorb(MethodNode method) {
         if (!(method.name.equals("absorb")
