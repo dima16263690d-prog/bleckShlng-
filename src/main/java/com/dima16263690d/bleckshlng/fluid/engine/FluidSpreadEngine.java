@@ -146,7 +146,7 @@ public final class FluidSpreadEngine {
             return FluidLevelMapper.toMetadata(8, true, false);
         }
 
-        int amount = maxAmount - FluidProperties.horizontalDecay(world, material);
+        int amount = FluidProperties.nextHorizontalAmount(world, material, maxAmount);
         if (amount <= 0) return NO_FLOW;
         return FluidLevelMapper.toMetadata(amount, false, false);
     }
@@ -192,7 +192,7 @@ public final class FluidSpreadEngine {
         int amount = FluidLevelMapper.amountFromMetadata(legacyLevel);
         int nextAmount = FluidLevelMapper.isFallingMetadata(legacyLevel)
                 ? (int) FALLING_SIDE_AMOUNT
-                : amount - FluidProperties.horizontalDecay(world, material);
+                : FluidProperties.nextHorizontalAmount(world, material, amount);
         if (nextAmount <= 0) return;
 
         Set<EnumFacing> directions = FlowDirectionSearch.getBestDirections(
