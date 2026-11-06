@@ -17,7 +17,9 @@ public final class FluidProperties {
         }
 
         if (material == Material.LAVA) {
-            return world != null && world.provider.doesWaterVaporize() ? 10 : 30;
+            // Slightly faster than the 1.18.2 baseline (30/10 ticks),
+            // while preserving the Overworld/Nether distinction.
+            return world != null && world.provider.doesWaterVaporize() ? 8 : 25;
         }
 
         return 5;
