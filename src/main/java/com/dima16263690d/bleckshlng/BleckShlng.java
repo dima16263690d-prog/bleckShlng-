@@ -1,6 +1,9 @@
 package com.dima16263690d.bleckshlng;
 
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.registry.GameRegistry;
+import net.minecraft.util.ResourceLocation;
+import com.dima16263690d.bleckshlng.block.TileEntityCampfire;
 import net.minecraftforge.fml.common.SidedProxy;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.Mod.EventHandler;
@@ -28,6 +31,8 @@ public final class BleckShlng {
     public void preInit(FMLPreInitializationEvent event) {
         LOGGER = event.getModLog();
         FluidNetwork.init();
+        GameRegistry.registerTileEntity(TileEntityCampfire.class,
+                new ResourceLocation(MODID, "campfire"));
         if (PROXY != null) {
             PROXY.preInit(event);
         }
