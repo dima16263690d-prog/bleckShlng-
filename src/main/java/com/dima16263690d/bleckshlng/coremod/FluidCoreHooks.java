@@ -168,6 +168,36 @@ public final class FluidCoreHooks {
     }
 
     /**
+     * A lily pad can also stand on a waterlogged source, as on a regular
+     * source-water block in the 1.13 water model.
+     */
+    public static boolean applyWaterloggedLilyPadStay(boolean vanillaResult,
+                                                      World world, BlockPos lilyPos,
+                                                      IBlockState lilyState) {
+        if (vanillaResult || world == null || world.isRemote || lilyPos == null) {
+            return vanillaResult;
+        }
+
+        try {
+            BlockPos waterPos = lilyPos.down();
+            if (!world.isBlockLoaded(waterPos)) {
+                return false;
+            }
+            com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData data =
+                    com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData.get(world);
+            com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge fluid =
+                    data == null ? null : data.getWater(waterPos);
+            return fluid != null
+                    && fluid.getKind()
+                    == com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge.FluidKind.WATER
+                    && fluid.isSource();
+        } catch (Throwable error) {
+            LOGGER.error("Waterlogged lily pad support check failed at {}", lilyPos, error);
+            return vanillaResult;
+        }
+    }
+
+    /**
      * Returns null when the block is not one of the vanilla liquids handled
      * here. The transformer then executes the original BlockLiquid method.
      */
