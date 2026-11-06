@@ -74,8 +74,8 @@ public final class FluidFlowVector {
                 difference = currentHeight - neighborHeight;
             }
 
-            flowX += direction.getXOffset() * (double) difference;
-            flowZ += direction.getZOffset() * (double) difference;
+            flowX += direction.getFrontOffsetX() * (double) difference;
+            flowZ += direction.getFrontOffsetZ() * (double) difference;
         }
 
         Vec3d flow = new Vec3d(flowX, 0.0D, flowZ);
@@ -90,7 +90,7 @@ public final class FluidFlowVector {
                 if (isSolidFace(world, side, direction)
                         || (world.isBlockLoaded(side.up())
                         && isSolidFace(world, side.up(), direction))) {
-                    flow = flow.normalize().add(0.0D, -6.0D, 0.0D);
+                    flow = flow.normalize().addVector(0.0D, -6.0D, 0.0D);
                     break;
                 }
             }
