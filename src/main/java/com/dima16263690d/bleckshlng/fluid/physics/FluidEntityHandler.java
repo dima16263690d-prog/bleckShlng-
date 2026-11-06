@@ -13,6 +13,7 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
+import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
 import com.dima16263690d.bleckshlng.fluid.state.FluidHeightCalculator;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
@@ -73,7 +74,8 @@ public final class FluidEntityHandler {
                     // The vanilla Entity/BlockLiquid hook already applies
                     // current and buoyancy for these blocks. This extra pass
                     // must include only water stored inside a host block.
-                    if (blockState.getBlock() instanceof BlockLiquid) {
+                    if (blockState.getBlock() instanceof BlockLiquid
+                            || !WaterloggedBlockRegistry.canWaterlog(blockState.getBlock())) {
                         continue;
                     }
                     FluidStateBridge fluid = FluidStateMapper.fromWorld(
@@ -191,7 +193,8 @@ public final class FluidEntityHandler {
         }
 
         IBlockState state = entity.world.getBlockState(pos);
-        if (state.getBlock() instanceof BlockLiquid) {
+        if (state.getBlock() instanceof BlockLiquid
+                || !WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
             return false;
         }
         FluidStateBridge fluid = FluidStateMapper.fromWorld(entity.world, pos, state);
