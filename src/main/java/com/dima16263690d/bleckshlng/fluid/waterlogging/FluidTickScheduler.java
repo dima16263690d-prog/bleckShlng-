@@ -193,21 +193,17 @@ public final class FluidTickScheduler {
             return;
         }
 
-        // LOWEST priority with receiveCanceled=false avoids deleting the fluid
-        // sidecar when another mod cancels the player's block-break event.
+        // A waterlogged block releases its water source when it is removed.
+        // Do not delete the sidecar here: BreakEvent fires before the block is
+        // replaced with air. Its next fluid tick converts it into Blocks.WATER
+        // if the position is now empty or replaceable.
         BlockPos pos = event.getPos();
         ChunkFluidData data = ChunkFluidData.get(world);
-        boolean removedSidecar = data != null && data.remove(pos);
+        boolean hasSidecar = data != null && data.getWater(pos) != null;
         net.minecraft.block.state.IBlockState state = world.getBlockState(pos);
-        boolean removedAdapterState = state.getBlock() instanceof IFluidWaterloggable
+        boolean hasAdapterWater = state.getBlock() instanceof IFluidWaterloggable
                 && ((IFluidWaterloggable) state.getBlock()).isWaterlogged(state);
-        if (removedSidecar || removedAdapterState) {
-            FluidNetwork.removeState(world, pos);
+        if (hasSidecar || hasAdapterWater) {
+            schedule(world, pos, 1);
         }
-
-        Map<Long, Long> tasks = PENDING.get(world);
-        if (tasks != null) {
-            tasks.remove(Long.valueOf(event.getPos().toLong()));
-        }
-    }
 }
