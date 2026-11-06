@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "axis=x,waterlogged=false": { "model": "bleckshlng:chain_x" },
+    "axis=x,waterlogged=true":  { "model": "bleckshlng:chain_x" },
+    "axis=y,waterlogged=false": { "model": "bleckshlng:chain_y" },
+    "axis=y,waterlogged=true":  { "model": "bleckshlng:chain_y" },
+    "axis=z,waterlogged=false": { "model": "bleckshlng:chain_z" },
+    "axis=z,waterlogged=true":  { "model": "bleckshlng:chain_z" }
+  }
+}
