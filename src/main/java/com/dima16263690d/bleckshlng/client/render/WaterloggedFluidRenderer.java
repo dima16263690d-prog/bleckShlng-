@@ -127,6 +127,9 @@ public final class WaterloggedFluidRenderer {
                                              double cameraY, double cameraZ,
                                              TextureAtlasSprite sprite) {
         boolean wrote = false;
+        int packedLight = world.getCombinedLight(pos, 0);
+        int skyLight = (packedLight >> 16) & 0xFFFF;
+        int blockLight = packedLight & 0xFFFF;
         List<AxisAlignedBB> boxes = FluidShapeCalculator.getCollisionBoxes(
                 world, pos, state);
         List<Double> xEdges = coordinateEdges(boxes, null, pos, true);
@@ -166,13 +169,13 @@ public final class WaterloggedFluidRenderer {
                         u0, v0, 0.28F, 0.52F, 0.92F, 0.62F);
                 addVertex(buffer, pos.getX() + x0 - cameraX,
                         surfaceY - cameraY, pos.getZ() + z1 - cameraZ,
-                        u0, v1, 0.28F, 0.52F, 0.92F, 0.62F);
+                        u0, v1, 0.28F, 0.52F, 0.92F, 0.62F, skyLight, blockLight);
                 addVertex(buffer, pos.getX() + x1 - cameraX,
                         surfaceY - cameraY, pos.getZ() + z1 - cameraZ,
-                        u1, v1, 0.28F, 0.52F, 0.92F, 0.62F);
+                        u1, v1, 0.28F, 0.52F, 0.92F, 0.62F, skyLight, blockLight);
                 addVertex(buffer, pos.getX() + x1 - cameraX,
                         surfaceY - cameraY, pos.getZ() + z0 - cameraZ,
-                        u1, v0, 0.28F, 0.52F, 0.92F, 0.62F);
+                        u1, v0, 0.28F, 0.52F, 0.92F, 0.62F, skyLight, blockLight);
                 wrote = true;
             }
         }
@@ -192,6 +195,9 @@ public final class WaterloggedFluidRenderer {
         if (height <= 0.0F) return false;
 
         boolean wrote = false;
+        int packedLight = world.getCombinedLight(pos, 0);
+        int skyLight = (packedLight >> 16) & 0xFFFF;
+        int blockLight = packedLight & 0xFFFF;
         double xBase = pos.getX();
         double yBase = pos.getY();
         double zBase = pos.getZ();
@@ -310,7 +316,7 @@ public final class WaterloggedFluidRenderer {
                     switch (direction) {
                         case NORTH:
                             addSideVertex(buffer, x0-cameraX, yBase+y0-cameraY,
-                                    z0-cameraZ, texU0, texV0, direction);
+                                    z0-cameraZ, texU0, texV0, direction, skyLight, blockLight);
                             addSideVertex(buffer, x1-cameraX, yBase+y0-cameraY,
                                     z1-cameraZ, texU1, texV0, direction);
                             addSideVertex(buffer, x1-cameraX, yBase+y1-cameraY,
@@ -416,11 +422,12 @@ public final class WaterloggedFluidRenderer {
         }
     }
     private static void addSideVertex(BufferBuilder buffer, double x, double y, double z,
-                                      float u, float v, EnumFacing normal) {
+                                      float u, float v, EnumFacing normal,
+                                      int skyLight, int blockLight) {
         buffer.pos(x, y, z)
                 .color(0.28F, 0.52F, 0.92F, 0.62F)
                 .tex(u, v)
-                .lightmap(240, 240)
+                .lightmap(skyLight, blockLight)
                 .normal((float) normal.getFrontOffsetX(),
                         (float) normal.getFrontOffsetY(),
                         (float) normal.getFrontOffsetZ())
@@ -429,11 +436,11 @@ public final class WaterloggedFluidRenderer {
 
     private static void addVertex(BufferBuilder buffer, double x, double y, double z,
                                   float u, float v, float red, float green,
-                                  float blue, float alpha) {
+                                  float blue, float alpha, int skyLight, int blockLight) {
         buffer.pos(x,y,z)
                 .color(red,green,blue,alpha)
                 .tex(u,v)
-                .lightmap(240,240)
+                .lightmap(skyLight, blockLight)
                 .normal(0.0F,1.0F,0.0F)
                 .endVertex();
     }
