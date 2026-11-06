@@ -2,6 +2,7 @@ package com.dima16263690d.bleckshlng.fluid.geometry;
 
 import net.minecraft.block.Block;
 import com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable;
+import com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable;
 import net.minecraft.block.BlockFence;
 import net.minecraft.block.BlockLadder;
 import net.minecraft.block.BlockPane;

@@ -7,6 +7,10 @@ import net.minecraft.util.EnumHand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
+import net.minecraftforge.fluids.FluidActionResult;
+import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fluids.FluidUtil;
+import net.minecraftforge.fluids.IFluidBlock;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
@@ -42,6 +46,41 @@ public final class FluidBucketHandler {
         BlockPos pos = event.getPos();
         if (!world.isBlockLoaded(pos)) {
             return;
+        }
+
+        // Prefer the official Forge capability/API path for modded tanks and
+        // container items before applying vanilla waterlogging rules.
+        if (FluidUtil.interactWithFluidHandler(
+                player, hand, world, pos, event.getFace())) {
+            event.setCanceled(true);
+            return;
+        }
+
+        IBlockState clickedState = world.getBlockState(pos);
+        if (clickedState.getBlock() instanceof IFluidBlock
+                && held.getItem() == Items.BUCKET) {
+            FluidActionResult pickup = FluidUtil.tryPickUpFluid(
+                    held, player, world, pos, event.getFace());
+            if (pickup.isSuccess()) {
+                replaceEmptyBucket(player, hand, held, pickup.getResult());
+                event.setCanceled(true);
+                return;
+            }
+        }
+
+        FluidStack contained = FluidUtil.getFluidContained(held);
+        if (contained != null && contained.amount > 0) {
+            BlockPos target = clickedState.getBlock().isReplaceable(world, pos)
+                    ? pos : pos.offset(event.getFace());
+            if (world.isBlockLoaded(target)) {
+                FluidActionResult placed = FluidUtil.tryPlaceFluid(
+                        player, world, target, held, contained);
+                if (placed.isSuccess()) {
+                    replaceFilledBucket(player, hand, held, placed.getResult());
+                    event.setCanceled(true);
+                    return;
+                }
+            }
         }
 
         if (held.getItem() == Items.WATER_BUCKET) {

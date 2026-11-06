@@ -9,6 +9,7 @@ import com.dima16263690d.bleckshlng.fluid.engine.FluidFlowEngine;
 import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
+import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
 
 /**
  * Waterlogging adapter for 1.12.2 blocks that have modern waterlogged
@@ -52,6 +53,7 @@ public final class WaterloggedFluidHandler {
         }
 
         FluidNetwork.syncState(world, pos, stored);
+        FluidNetwork.syncState(world, pos, stored);
         world.notifyNeighborsOfStateChange(pos, blockState.getBlock(), false);
         FluidTickScheduler.schedule(world, pos, 1);
         return true;
@@ -73,6 +75,7 @@ public final class WaterloggedFluidHandler {
             }
             world.setBlockState(pos, changed, 3);
             world.notifyNeighborsOfStateChange(pos, changed.getBlock(), false);
+            FluidTickScheduler.schedule(world, pos, 1);
             return true;
         }
 
