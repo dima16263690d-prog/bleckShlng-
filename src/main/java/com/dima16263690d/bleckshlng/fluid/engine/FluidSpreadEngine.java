@@ -256,7 +256,7 @@ public final class FluidSpreadEngine {
      * Matches legacy BlockDynamicLiquid.canFlowInto while adding the
      * LiquidBlockContainer-style water capacity check for 1.13 waterlogging.
      */
-    private static boolean canFlowInto(World world, BlockPos pos, IBlockState state,
+    static boolean canFlowInto(World world, BlockPos pos, IBlockState state,
                                        Material material, EnumFacing direction) {
         if (world == null || pos == null || state == null
                 || !world.isBlockLoaded(pos)) {
