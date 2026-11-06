@@ -40,4 +40,21 @@ public final class FluidProperties {
         }
         return 1;
     }
+
+    /**
+     * Computes the amount carried into the next horizontal block.
+     *
+     * Water and Nether lava keep the 1.18.2 one-level decay. Overworld/End
+     * lava keeps its normal two-level decay, with a final one-level tail:
+     * this extends the horizontal reach by one block without making the
+     * flowing lava renewable or changing its source-conversion rules.
+     */
+    public static int nextHorizontalAmount(World world, Material material, int amount) {
+        boolean ordinaryDimensionLava = material == Material.LAVA
+                && (world == null || !world.provider.doesWaterVaporize());
+        if (ordinaryDimensionLava && amount == 2) {
+            return 1;
+        }
+        return amount - horizontalDecay(world, material);
+    }
 }
