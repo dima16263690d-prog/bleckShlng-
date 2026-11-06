@@ -229,6 +229,54 @@ public final class FluidShapeCalculator {
         return false;
     }
 
+    /**
+     * Computes the top of the fluid pocket visible in one vertical column.
+     *
+     * A waterlogged upper slab has its free volume below the collision shape,
+     * so a block-wide 8/9 fluid height would put the surface inside the slab
+     * and make the water disappear. Lower slabs keep the normal 8/9 surface
+     * above their collision shape. Composite shapes (stairs, trapdoors,
+     * fences and panes) are evaluated per collision-boundary cell.
+     */
+    public static float getFluidColumnHeight(World world, BlockPos pos,
+                                             IBlockState state, double worldX,
+                                             double worldZ, float nominalHeight) {
+        if (world == null || pos == null || state == null
+                || nominalHeight <= 0.0F || !world.isBlockLoaded(pos)) {
+            return 0.0F;
+        }
+
+        double x = worldX;
+        double z = worldZ;
+        float height = Math.min(1.0F, nominalHeight);
+        List<AxisAlignedBB> boxes = getCollisionBoxes(world, pos, state);
+
+        for (AxisAlignedBB box : boxes) {
+            if (x <= box.minX + EPSILON || x >= box.maxX - EPSILON
+                    || z <= box.minZ + EPSILON || z >= box.maxZ - EPSILON) {
+                continue;
+            }
+
+            double minY = box.minY - pos.getY();
+            double maxY = box.maxY - pos.getY();
+
+            // A full-height post/pane column contains no visible fluid.
+            if (minY <= EPSILON && maxY >= (double) height - EPSILON) {
+                return 0.0F;
+            }
+
+            // A shape that starts above the floor and reaches the block
+            // ceiling (top slab, upper stair step, closed top trapdoor)
+            // caps the water surface at the underside of that shape.
+            if (minY > EPSILON && minY < (double) height
+                    && maxY >= 1.0D - EPSILON) {
+                height = (float) Math.min((double) height, minY);
+            }
+        }
+
+        return Math.max(0.0F, height);
+    }
+
     public static boolean containsFluidPoint(World world, BlockPos pos,
                                              IBlockState state, double x,
                                              double y, double z, float fluidHeight) {
