@@ -52,10 +52,103 @@ public final class FluidShapeCalculator {
         }
         IBlockState firstState = world.getBlockState(pos);
         IBlockState secondState = world.getBlockState(otherPos);
-        boolean occluded = isFaceFullyCovered(world, pos, firstState, direction)
-                && isFaceFullyCovered(world, otherPos, secondState, direction.getOpposite());
+        List<AxisAlignedBB> firstBoxes = getCollisionBoxes(world, pos, firstState);
+        List<AxisAlignedBB> secondBoxes = getCollisionBoxes(world, otherPos, secondState);
+        boolean occluded = isMergedFaceCoveredExactly(
+                firstBoxes, pos, direction, secondBoxes, otherPos, direction.getOpposite());
         FluidOcclusionCache.putMergedFace(world, pos, direction, occluded);
         return occluded;
+    }
+
+    /**
+     * Equivalent to a merged-face occlusion test: the shared face is closed
+     * when the union of both blocks' collision projections covers every point.
+     * Checking each block independently with AND is incorrect for stairs,
+     * panes, fences and other composite shapes.
+     */
+    private static boolean isMergedFaceCoveredExactly(
+            List<AxisAlignedBB> firstBoxes, BlockPos firstPos, EnumFacing firstFace,
+            List<AxisAlignedBB> secondBoxes, BlockPos secondPos, EnumFacing secondFace) {
+        TreeSet<Double> uEdges = new TreeSet<Double>();
+        TreeSet<Double> vEdges = new TreeSet<Double>();
+        uEdges.add(Double.valueOf(0.0D));
+        uEdges.add(Double.valueOf(1.0D));
+        vEdges.add(Double.valueOf(0.0D));
+        vEdges.add(Double.valueOf(1.0D));
+
+        collectFaceEdges(firstBoxes, firstPos, firstFace, uEdges, vEdges);
+        collectFaceEdges(secondBoxes, secondPos, secondFace, uEdges, vEdges);
+
+        List<Double> u = new ArrayList<Double>(uEdges);
+        List<Double> v = new ArrayList<Double>(vEdges);
+        for (int i = 0; i + 1 < u.size(); i++) {
+            double u0 = u.get(i).doubleValue();
+            double u1 = u.get(i + 1).doubleValue();
+            if (u1 - u0 <= EPSILON) {
+                continue;
+            }
+
+            for (int j = 0; j + 1 < v.size(); j++) {
+                double v0 = v.get(j).doubleValue();
+                double v1 = v.get(j + 1).doubleValue();
+                if (v1 - v0 <= EPSILON) {
+                    continue;
+                }
+
+                double uMid = (u0 + u1) * 0.5D;
+                double vMid = (v0 + v1) * 0.5D;
+                if (!facePointCovered(firstBoxes, firstPos, firstFace, uMid, vMid)
+                        && !facePointCovered(secondBoxes, secondPos, secondFace, uMid, vMid)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static void collectFaceEdges(List<AxisAlignedBB> boxes, BlockPos pos,
+                                         EnumFacing face, TreeSet<Double> uEdges,
+                                         TreeSet<Double> vEdges) {
+        for (AxisAlignedBB box : boxes) {
+            if (!touchesFace(box, pos, face)) {
+                continue;
+            }
+
+            double minU;
+            double maxU;
+            double minV;
+            double maxV;
+            switch (face) {
+                case DOWN:
+                case UP:
+                    minU = box.minX - pos.getX();
+                    maxU = box.maxX - pos.getX();
+                    minV = box.minZ - pos.getZ();
+                    maxV = box.maxZ - pos.getZ();
+                    break;
+                case NORTH:
+                case SOUTH:
+                    minU = box.minX - pos.getX();
+                    maxU = box.maxX - pos.getX();
+                    minV = box.minY - pos.getY();
+                    maxV = box.maxY - pos.getY();
+                    break;
+                case WEST:
+                case EAST:
+                    minU = box.minY - pos.getY();
+                    maxU = box.maxY - pos.getY();
+                    minV = box.minZ - pos.getZ();
+                    maxV = box.maxZ - pos.getZ();
+                    break;
+                default:
+                    return;
+            }
+
+            addClippedEdge(uEdges, minU);
+            addClippedEdge(uEdges, maxU);
+            addClippedEdge(vEdges, minV);
+            addClippedEdge(vEdges, maxV);
+        }
     }
 
     public static boolean canPassThroughWall(World world, BlockPos pos, EnumFacing direction) {
