@@ -210,17 +210,17 @@ public final class FluidSpreadEngine {
         boolean openDownFace = FluidShapeCalculator.canPassThroughWall(
                 world, pos, EnumFacing.DOWN);
 
-        // Java Edition 1.13.2 treats waterlogged hosts as water for lava
-        // contact. Lava cannot replace the host block with stone, but it
-        // still produces the extinguish reaction when flowing onto it.
-        if (material == Material.LAVA && openDownFace
-                && belowState.getBlock() instanceof BlockLiquid
-                && belowState.getMaterial() == Material.WATER) {
-            // Classic lava-down-into-water reaction. A waterlogged host is
-            // not a LiquidBlock and must block downward lava replacement;
-            // the source lava then evaluates its horizontal routes below.
-            FluidMixingHandler.reactDownward(world, belowPos, belowState);
-            return;
+        // Lava must recognize FluidState held inside a host block as water.
+        // The host remains intact; reactDownward only converts ordinary
+        // vanilla water to stone and emits the extinguish effect for both.
+        if (material == Material.LAVA && openDownFace) {
+            FluidStateBridge belowFluid = FluidStateMapper.fromWorld(
+                    world, belowPos, belowState);
+            if (belowFluid != null
+                    && belowFluid.getKind() == FluidStateBridge.FluidKind.WATER) {
+                FluidMixingHandler.reactDownward(world, belowPos, belowState);
+                return;
+            }
         }
 
         boolean canEnterBelow = openDownFace && canFlowInto(
