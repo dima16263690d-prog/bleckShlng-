@@ -57,9 +57,23 @@ public final class FluidCoreHooks {
             FluidFlowEngine.tick(world, pos, state, random);
             return true;
         } catch (Throwable error) {
-            LOGGER.error("Fluid engine failed at {}; falling back to vanilla liquid tick",
+            LOGGER.error("Fluid engine failed at {}; suppressing duplicate vanilla update",
                     pos, error);
-            return false;
+
+            // The engine may have already changed neighboring blocks before
+            // an unexpected adapter/mod exception occurred. Running the
+            // vanilla tick in the same call could spread twice or react twice.
+            // Retry only if this exact vanilla fluid block still occupies pos.
+            try {
+                if (world.isBlockLoaded(pos)
+                        && world.getBlockState(pos).getBlock() == state.getBlock()) {
+                    world.scheduleUpdate(pos, state.getBlock(),
+                            FluidProperties.tickRate(world, material));
+                }
+            } catch (Throwable retryError) {
+                LOGGER.error("Could not reschedule failed fluid update at {}", pos, retryError);
+            }
+            return true;
         }
     }
 
