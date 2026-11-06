@@ -7,7 +7,6 @@ import net.minecraft.block.BlockRotatedPillar;
 import net.minecraft.block.SoundType;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.properties.PropertyBool;
-import net.minecraft.block.state.BlockFaceShape;
 import net.minecraft.block.state.BlockStateContainer;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.creativetab.CreativeTabs;
@@ -117,12 +116,6 @@ public final class BlockChain extends BlockRotatedPillar implements IFluidWaterl
     @Override
     public boolean isOpaqueCube(IBlockState state) {
         return false;
-    }
-
-    @Override
-    public BlockFaceShape getBlockFaceShape(IBlockAccess world, IBlockState state,
-                                             BlockPos pos, EnumFacing face) {
-        return BlockFaceShape.UNDEFINED;
     }
 
     @Override
