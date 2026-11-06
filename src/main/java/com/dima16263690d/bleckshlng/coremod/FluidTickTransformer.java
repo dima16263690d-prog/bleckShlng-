@@ -27,6 +27,7 @@ public final class FluidTickTransformer implements IClassTransformer {
     private static final String LIQUID_TARGET = "net.minecraft.block.BlockLiquid";
     private static final String ENTITY_TARGET = "net.minecraft.entity.Entity";
     private static final String FARMLAND_TARGET = "net.minecraft.block.BlockFarmland";
+    private static final String REED_TARGET = "net.minecraft.block.BlockReed";
 
     private static final String HOOK_OWNER =
             "com/dima16263690d/bleckshlng/coremod/FluidCoreHooks";
@@ -52,7 +53,9 @@ public final class FluidTickTransformer implements IClassTransformer {
         boolean liquidTarget = isTarget(name, transformedName, LIQUID_TARGET);
         boolean entityTarget = isTarget(name, transformedName, ENTITY_TARGET);
         boolean farmlandTarget = isTarget(name, transformedName, FARMLAND_TARGET);
-        if (!dynamicTarget && !liquidTarget && !entityTarget && !farmlandTarget) {
+        boolean reedTarget = isTarget(name, transformedName, REED_TARGET);
+        if (!dynamicTarget && !liquidTarget && !entityTarget
+                && !farmlandTarget && !reedTarget) {
             return basicClass;
         }
 
@@ -114,6 +117,17 @@ public final class FluidTickTransformer implements IClassTransformer {
                 }
             }
 
+            if (reedTarget) {
+                for (MethodNode method : classNode.methods) {
+                    if (isReedWaterCheck(method)
+                            && !containsHook(method, "applyWaterloggedReedWater")) {
+                        injectBooleanFarmlandHook(method, "applyWaterloggedReedWater");
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+
             if (!changed) {
                 return basicClass;
             }
@@ -169,6 +183,19 @@ public final class FluidTickTransformer implements IClassTransformer {
     }
 
 
+    private static boolean isReedWaterCheck(MethodNode method) {
+        if (!(method.name.equals("canPlaceBlockAt")
+                || method.name.equals("func_176196_c")
+                || method.name.equals("a"))) {
+            return false;
+        }
+        Type[] args = Type.getArgumentTypes(method.desc);
+        return Type.BOOLEAN_TYPE.equals(Type.getReturnType(method.desc))
+                && args.length == 2
+                && "net/minecraft/world/World".equals(args[0].getInternalName())
+                && "net/minecraft/util/math/BlockPos".equals(args[1].getInternalName());
+    }
+
     private static boolean isFarmlandWaterCheck(MethodNode method) {
         if (!(method.name.equals("func_176530_e")
                 || method.name.equals("hasWater")
@@ -183,6 +210,10 @@ public final class FluidTickTransformer implements IClassTransformer {
     }
 
     private static void injectBooleanFarmlandHook(MethodNode method) {
+        injectBooleanFarmlandHook(method, "applyWaterloggedFarmlandWater");
+    }
+
+    private static void injectBooleanFarmlandHook(MethodNode method, String hookName) {
         for (org.objectweb.asm.tree.AbstractInsnNode instruction = method.instructions.getFirst();
              instruction != null; ) {
             org.objectweb.asm.tree.AbstractInsnNode next = instruction.getNext();
@@ -192,7 +223,7 @@ public final class FluidTickTransformer implements IClassTransformer {
                 hook.add(new VarInsnNode(Opcodes.ALOAD, 1));
                 hook.add(new VarInsnNode(Opcodes.ALOAD, 2));
                 hook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
-                        HOOK_OWNER, "applyWaterloggedFarmlandWater",
+                        HOOK_OWNER, hookName,
                         "(ZLnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;)Z",
                         false));
                 method.instructions.insertBefore(instruction, hook);
