@@ -166,7 +166,7 @@ public final class WaterloggedFluidRenderer {
 
                 addVertex(buffer, pos.getX() + x0 - cameraX,
                         surfaceY - cameraY, pos.getZ() + z0 - cameraZ,
-                        u0, v0, 0.28F, 0.52F, 0.92F, 0.62F);
+                        u0, v0, 0.28F, 0.52F, 0.92F, 0.62F, skyLight, blockLight);
                 addVertex(buffer, pos.getX() + x0 - cameraX,
                         surfaceY - cameraY, pos.getZ() + z1 - cameraZ,
                         u0, v1, 0.28F, 0.52F, 0.92F, 0.62F, skyLight, blockLight);
@@ -318,41 +318,41 @@ public final class WaterloggedFluidRenderer {
                             addSideVertex(buffer, x0-cameraX, yBase+y0-cameraY,
                                     z0-cameraZ, texU0, texV0, direction, skyLight, blockLight);
                             addSideVertex(buffer, x1-cameraX, yBase+y0-cameraY,
-                                    z1-cameraZ, texU1, texV0, direction);
+                                    z1-cameraZ, texU1, texV0, direction, skyLight, blockLight);
                             addSideVertex(buffer, x1-cameraX, yBase+y1-cameraY,
-                                    z1-cameraZ, texU1, texV1, direction);
+                                    z1-cameraZ, texU1, texV1, direction, skyLight, blockLight);
                             addSideVertex(buffer, x0-cameraX, yBase+y1-cameraY,
-                                    z0-cameraZ, texU0, texV1, direction);
+                                    z0-cameraZ, texU0, texV1, direction, skyLight, blockLight);
                             break;
                         case SOUTH:
                             addSideVertex(buffer, x1-cameraX, yBase+y0-cameraY,
-                                    z1-cameraZ, texU1, texV0, direction);
+                                    z1-cameraZ, texU1, texV0, direction, skyLight, blockLight);
                             addSideVertex(buffer, x0-cameraX, yBase+y0-cameraY,
-                                    z0-cameraZ, texU0, texV0, direction);
+                                    z0-cameraZ, texU0, texV0, direction, skyLight, blockLight);
                             addSideVertex(buffer, x0-cameraX, yBase+y1-cameraY,
-                                    z0-cameraZ, texU0, texV1, direction);
+                                    z0-cameraZ, texU0, texV1, direction, skyLight, blockLight);
                             addSideVertex(buffer, x1-cameraX, yBase+y1-cameraY,
-                                    z1-cameraZ, texU1, texV1, direction);
+                                    z1-cameraZ, texU1, texV1, direction, skyLight, blockLight);
                             break;
                         case WEST:
                             addSideVertex(buffer, x0-cameraX, yBase+y0-cameraY,
-                                    z1-cameraZ, texU1, texV0, direction);
+                                    z1-cameraZ, texU1, texV0, direction, skyLight, blockLight);
                             addSideVertex(buffer, x1-cameraX, yBase+y0-cameraY,
-                                    z0-cameraZ, texU0, texV0, direction);
+                                    z0-cameraZ, texU0, texV0, direction, skyLight, blockLight);
                             addSideVertex(buffer, x1-cameraX, yBase+y1-cameraY,
-                                    z0-cameraZ, texU0, texV1, direction);
+                                    z0-cameraZ, texU0, texV1, direction, skyLight, blockLight);
                             addSideVertex(buffer, x0-cameraX, yBase+y1-cameraY,
-                                    z1-cameraZ, texU1, texV1, direction);
+                                    z1-cameraZ, texU1, texV1, direction, skyLight, blockLight);
                             break;
                         case EAST:
                             addSideVertex(buffer, x1-cameraX, yBase+y0-cameraY,
-                                    z0-cameraZ, texU0, texV0, direction);
+                                    z0-cameraZ, texU0, texV0, direction, skyLight, blockLight);
                             addSideVertex(buffer, x0-cameraX, yBase+y0-cameraY,
-                                    z1-cameraZ, texU1, texV0, direction);
+                                    z1-cameraZ, texU1, texV0, direction, skyLight, blockLight);
                             addSideVertex(buffer, x0-cameraX, yBase+y1-cameraY,
-                                    z1-cameraZ, texU1, texV1, direction);
+                                    z1-cameraZ, texU1, texV1, direction, skyLight, blockLight);
                             addSideVertex(buffer, x1-cameraX, yBase+y1-cameraY,
-                                    z0-cameraZ, texU0, texV1, direction);
+                                    z0-cameraZ, texU0, texV1, direction, skyLight, blockLight);
                             break;
                         default:
                             break;
