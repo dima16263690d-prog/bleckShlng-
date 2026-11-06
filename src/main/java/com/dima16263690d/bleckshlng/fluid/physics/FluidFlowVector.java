@@ -38,7 +38,9 @@ public final class FluidFlowVector {
 
         for (EnumFacing direction : EnumFacing.Plane.HORIZONTAL) {
             BlockPos neighborPos = pos.offset(direction);
-            if (!world.isBlockLoaded(neighborPos)) {
+            if (!world.isBlockLoaded(neighborPos)
+                    || !FluidShapeCalculator.canPassThroughWall(
+                    world, pos, direction)) {
                 continue;
             }
 
@@ -56,7 +58,9 @@ public final class FluidFlowVector {
             float difference = 0.0F;
 
             if (neighborHeight == 0.0F) {
-                if (!neighborBlock.getMaterial().blocksMovement()) {
+                if (!neighborBlock.getMaterial().blocksMovement()
+                        && FluidShapeCalculator.canPassThroughWall(
+                        world, neighborPos, EnumFacing.DOWN)) {
                     BlockPos belowPos = neighborPos.down();
                     if (world.isBlockLoaded(belowPos)) {
                         FluidStateBridge below = FluidStateMapper.fromWorld(
