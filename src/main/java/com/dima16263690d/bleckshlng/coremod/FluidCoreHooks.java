@@ -281,14 +281,15 @@ public final class FluidCoreHooks {
      * here. The transformer then executes the original BlockLiquid method.
      */
     public static boolean applyWaterloggedMovement(boolean vanillaResult, Entity entity) {
-        if (vanillaResult) {
-            return true;
-        }
         try {
-            return FluidEntityHandler.updateWaterloggedMovement(entity);
+            // Do not skip the sidecar scan when the entity is also touching
+            // ordinary water. Both fluid contributions must be applied.
+            boolean waterloggedResult =
+                    FluidEntityHandler.updateWaterloggedMovement(entity);
+            return vanillaResult || waterloggedResult;
         } catch (Throwable error) {
             LOGGER.error("Waterlogged entity movement check failed; keeping vanilla result", error);
-            return false;
+            return vanillaResult;
         }
     }
 
