@@ -3,7 +3,7 @@ package com.dima16263690d.bleckshlng;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.SidedProxy;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
-import net.minecraftforge.fml.common.eventhandler.EventHandler;
+import net.minecraftforge.fml.common.Mod.EventHandler;
 import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
 import org.apache.logging.log4j.Logger;
 
