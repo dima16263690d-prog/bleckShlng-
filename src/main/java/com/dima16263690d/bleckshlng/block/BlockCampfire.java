@@ -11,7 +11,6 @@ import net.minecraft.block.state.BlockStateContainer;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
@@ -196,8 +195,10 @@ public final class BlockCampfire extends BlockContainer implements IFluidWaterlo
     }
 
     @Override
-    public void onEntityCollision(World world, BlockPos pos, IBlockState state, Entity entity) {
-        if (!world.isRemote && state.getValue(LIT).booleanValue()
+    public void onEntityWalk(World world, BlockPos pos, Entity entity) {
+        IBlockState state = world.getBlockState(pos);
+        if (!world.isRemote && state.getBlock() == this
+                && state.getValue(LIT).booleanValue()
                 && !state.getValue(WATERLOGGED).booleanValue()
                 && entity instanceof EntityLivingBase && !entity.isImmuneToFire()) {
             entity.attackEntityFrom(DamageSource.IN_FIRE, 1.0F);
