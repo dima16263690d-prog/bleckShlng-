@@ -160,15 +160,6 @@ public final class FluidSpreadEngine {
             newLevel = NO_FLOW;
         }
 
-        BlockPos abovePos = pos.up();
-        if (world.isBlockLoaded(abovePos)
-                && FluidShapeCalculator.canPassThroughWall(world, pos, EnumFacing.UP)) {
-            int aboveLevel = getDepth(world, abovePos, material);
-            if (aboveLevel >= 0) {
-                newLevel = aboveLevel >= 8 ? aboveLevel : aboveLevel + 8;
-            }
-        }
-
         if (material == Material.WATER && adjacentSourceBlocks >= 2
                 && ForgeEventFactory.canCreateFluidSource(world, pos,
                 Blocks.FLOWING_WATER.getDefaultState(), true)) {
@@ -184,12 +175,22 @@ public final class FluidSpreadEngine {
                         && FluidShapeCalculator.canPassThroughWall(
                         world, belowPos, EnumFacing.UP);
 
-                // 1.13.2 / Forge source conversion: two horizontal sources
-                // create a source when the floor is solid, the current block
-                // seals its downward face, or connected source water is below.
+                // Keep the Update Aquatic/Forge support rules, including a
+                // fully closed lower face and a connected source underneath.
                 if (solidSupport || closedBottomFace || waterSourceBelow) {
                     newLevel = FluidLevelMapper.SOURCE_METADATA;
                 }
+            }
+        }
+
+        // FlowingFluid applies the falling override after source conversion.
+        // A matching fluid above always produces a full falling state.
+        BlockPos abovePos = pos.up();
+        if (world.isBlockLoaded(abovePos)
+                && FluidShapeCalculator.canPassThroughWall(world, pos, EnumFacing.UP)) {
+            int aboveLevel = getDepth(world, abovePos, material);
+            if (aboveLevel >= 0) {
+                newLevel = 8;
             }
         }
 
@@ -227,9 +228,9 @@ public final class FluidSpreadEngine {
                 world, belowPos, belowState, material, EnumFacing.DOWN);
 
         if (canEnterBelow) {
-            // The old engine adds the falling bit (8) to horizontal metadata.
-            // Already-falling fluid keeps its falling level when it drops again.
-            int downwardLevel = level >= 8 ? level : level + 8;
+            // FlowingFluid.getNewLiquid() yields full-strength falling water
+            // whenever matching fluid occupies the block directly above.
+            int downwardLevel = 8;
             tryFlowInto(world, belowPos, belowState, material,
                     downwardLevel, EnumFacing.DOWN);
 
@@ -321,19 +322,20 @@ public final class FluidSpreadEngine {
         // (18w16a infinite-source rule: two horizontal sources plus support).
         // Bucket placement and placing a host into existing water are handled
         // separately by WaterloggedFluidHandler / the World placement hook.
+        // FlowingFluid.canHoldFluid delegates to LiquidBlockContainer.
+        // Any non-empty water flow may fill an empty waterloggable host; the
+        // host then exposes a full source state, as SimpleWaterloggedBlock does.
         if (material == Material.WATER
                 && WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
-            if (getNewLegacyLevel(world, pos, material)
-                    != FluidLevelMapper.SOURCE_METADATA) {
-                return false;
-            }
             return BlockGeometryAdapter.canFluidEnter(
                     world, pos, state, material, direction);
         }
 
-        // 1.12/1.13 water does not replace lava; lava handles contact reactions.
+        // LavaFluid.canBeReplacedWith accepts water when the lava surface is
+        // at least 4/9 of a block high. The reaction is handled before placing.
         if (material == Material.WATER && targetMaterial == Material.LAVA) {
-            return false;
+            FluidStateBridge lava = FluidStateMapper.fromBlockState(state);
+            return lava != null && lava.getOwnHeight() >= 4.0F / 9.0F;
         }
 
         return BlockGeometryAdapter.canFluidEnter(
@@ -399,10 +401,13 @@ public final class FluidSpreadEngine {
             return;
         }
 
+        if (material == Material.WATER && state.getMaterial() == Material.LAVA) {
+            FluidMixingHandler.reactWaterIntoLava(world, pos, state);
+            return;
+        }
+
         if (material == Material.WATER
                 && WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
-            // canFlowInto has already verified that this block becomes a source
-            // immediately under the 1.13.2 two-source rule.
             WaterloggedFluidHandler.tryWaterlog(
                     world, pos, state, FluidLevelMapper.SOURCE_METADATA);
             return;
