@@ -24,6 +24,7 @@ import org.objectweb.asm.tree.VarInsnNode;
  */
 public final class FluidTickTransformer implements IClassTransformer {
     private static final String DYNAMIC_TARGET = "net.minecraft.block.BlockDynamicLiquid";
+    private static final String BLOCK_TARGET = "net.minecraft.block.Block";
     private static final String WORLD_TARGET = "net.minecraft.world.World";
     private static final String LIQUID_TARGET = "net.minecraft.block.BlockLiquid";
     private static final String ENTITY_TARGET = "net.minecraft.entity.Entity";
@@ -45,6 +46,10 @@ public final class FluidTickTransformer implements IClassTransformer {
     private static final String TICK_HOOK_DESC =
             "(Lnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;"
             + "Lnet/minecraft/block/state/IBlockState;Ljava/util/Random;)Z";
+    private static final String RANDOM_TICK_HOOK_DESC =
+            "(Lnet/minecraft/block/Block;Lnet/minecraft/world/World;"
+            + "Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/state/IBlockState;"
+            + "Ljava/util/Random;)Z";
     private static final String ACCELERATION_HOOK_DESC =
             "(Lnet/minecraft/block/BlockLiquid;Lnet/minecraft/world/World;"
             + "Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/entity/Entity;"
@@ -61,6 +66,7 @@ public final class FluidTickTransformer implements IClassTransformer {
         }
 
         boolean dynamicTarget = isTarget(name, transformedName, DYNAMIC_TARGET);
+        boolean blockTarget = isTarget(name, transformedName, BLOCK_TARGET);
         boolean worldTarget = isTarget(name, transformedName, WORLD_TARGET);
         boolean liquidTarget = isTarget(name, transformedName, LIQUID_TARGET);
         boolean entityTarget = isTarget(name, transformedName, ENTITY_TARGET);
@@ -70,7 +76,7 @@ public final class FluidTickTransformer implements IClassTransformer {
         boolean bushTarget = isTarget(name, transformedName, BUSH_TARGET);
         boolean spongeTarget = isTarget(name, transformedName, SPONGE_TARGET);
         boolean fishHookTarget = isTarget(name, transformedName, FISH_HOOK_TARGET);
-        if (!dynamicTarget && !worldTarget && !liquidTarget && !entityTarget
+        if (!dynamicTarget && !blockTarget && !worldTarget && !liquidTarget && !entityTarget
                 && !farmlandTarget && !reedTarget && !lilyPadTarget
                 && !bushTarget && !spongeTarget && !fishHookTarget) {
             return basicClass;
@@ -95,6 +101,17 @@ public final class FluidTickTransformer implements IClassTransformer {
                 for (MethodNode method : classNode.methods) {
                     if (isUpdateTick(method) && !containsHook(method, "tryUpdateDynamicLiquid")) {
                         injectTickHook(method);
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+
+            if (blockTarget) {
+                for (MethodNode method : classNode.methods) {
+                    if (isRandomTick(method)
+                            && !containsHook(method, "tryRandomTickDynamicLiquid")) {
+                        injectRandomTickHook(method);
                         changed = true;
                         break;
                     }
@@ -252,6 +269,41 @@ public final class FluidTickTransformer implements IClassTransformer {
                 && "net/minecraft/util/math/BlockPos".equals(args[1].getInternalName())
                 && "net/minecraft/block/state/IBlockState".equals(args[2].getInternalName())
                 && "java/util/Random".equals(args[3].getInternalName());
+    }
+
+    private static boolean isRandomTick(MethodNode method) {
+        if (!(method.name.equals("randomTick")
+                || method.name.equals("func_180645_a")
+                || method.name.equals("a"))) {
+            return false;
+        }
+
+        Type[] args = Type.getArgumentTypes(method.desc);
+        return Type.VOID_TYPE.equals(Type.getReturnType(method.desc))
+                && args.length == 4
+                && "net/minecraft/world/World".equals(args[0].getInternalName())
+                && "net/minecraft/util/math/BlockPos".equals(args[1].getInternalName())
+                && "net/minecraft/block/state/IBlockState".equals(args[2].getInternalName())
+                && "java/util/Random".equals(args[3].getInternalName());
+    }
+
+    private static void injectRandomTickHook(MethodNode method) {
+        LabelNode originalBody = new LabelNode();
+        InsnList hook = new InsnList();
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 2));
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 3));
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 4));
+        hook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                HOOK_OWNER, "tryRandomTickDynamicLiquid",
+                RANDOM_TICK_HOOK_DESC, false));
+        hook.add(new JumpInsnNode(Opcodes.IFEQ, originalBody));
+        hook.add(new InsnNode(Opcodes.RETURN));
+        hook.add(originalBody);
+        hook.add(new FrameNode(Opcodes.F_SAME, 0, null, 0, null));
+        method.instructions.insert(hook);
+        method.maxStack = Math.max(method.maxStack, 5);
     }
 
     private static boolean isModifyAcceleration(MethodNode method) {
