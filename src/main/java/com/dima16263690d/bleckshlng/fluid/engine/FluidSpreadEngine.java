@@ -164,17 +164,14 @@ public final class FluidSpreadEngine {
             if (world.isBlockLoaded(belowPos)) {
                 IBlockState belowState = world.getBlockState(belowPos);
                 boolean solidSupport = belowState.getMaterial().isSolid();
-                boolean closedBottomFace = FluidShapeCalculator.isFaceFullyCovered(
-                        world, pos, world.getBlockState(pos), EnumFacing.DOWN);
+                // FlowingFluid 1.18.2 only requires a solid supporting block
+                // or a same-type source directly below. It does not use a
+                // closed collision face as an independent source condition.
                 boolean waterSourceBelow = getDepth(
                         world, belowPos, Material.WATER)
-                        == FluidLevelMapper.SOURCE_METADATA
-                        && FluidShapeCalculator.canPassThroughWall(
-                        world, belowPos, EnumFacing.UP);
+                        == FluidLevelMapper.SOURCE_METADATA;
 
-                // Keep the Update Aquatic/Forge support rules, including a
-                // fully closed lower face and a connected source underneath.
-                if (solidSupport || closedBottomFace || waterSourceBelow) {
+                if (solidSupport || waterSourceBelow) {
                     // FlowingFluid returns the source immediately. A fluid
                     // above must not overwrite a source created at this pos.
                     return FluidLevelMapper.SOURCE_METADATA;
