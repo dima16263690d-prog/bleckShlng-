@@ -167,6 +167,35 @@ public final class FluidCoreHooks {
         }
     }
 
+    /**
+     * 1.12.2 BlockDynamicLiquid inherits Block.randomTick(), which calls
+     * updateTick() and causes extra fluid-flow updates. Modern FluidState keeps
+     * water non-randomly-ticking and gives lava a separate randomTick().
+     *
+     * Suppress the inherited update for both flowing blocks; only flowing lava
+     * runs the dedicated fire-propagation routine here. Scheduled flow updates
+     * continue through tryUpdateDynamicLiquid().
+     */
+    public static boolean tryRandomTickDynamicLiquid(
+            net.minecraft.block.Block block, World world, BlockPos pos,
+            IBlockState state, Random random) {
+        if (block != Blocks.FLOWING_WATER && block != Blocks.FLOWING_LAVA) {
+            return false;
+        }
+
+        if (block == Blocks.FLOWING_LAVA && world != null && !world.isRemote
+                && pos != null && random != null && world.isBlockLoaded(pos)) {
+            try {
+                LavaRandomTickHandler.randomTick(world, pos, random);
+            } catch (Throwable error) {
+                LOGGER.error("Flowing lava random tick failed at {}", pos, error);
+            }
+        }
+
+        // Do not call Block.randomTick's inherited updateTick implementation.
+        return true;
+    }
+
     public static boolean tryUpdateDynamicLiquid(World world, BlockPos pos,
                                                  IBlockState state, Random random) {
         // Do not take ownership of client ticks, modded liquids, or unrelated
