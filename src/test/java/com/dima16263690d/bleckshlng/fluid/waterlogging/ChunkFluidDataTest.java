@@ -70,6 +70,27 @@ public class ChunkFluidDataTest {
     }
 
     @Test
+    public void legacyNbtWithoutSourceFlagKeepsFullLevelAsSource() {
+        NBTTagCompound root = new NBTTagCompound();
+        net.minecraft.nbt.NBTTagList entries = new net.minecraft.nbt.NBTTagList();
+        NBTTagCompound entry = new NBTTagCompound();
+        BlockPos pos = new BlockPos(16, 64, 16);
+        entry.setLong("pos", pos.toLong());
+        entry.setInteger("amount", 8);
+        entry.setBoolean("falling", false);
+        entries.appendTag(entry);
+        root.setTag("water", entries);
+
+        ChunkFluidData loaded = new ChunkFluidData("bleckshlng_test");
+        loaded.readFromNBT(root);
+        FluidStateBridge state = loaded.getWater(pos);
+
+        assertNotNull(state);
+        assertTrue(state.isSource());
+        assertEquals(8, state.getAmount());
+    }
+
+    @Test
     public void legacyNbtWithoutSourceFlagLoadsAsFlowing() {
         NBTTagCompound root = new NBTTagCompound();
         net.minecraft.nbt.NBTTagList entries = new net.minecraft.nbt.NBTTagList();
