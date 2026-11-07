@@ -6,7 +6,7 @@ import net.minecraftforge.fml.relauncher.IFMLLoadingPlugin;
 
 /**
  * Loads before normal mod initialization and registers the guarded fluid
- * update hook. The transformer only touches BlockDynamicLiquid.updateTick.
+ * transformers (liquid ticks + waterlogged chunk meshing).
  */
 @IFMLLoadingPlugin.MCVersion("1.12.2")
 @IFMLLoadingPlugin.TransformerExclusions({
@@ -16,7 +16,8 @@ public final class FluidCorePlugin implements IFMLLoadingPlugin {
     @Override
     public String[] getASMTransformerClass() {
         return new String[] {
-                "com.dima16263690d.bleckshlng.coremod.FluidTickTransformer"
+                "com.dima16263690d.bleckshlng.coremod.FluidTickTransformer",
+                "com.dima16263690d.bleckshlng.coremod.FluidRenderTransformer"
         };
     }
 
