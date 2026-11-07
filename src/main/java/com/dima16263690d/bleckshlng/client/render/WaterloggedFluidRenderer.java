@@ -406,13 +406,13 @@ public final class WaterloggedFluidRenderer {
         if (h0 <= minY && h1 <= minY) {
             return false;
         }
-        float u0 = sprite.getMinU();
-        float u1 = sprite.getMaxU();
-        float v0 = sprite.getMinV();
-        float v1 = sprite.getMaxV();
-        float vTop0 = v0 + (v1 - v0) * (1.0F - MathHelper.clamp(h0, 0.0F, 1.0F));
-        float vTop1 = v0 + (v1 - v0) * (1.0F - MathHelper.clamp(h1, 0.0F, 1.0F));
-        float vBot = v0 + (v1 - v0) * (1.0F - MathHelper.clamp(minY, 0.0F, 1.0F));
+        float u0 = sprite.getInterpolatedU(0.0D);
+        float u1 = sprite.getInterpolatedU(8.0D);
+        float vTop0 = sprite.getInterpolatedV(
+                (1.0F - MathHelper.clamp(h0, 0.0F, 1.0F)) * 8.0D);
+        float vTop1 = sprite.getInterpolatedV(
+                (1.0F - MathHelper.clamp(h1, 0.0F, 1.0F)) * 8.0D);
+        float vBot = sprite.getInterpolatedV(8.0D);
 
         float shade = (face == EnumFacing.NORTH || face == EnumFacing.SOUTH)
                 ? 0.8F : 0.6F;
