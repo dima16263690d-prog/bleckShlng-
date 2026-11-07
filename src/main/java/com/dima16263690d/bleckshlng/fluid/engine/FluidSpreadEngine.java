@@ -123,7 +123,7 @@ public final class FluidSpreadEngine {
             return NO_FLOW;
         }
 
-        int minimumNeighborLevel = -100;
+        int maximumNeighborAmount = 0;
         int adjacentSourceBlocks = 0;
 
         for (EnumFacing direction : EnumFacing.Plane.HORIZONTAL) {
@@ -142,23 +142,20 @@ public final class FluidSpreadEngine {
                 adjacentSourceBlocks++;
             }
 
-            // Legacy falling metadata (8..15) is treated as the highest
-            // horizontal level when it feeds a neighboring block.
-            if (neighborLevel >= 8) {
-                neighborLevel = 0;
-            }
-
-            if (minimumNeighborLevel < 0
-                    || neighborLevel < minimumNeighborLevel) {
-                minimumNeighborLevel = neighborLevel;
-            }
+            int neighborAmount = FluidLevelMapper.amountFromMetadata(neighborLevel);
+            maximumNeighborAmount = Math.max(maximumNeighborAmount, neighborAmount);
         }
 
-        int decay = FluidProperties.horizontalDecay(world, material);
-        int newLevel = minimumNeighborLevel + decay;
-        if (newLevel >= 8 || minimumNeighborLevel < 0) {
-            newLevel = NO_FLOW;
-        }
+        // FlowingFluid chooses the strongest horizontal neighbour, then
+        // applies this fluid's drop-off to calculate the target's own state.
+        // The custom lava tail (amount 2 -> 1) remains in FluidProperties.
+        int newAmount = maximumNeighborAmount > 0
+                ? FluidProperties.nextHorizontalAmount(
+                        world, material, maximumNeighborAmount)
+                : 0;
+        int newLevel = newAmount > 0
+                ? FluidLevelMapper.toMetadata(newAmount, false, false)
+                : NO_FLOW;
 
         if (material == Material.WATER && adjacentSourceBlocks >= 2
                 && ForgeEventFactory.canCreateFluidSource(world, pos,
@@ -270,20 +267,12 @@ public final class FluidSpreadEngine {
                 world, pos, material,
                 FluidProperties.slopeFindDistance(world, material));
 
-        int horizontalLevel;
-        if (level >= 8) {
-            horizontalLevel = 1;
-        } else {
-            int amount = FluidLevelMapper.amountFromMetadata(level);
-            int nextAmount = FluidProperties.nextHorizontalAmount(
-                    world, material, amount);
-            if (nextAmount <= 0) {
-                return;
-            }
-            horizontalLevel = FluidLevelMapper.toMetadata(nextAmount, false, false);
-        }
-
-        if (horizontalLevel >= 8) {
+        // FlowingFluid only opens the side-spread search when the source has
+        // enough amount left (falling flow uses a fixed amount of seven).
+        int spreadAmount = level >= 8 ? 7
+                : FluidProperties.nextHorizontalAmount(world, material,
+                FluidLevelMapper.amountFromMetadata(level));
+        if (spreadAmount <= 0) {
             return;
         }
 
@@ -295,8 +284,15 @@ public final class FluidSpreadEngine {
             }
 
             IBlockState targetState = world.getBlockState(targetPos);
+            // FlowingFluid.getSpread() calculates the incoming FluidState for
+            // each candidate independently; another source or a fluid above
+            // can therefore change this target's level or make it a source.
+            int targetLevel = getNewLegacyLevel(world, targetPos, material);
+            if (targetLevel == NO_FLOW) {
+                continue;
+            }
             tryFlowInto(world, targetPos, targetState, material,
-                    horizontalLevel, direction);
+                    targetLevel, direction);
         }
     }
 
