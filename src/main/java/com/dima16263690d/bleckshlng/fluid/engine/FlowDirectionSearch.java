@@ -9,8 +9,6 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
-import com.dima16263690d.bleckshlng.fluid.geometry.BlockGeometryAdapter;
-import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 
@@ -26,7 +24,7 @@ public final class FlowDirectionSearch {
         for (EnumFacing direction : EnumFacing.Plane.HORIZONTAL) {
             BlockPos neighbor = origin.offset(direction);
             if (!world.isBlockLoaded(neighbor)
-                    || !FluidShapeCalculator.canPassThroughWall(world, origin, direction)
+                    || !FluidSpreadEngine.canSpreadThrough(world, origin, direction, fluidMaterial)
                     || !canRouteThrough(world, neighbor, fluidMaterial, direction)) continue;
             int distance;
             if (isWaterHole(world, neighbor, fluidMaterial)) {
@@ -59,7 +57,7 @@ public final class FlowDirectionSearch {
                 if (direction == cameFrom) continue;
                 BlockPos next = pos.offset(direction);
                 if (!world.isBlockLoaded(next)
-                        || !FluidShapeCalculator.canPassThroughWall(world, pos, direction)
+                        || !FluidSpreadEngine.canSpreadThrough(world, pos, direction, fluidMaterial)
                         || !canRouteThrough(world, next, fluidMaterial, direction)) continue;
                 if (isWaterHole(world, next, fluidMaterial)) return distance;
                 if (distance < maxDistance) {
@@ -77,7 +75,7 @@ public final class FlowDirectionSearch {
     private static boolean isWaterHole(World world, BlockPos pos, Material fluidMaterial) {
         BlockPos below = pos.down();
         if (!world.isBlockLoaded(below)
-                || !FluidShapeCalculator.canPassThroughWall(world, pos, EnumFacing.DOWN)) return false;
+                || !FluidSpreadEngine.canSpreadThrough(world, pos, EnumFacing.DOWN, fluidMaterial)) return false;
         IBlockState state = world.getBlockState(below);
         FluidStateBridge existingFluid = FluidStateMapper.fromWorld(world, below, state);
         FluidStateBridge.FluidKind expectedKind = fluidMaterial == Material.WATER
