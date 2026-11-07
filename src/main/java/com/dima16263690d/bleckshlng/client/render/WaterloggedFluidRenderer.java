@@ -4,17 +4,15 @@ import java.util.Map;
 
 import net.minecraft.block.BlockLiquid;
 import net.minecraft.block.BlockSlab;
-import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.BlockFluidRenderer;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.init.Blocks;
-import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.World;
@@ -23,16 +21,15 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 import org.lwjgl.opengl.GL11;
 
-import com.dima16263690d.bleckshlng.fluid.api.FluidFaceMask;
-import com.dima16263690d.bleckshlng.fluid.api.FluidWorldView;
 import com.dima16263690d.bleckshlng.fluid.network.ClientFluidStateCache;
-import com.dima16263690d.bleckshlng.fluid.state.FluidHeightCalculator;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
-import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 
 /**
- * Draws waterlogged 1x1 cells (sidecar fluid). Face mask from FluidWorldView
- * so adjacent water shares one continuous volume (no internal walls / blue box).
+ * Renders waterlogged fluid using vanilla BlockFluidRenderer + FluidViewAccess.
+ *
+ * Waterlogged cells are exposed as water to the fluid renderer so face culling
+ * and heights match adjacent ocean — the closest 1.13 continuous look on 1.12.2
+ * without a translucent chunk mesher.
  */
 @SideOnly(Side.CLIENT)
 public final class WaterloggedFluidRenderer {
@@ -63,24 +60,22 @@ public final class WaterloggedFluidRenderer {
         int originChunkZ = MathHelper.floor(camZ) >> 4;
         int dimension = world.provider.getDimension();
 
-        TextureAtlasSprite still = mc.getBlockRendererDispatcher()
-                .getBlockModelShapes().getTexture(Blocks.WATER.getDefaultState());
-        TextureAtlasSprite flow = still;
+        BlockFluidRenderer fluidRenderer;
         try {
-            flow = mc.getTextureMapBlocks().getAtlasSprite("minecraft:blocks/water_flow");
-            if (flow == null || "missingno".equals(flow.getIconName())) {
-                flow = still;
-            }
-        } catch (Throwable ignored) {
-            flow = still;
-        }
-        if (still == null) {
+            fluidRenderer = mc.getBlockRendererDispatcher().getFluidRenderer();
+        } catch (Throwable t) {
             return;
         }
+        if (fluidRenderer == null) {
+            return;
+        }
+
+        FluidViewAccess access = new FluidViewAccess(world);
 
         mc.getTextureManager().bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
 
         GlStateManager.pushMatrix();
+        GlStateManager.translate(-camX, -camY, -camZ);
         GlStateManager.enableBlend();
         GlStateManager.disableAlpha();
         GlStateManager.tryBlendFuncSeparate(
@@ -123,8 +118,25 @@ public final class WaterloggedFluidRenderer {
                     if (!world.isBlockLoaded(pos)) {
                         continue;
                     }
-                    wrote |= tessellateWaterloggedCell(buffer, world, pos,
-                            entry.getValue(), still, flow, camX, camY, camZ, mc);
+
+                    // Skip solid double slabs — no open fluid volume.
+                    IBlockState host = world.getBlockState(pos);
+                    if (host.getBlock() instanceof BlockSlab
+                            && ((BlockSlab) host.getBlock()).isDouble()) {
+                        continue;
+                    }
+
+                    IBlockState fluidState = access.getBlockState(pos);
+                    if (!(fluidState.getBlock() instanceof BlockLiquid)) {
+                        fluidState = Blocks.WATER.getDefaultState();
+                    }
+
+                    try {
+                        if (fluidRenderer.renderFluid(access, fluidState, pos, buffer)) {
+                            wrote = true;
+                        }
+                    } catch (Throwable ignored) {
+                    }
                 }
             }
         }
@@ -142,6 +154,9 @@ public final class WaterloggedFluidRenderer {
         GlStateManager.popMatrix();
     }
 
+    /**
+     * Optional chunk-pass entry; mesher path stays available for experiments.
+     */
     public static boolean renderIntoChunk(BufferBuilder buffer, World world,
                                           BlockPos pos, IBlockState host,
                                           FluidStateBridge fluid) {
@@ -152,236 +167,17 @@ public final class WaterloggedFluidRenderer {
             return false;
         }
         try {
-            WaterloggedChunkMesher.tessellate(world, pos, fluid, buffer);
-            return true;
+            Minecraft mc = Minecraft.getMinecraft();
+            BlockFluidRenderer fluidRenderer =
+                    mc.getBlockRendererDispatcher().getFluidRenderer();
+            FluidViewAccess access = new FluidViewAccess(world);
+            IBlockState fluidState = access.getBlockState(pos);
+            if (!(fluidState.getBlock() instanceof BlockLiquid)) {
+                fluidState = Blocks.WATER.getDefaultState();
+            }
+            return fluidRenderer.renderFluid(access, fluidState, pos, buffer);
         } catch (Throwable t) {
             return false;
         }
-    }
-
-    private static boolean tessellateWaterloggedCell(BufferBuilder buffer, World world,
-                                                    BlockPos pos, FluidStateBridge fluid,
-                                                    TextureAtlasSprite still,
-                                                    TextureAtlasSprite flow,
-                                                    double camX, double camY, double camZ,
-                                                    Minecraft mc) {
-        IBlockState host = world.getBlockState(pos);
-        float ownHeight = FluidWorldView.getHeight(world, pos, fluid);
-
-        float minY = 0.0F;
-        if (host.getBlock() instanceof BlockSlab
-                && !((BlockSlab) host.getBlock()).isDouble()) {
-            boolean top = host.getValue(BlockSlab.HALF) == BlockSlab.EnumBlockHalf.TOP;
-            if (top) {
-                minY = 0.5F;
-                ownHeight = Math.max(ownHeight, 1.0F);
-            } else {
-                minY = 0.5F;
-                ownHeight = Math.max(ownHeight, 0.8888889F);
-            }
-        }
-
-        boolean waterAbove = FluidWorldView.isSameFluid(world, pos.up(), fluid.getKind());
-        if (waterAbove) {
-            ownHeight = 1.0F;
-        }
-
-        float hNW = sampleCornerHeight(world, pos, ownHeight, -1, -1);
-        float hNE = sampleCornerHeight(world, pos, ownHeight, 1, -1);
-        float hSE = sampleCornerHeight(world, pos, ownHeight, 1, 1);
-        float hSW = sampleCornerHeight(world, pos, ownHeight, -1, 1);
-        hNW = Math.max(hNW, minY);
-        hNE = Math.max(hNE, minY);
-        hSE = Math.max(hSE, minY);
-        hSW = Math.max(hSW, minY);
-        if (waterAbove) {
-            hNW = 1.0F;
-            hNE = 1.0F;
-            hSE = 1.0F;
-            hSW = 1.0F;
-        }
-
-        int color = 0x3F76E4;
-        try {
-            int tint = mc.getBlockColors().colorMultiplier(
-                    Blocks.WATER.getDefaultState(), world, pos, 0);
-            if (tint != -1) {
-                color = tint;
-            }
-        } catch (Throwable ignored) {
-        }
-        float r = (float) (color >> 16 & 255) / 255.0F;
-        float g = (float) (color >> 8 & 255) / 255.0F;
-        float b = (float) (color & 255) / 255.0F;
-        int a = 180;
-
-        int packed = world.getCombinedLight(pos, 0);
-        int sky = packed >> 16 & 65535;
-        int block = packed & 65535;
-
-        FluidFaceMask faces = FluidWorldView.facesToRender(world, pos, fluid);
-        if (minY > 0.001F) {
-            faces = new FluidFaceMask(faces.up, false, faces.north, faces.south,
-                    faces.west, faces.east);
-        }
-
-        boolean any = false;
-        double x = pos.getX();
-        double y = pos.getY();
-        double z = pos.getZ();
-
-        if (faces.up) {
-            any |= emitUp(buffer, x, y, z, hNW, hNE, hSE, hSW, minY,
-                    camX, camY, camZ, still, r, g, b, a, sky, block);
-        }
-        if (faces.down) {
-            any |= emitDown(buffer, x, y, z, minY, camX, camY, camZ,
-                    still, r, g, b, a, sky, block);
-        }
-        if (faces.north) {
-            any |= emitSide(buffer, x, y, z, EnumFacing.NORTH, hNW, hNE, minY,
-                    camX, camY, camZ, flow, r, g, b, a, sky, block);
-        }
-        if (faces.south) {
-            any |= emitSide(buffer, x, y, z, EnumFacing.SOUTH, hSW, hSE, minY,
-                    camX, camY, camZ, flow, r, g, b, a, sky, block);
-        }
-        if (faces.west) {
-            any |= emitSide(buffer, x, y, z, EnumFacing.WEST, hNW, hSW, minY,
-                    camX, camY, camZ, flow, r, g, b, a, sky, block);
-        }
-        if (faces.east) {
-            any |= emitSide(buffer, x, y, z, EnumFacing.EAST, hNE, hSE, minY,
-                    camX, camY, camZ, flow, r, g, b, a, sky, block);
-        }
-
-        return any;
-    }
-
-    private static float sampleCornerHeight(World world, BlockPos pos,
-                                            float ownHeight, int ox, int oz) {
-        float sum = ownHeight;
-        int count = 1;
-        BlockPos[] samples = new BlockPos[] {
-                pos.add(ox < 0 ? -1 : 0, 0, oz < 0 ? -1 : 0),
-                pos.add(ox > 0 ? 1 : 0, 0, oz < 0 ? -1 : 0),
-                pos.add(ox < 0 ? -1 : 0, 0, oz > 0 ? 1 : 0),
-                pos.add(ox > 0 ? 1 : 0, 0, oz > 0 ? 1 : 0),
-                pos.offset(EnumFacing.NORTH),
-                pos.offset(EnumFacing.SOUTH),
-                pos.offset(EnumFacing.WEST),
-                pos.offset(EnumFacing.EAST)
-        };
-        for (int i = 0; i < samples.length; i++) {
-            BlockPos p = samples[i];
-            if (!world.isBlockLoaded(p)) {
-                continue;
-            }
-            float h = fluidHeightAt(world, p);
-            if (h > 0.0F) {
-                sum += h;
-                count++;
-            }
-        }
-        return sum / (float) count;
-    }
-
-    private static float fluidHeightAt(World world, BlockPos pos) {
-        FluidStateBridge fluid = FluidWorldView.getFluid(world, pos);
-        if (fluid == null) {
-            return 0.0F;
-        }
-        return FluidWorldView.getHeight(world, pos, fluid);
-    }
-
-    private static boolean emitUp(BufferBuilder buffer, double x, double y, double z,
-                                  float hNW, float hNE, float hSE, float hSW, float minY,
-                                  double camX, double camY, double camZ,
-                                  TextureAtlasSprite sprite,
-                                  float r, float g, float b, int a, int sky, int block) {
-        float u0 = sprite.getMinU();
-        float u1 = sprite.getMaxU();
-        float v0 = sprite.getMinV();
-        float v1 = sprite.getMaxV();
-        vert(buffer, x + 0.0D - camX, y + hNW - camY, z + 0.0D - camZ, u0, v0, r, g, b, a, sky, block);
-        vert(buffer, x + 0.0D - camX, y + hSW - camY, z + 1.0D - camZ, u0, v1, r, g, b, a, sky, block);
-        vert(buffer, x + 1.0D - camX, y + hSE - camY, z + 1.0D - camZ, u1, v1, r, g, b, a, sky, block);
-        vert(buffer, x + 1.0D - camX, y + hNE - camY, z + 0.0D - camZ, u1, v0, r, g, b, a, sky, block);
-        return true;
-    }
-
-    private static boolean emitDown(BufferBuilder buffer, double x, double y, double z,
-                                    float minY, double camX, double camY, double camZ,
-                                    TextureAtlasSprite sprite,
-                                    float r, float g, float b, int a, int sky, int block) {
-        float u0 = sprite.getMinU();
-        float u1 = sprite.getMaxU();
-        float v0 = sprite.getMinV();
-        float v1 = sprite.getMaxV();
-        double yy = y + minY - camY;
-        vert(buffer, x + 0.0D - camX, yy, z + 1.0D - camZ, u0, v1, r, g, b, a, sky, block);
-        vert(buffer, x + 0.0D - camX, yy, z + 0.0D - camZ, u0, v0, r, g, b, a, sky, block);
-        vert(buffer, x + 1.0D - camX, yy, z + 0.0D - camZ, u1, v0, r, g, b, a, sky, block);
-        vert(buffer, x + 1.0D - camX, yy, z + 1.0D - camZ, u1, v1, r, g, b, a, sky, block);
-        return true;
-    }
-
-    private static boolean emitSide(BufferBuilder buffer, double x, double y, double z,
-                                    EnumFacing face, float h0, float h1, float minY,
-                                    double camX, double camY, double camZ,
-                                    TextureAtlasSprite sprite,
-                                    float r, float g, float b, int a, int sky, int block) {
-        if (h0 <= minY && h1 <= minY) {
-            return false;
-        }
-        float u0 = sprite.getMinU();
-        float u1 = sprite.getMaxU();
-        float v0 = sprite.getMinV();
-        float v1 = sprite.getMaxV();
-        float vTop0 = v0 + (v1 - v0) * (1.0F - MathHelper.clamp(h0, 0.0F, 1.0F));
-        float vTop1 = v0 + (v1 - v0) * (1.0F - MathHelper.clamp(h1, 0.0F, 1.0F));
-        float vBot = v0 + (v1 - v0) * (1.0F - MathHelper.clamp(minY, 0.0F, 1.0F));
-
-        switch (face) {
-            case NORTH:
-                vert(buffer, x + 0.0D - camX, y + h0 - camY, z + 0.0D - camZ, u0, vTop0, r, g, b, a, sky, block);
-                vert(buffer, x + 1.0D - camX, y + h1 - camY, z + 0.0D - camZ, u1, vTop1, r, g, b, a, sky, block);
-                vert(buffer, x + 1.0D - camX, y + minY - camY, z + 0.0D - camZ, u1, vBot, r, g, b, a, sky, block);
-                vert(buffer, x + 0.0D - camX, y + minY - camY, z + 0.0D - camZ, u0, vBot, r, g, b, a, sky, block);
-                break;
-            case SOUTH:
-                vert(buffer, x + 1.0D - camX, y + h1 - camY, z + 1.0D - camZ, u0, vTop1, r, g, b, a, sky, block);
-                vert(buffer, x + 0.0D - camX, y + h0 - camY, z + 1.0D - camZ, u1, vTop0, r, g, b, a, sky, block);
-                vert(buffer, x + 0.0D - camX, y + minY - camY, z + 1.0D - camZ, u1, vBot, r, g, b, a, sky, block);
-                vert(buffer, x + 1.0D - camX, y + minY - camY, z + 1.0D - camZ, u0, vBot, r, g, b, a, sky, block);
-                break;
-            case WEST:
-                vert(buffer, x + 0.0D - camX, y + h0 - camY, z + 1.0D - camZ, u0, vTop0, r, g, b, a, sky, block);
-                vert(buffer, x + 0.0D - camX, y + h1 - camY, z + 0.0D - camZ, u1, vTop1, r, g, b, a, sky, block);
-                vert(buffer, x + 0.0D - camX, y + minY - camY, z + 0.0D - camZ, u1, vBot, r, g, b, a, sky, block);
-                vert(buffer, x + 0.0D - camX, y + minY - camY, z + 1.0D - camZ, u0, vBot, r, g, b, a, sky, block);
-                break;
-            case EAST:
-                vert(buffer, x + 1.0D - camX, y + h0 - camY, z + 0.0D - camZ, u0, vTop0, r, g, b, a, sky, block);
-                vert(buffer, x + 1.0D - camX, y + h1 - camY, z + 1.0D - camZ, u1, vTop1, r, g, b, a, sky, block);
-                vert(buffer, x + 1.0D - camX, y + minY - camY, z + 1.0D - camZ, u1, vBot, r, g, b, a, sky, block);
-                vert(buffer, x + 1.0D - camX, y + minY - camY, z + 0.0D - camZ, u0, vBot, r, g, b, a, sky, block);
-                break;
-            default:
-                return false;
-        }
-        return true;
-    }
-
-    private static void vert(BufferBuilder buffer,
-                             double x, double y, double z,
-                             float u, float v,
-                             float r, float g, float b, int a,
-                             int sky, int block) {
-        buffer.pos(x, y, z)
-                .color((int) (r * 255.0F), (int) (g * 255.0F), (int) (b * 255.0F), a)
-                .tex((double) u, (double) v)
-                .lightmap(sky, block)
-                .endVertex();
     }
 }
