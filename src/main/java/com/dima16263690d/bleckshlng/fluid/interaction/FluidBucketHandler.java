@@ -61,11 +61,20 @@ public final class FluidBucketHandler {
 
             // Suppress vanilla client prediction for waterlogging and for
             // bucket/bottle interactions with fluids stored outside BlockLiquid.
-            if (held.getItem() == Items.WATER_BUCKET
-                    && WaterloggedBlockRegistry.canWaterlog(clickedState.getBlock())
-                    && clientFluid == null) {
-                event.setCanceled(true);
-                event.setCancellationResult(net.minecraft.util.EnumActionResult.SUCCESS);
+            if (held.getItem() == Items.WATER_BUCKET && clientFluid == null) {
+                boolean host = WaterloggedBlockRegistry.canWaterlog(clickedState.getBlock());
+                boolean alongFace = false;
+                if (event.getFace() != null) {
+                    BlockPos placePos = pos.offset(event.getFace());
+                    if (world.isBlockLoaded(placePos)) {
+                        alongFace = WaterloggedBlockRegistry.canWaterlog(
+                                world.getBlockState(placePos).getBlock());
+                    }
+                }
+                if (host || alongFace) {
+                    event.setCanceled(true);
+                    event.setCancellationResult(net.minecraft.util.EnumActionResult.SUCCESS);
+                }
             } else if (waterSource
                     && held.getItem() == Items.GLASS_BOTTLE) {
                 event.setCanceled(true);
@@ -82,14 +91,34 @@ public final class FluidBucketHandler {
         // before any adjacent-block placement logic is attempted. Keep this
         // ahead of FluidUtil so a generic Forge handler cannot consume the
         // interaction before the vanilla Update Aquatic behavior runs.
-        if (held.getItem() == Items.WATER_BUCKET
-                && WaterloggedBlockRegistry.canWaterlog(clickedState.getBlock())) {
-            if (WaterloggedFluidHandler.tryWaterlog(world, pos, clickedState, 0)) {
+        if (held.getItem() == Items.WATER_BUCKET) {
+            if (WaterloggedBlockRegistry.canWaterlog(clickedState.getBlock())
+                    && WaterloggedFluidHandler.tryWaterlog(world, pos, clickedState, 0)) {
                 world.playSound(null, pos, net.minecraft.init.SoundEvents.ITEM_BUCKET_EMPTY,
                         net.minecraft.util.SoundCategory.BLOCKS, 1.0F, 1.0F);
                 replaceFilledBucket(player, hand, held, new ItemStack(Items.BUCKET));
                 event.setCanceled(true);
                 return;
+            }
+
+            // Click on the top face of a bottom slab (or similar) may resolve
+            // to the solid host while the intended waterlog target is the
+            // cell along the clicked face. Try that cell as a second chance.
+            if (event.getFace() != null) {
+                BlockPos placePos = pos.offset(event.getFace());
+                if (world.isBlockLoaded(placePos)) {
+                    IBlockState placeState = world.getBlockState(placePos);
+                    if (WaterloggedBlockRegistry.canWaterlog(placeState.getBlock())
+                            && WaterloggedFluidHandler.tryWaterlog(
+                                    world, placePos, placeState, 0)) {
+                        world.playSound(null, placePos,
+                                net.minecraft.init.SoundEvents.ITEM_BUCKET_EMPTY,
+                                net.minecraft.util.SoundCategory.BLOCKS, 1.0F, 1.0F);
+                        replaceFilledBucket(player, hand, held, new ItemStack(Items.BUCKET));
+                        event.setCanceled(true);
+                        return;
+                    }
+                }
             }
         }
 
@@ -124,17 +153,8 @@ public final class FluidBucketHandler {
                         player.dropItem(waterBottle, false);
                     }
                 }
-                event.setCanceled(true);
-                return;
-            }
-        }
-
-        if (clickedState.getBlock() instanceof IFluidBlock
-                && held.getItem() == Items.BUCKET) {
-            FluidActionResult pickup = FluidUtil.tryPickUpFluid(
-                    held, player, world, pos, event.getFace());
-            if (pickup.isSuccess()) {
-                replaceEmptyBucket(player, hand, held, pickup.getResult());
+                world.playSound(null, pos, net.minecraft.init.SoundEvents.ITEM_BOTTLE_FILL,
+                        net.minecraft.util.SoundCategory.BLOCKS, 1.0F, 1.0F);
                 event.setCanceled(true);
                 return;
             }
