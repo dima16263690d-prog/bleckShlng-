@@ -222,12 +222,6 @@ public final class FluidCoreHooks {
         }
 
         try {
-            com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData data =
-                    com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData.get(world);
-            if (data == null) {
-                return false;
-            }
-
             for (int x = -4; x <= 4; x++) {
                 for (int y = 0; y <= 1; y++) {
                     for (int z = -4; z <= 4; z++) {
@@ -236,8 +230,10 @@ public final class FluidCoreHooks {
                             continue;
                         }
 
+                        IBlockState waterBlock = world.getBlockState(waterPos);
                         com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge fluid =
-                                data.getWater(waterPos);
+                                com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper
+                                        .fromWorld(world, waterPos, waterBlock);
                         if (fluid != null
                                 && fluid.getKind()
                                 == com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge.FluidKind.WATER) {
@@ -275,19 +271,15 @@ public final class FluidCoreHooks {
                 return false;
             }
 
-            com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData data =
-                    com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData.get(world);
-            if (data == null) {
-                return false;
-            }
-
             for (net.minecraft.util.EnumFacing side : net.minecraft.util.EnumFacing.Plane.HORIZONTAL) {
                 BlockPos waterPos = soilPos.offset(side);
                 if (!world.isBlockLoaded(waterPos)) {
                     continue;
                 }
+                IBlockState waterBlock = world.getBlockState(waterPos);
                 com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge fluid =
-                        data.getWater(waterPos);
+                        com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper
+                                .fromWorld(world, waterPos, waterBlock);
                 if (fluid != null
                         && fluid.getKind()
                         == com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge.FluidKind.WATER) {
@@ -317,10 +309,10 @@ public final class FluidCoreHooks {
             if (!world.isBlockLoaded(waterPos)) {
                 return false;
             }
-            com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData data =
-                    com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData.get(world);
+            IBlockState waterBlock = world.getBlockState(waterPos);
             com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge fluid =
-                    data == null ? null : data.getWater(waterPos);
+                    com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper
+                            .fromWorld(world, waterPos, waterBlock);
             return fluid != null
                     && fluid.getKind()
                     == com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge.FluidKind.WATER
