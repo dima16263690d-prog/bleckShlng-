@@ -218,9 +218,9 @@ public final class FluidTickTransformer implements IClassTransformer {
     }
 
     private static boolean isTarget(String name, String transformedName, String target) {
-        return target.equals(name) || target.equals(transformedName)
-                || (transformedName != null
-                && transformedName.endsWith("." + target.substring(target.lastIndexOf('.') + 1)));
+        // Only transform the exact Minecraft class. A suffix match could
+        // accidentally modify an unrelated mod class named Entity, World, etc.
+        return target.equals(name) || target.equals(transformedName);
     }
 
     private static boolean isSetBlockState(MethodNode method) {
