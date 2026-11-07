@@ -85,18 +85,20 @@ public final class WaterloggedSpongeHandler {
                 }
 
                 boolean removed;
+                boolean needsNeighborNotify = false;
                 if (state.getBlock() instanceof net.minecraft.block.BlockLiquid) {
                     // A liquid block is removed directly, including flowing
                     // water, exactly as the LiquidBlock sponge path does.
                     removed = world.setBlockToAir(next);
                     if (removed) {
                         FluidShapeCalculator.invalidate(world, next);
+                        needsNeighborNotify = true;
                     }
                 } else if (WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
                     // 1.18.2 SimpleWaterloggedBlock implements BucketPickup:
                     // clear the stored fluid while preserving the host block.
-                    removed = com.dima16263690d.bleckshlng.fluid.waterlogging
-                            .WaterloggedFluidHandler.pickupWater(world, next, state);
+                    // pickupWater already synchronizes and notifies neighbors.
+                    removed = WaterloggedFluidHandler.pickupWater(world, next, state);
                 } else {
                     removed = false;
                 }
@@ -105,7 +107,9 @@ public final class WaterloggedSpongeHandler {
                     continue;
                 }
 
-                changedPositions.add(next);
+                if (needsNeighborNotify) {
+                    changedPositions.add(next);
+                }
                 ++absorbed;
 
                 if (node.depth < MAX_DEPTH) {
