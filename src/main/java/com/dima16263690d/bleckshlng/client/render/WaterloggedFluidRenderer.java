@@ -48,7 +48,7 @@ public final class WaterloggedFluidRenderer {
         }
 
         double camX = mc.getRenderViewEntity().lastTickPosX
-                + (mc.getRenderViewEntity().posX - mc.getRenderViewEntity().lastTickPosX)
+                + (mc.getRenderViewEntity().posX - mc.getRenderViewRenderViewEntity().lastTickPosX)
                 * (double) partialTicks;
         double camY = mc.getRenderViewEntity().lastTickPosY
                 + (mc.getRenderViewEntity().posY - mc.getRenderViewEntity().lastTickPosY)
@@ -141,6 +141,26 @@ public final class WaterloggedFluidRenderer {
         GlStateManager.popMatrix();
     }
 
+    /**
+     * Chunk-mesher entry (FluidRenderHooks). WorldClient is a World subclass.
+     */
+    public static boolean renderIntoChunk(BufferBuilder buffer, World world,
+                                          BlockPos pos, IBlockState host,
+                                          FluidStateBridge fluid) {
+        if (buffer == null || world == null || pos == null || fluid == null) {
+            return false;
+        }
+        if (fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
+            return false;
+        }
+        try {
+            WaterloggedChunkMesher.tessellate(world, pos, fluid, buffer);
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
     private static boolean tessellateWaterloggedCell(BufferBuilder buffer, World world,
                                                     BlockPos pos, FluidStateBridge fluid,
                                                     TextureAtlasSprite still,
@@ -166,7 +186,6 @@ public final class WaterloggedFluidRenderer {
             }
         }
 
-        // Full column when submerged so side heights match neighbouring ocean.
         boolean waterAbove = isSameFluid(world, pos.up());
         if (waterAbove) {
             ownHeight = 1.0F;
@@ -210,7 +229,6 @@ public final class WaterloggedFluidRenderer {
         double y = pos.getY();
         double z = pos.getZ();
 
-        // Never draw UP against water above — removes the floating box seam.
         if (!waterAbove) {
             any |= emitUp(buffer, x, y, z, hNW, hNE, hSE, hSW, minY,
                     camX, camY, camZ, still, r, g, b, a, sky, block);
