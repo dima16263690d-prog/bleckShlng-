@@ -90,8 +90,43 @@ public final class FluidCoreHooks {
             WORLD_BLOCK_SET_CAPTURE.remove();
         }
 
-        if (!setSucceeded || !capturedWater || world == null || world.isRemote
-                || pos == null || placedState == null || !world.isBlockLoaded(pos)) {
+        if (!setSucceeded || world == null || world.isRemote
+                || pos == null || !world.isBlockLoaded(pos)) {
+            return;
+        }
+
+        // A sidecar water source belongs to the block that currently hosts it.
+        // World#setBlockState is also used by pistons, commands and mod blocks,
+        // so BreakEvent alone is not sufficient to release stale water data.
+        try {
+            com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData existingData =
+                    com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData
+                            .getIfPresent(world);
+            FluidStateBridge existingWater = existingData == null
+                    ? null : existingData.getWater(pos);
+            if (existingWater != null) {
+                IBlockState currentState = world.getBlockState(pos);
+                boolean canKeepWater = currentState != null
+                        && com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry
+                        .canWaterlog(currentState.getBlock());
+                if (canKeepWater && currentState.getBlock() instanceof
+                        com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable) {
+                    com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable adapter =
+                            (com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable)
+                                    currentState.getBlock();
+                    canKeepWater = adapter.isWaterlogged(currentState);
+                }
+                if (!canKeepWater) {
+                    com.dima16263690d.bleckshlng.fluid.waterlogging.FluidTickScheduler
+                            .schedule(world, pos, 1);
+                }
+            }
+        } catch (Throwable error) {
+            LOGGER.error("Could not validate waterlogged state after block replacement at {}",
+                    pos, error);
+        }
+
+        if (!capturedWater || placedState == null) {
             return;
         }
 
