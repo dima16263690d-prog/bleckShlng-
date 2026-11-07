@@ -48,7 +48,7 @@ public final class WaterloggedFluidRenderer {
         }
 
         double camX = mc.getRenderViewEntity().lastTickPosX
-                + (mc.getRenderViewEntity().posX - mc.getRenderViewRenderViewEntity().lastTickPosX)
+                + (mc.getRenderViewEntity().posX - mc.getRenderViewEntity().lastTickPosX)
                 * (double) partialTicks;
         double camY = mc.getRenderViewEntity().lastTickPosY
                 + (mc.getRenderViewEntity().posY - mc.getRenderViewEntity().lastTickPosY)
@@ -142,7 +142,8 @@ public final class WaterloggedFluidRenderer {
     }
 
     /**
-     * Chunk-mesher entry (FluidRenderHooks). WorldClient is a World subclass.
+     * Called from FluidRenderHooks during chunk rebuild.
+     * WorldClient is a subclass of World — callers may pass either.
      */
     public static boolean renderIntoChunk(BufferBuilder buffer, World world,
                                           BlockPos pos, IBlockState host,
