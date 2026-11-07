@@ -17,7 +17,7 @@ import org.objectweb.asm.tree.VarInsnNode;
  */
 public final class FluidRenderTransformer implements IClassTransformer {
     private static final String BRD = "net.minecraft.client.renderer.BlockRendererDispatcher";
-    private static final String HOOK = "com/dima16263690d/bleckshlng/coremod/FluidCoreHooks";
+    private static final String HOOK = "com/dima16263690d/bleckshlng/coremod/FluidRenderHooks";
     private static final String HOOK_DESC =
             "(Lnet/minecraft/block/state/IBlockState;Lnet/minecraft/util/math/BlockPos;"
                     + "Lnet/minecraft/world/IBlockAccess;"
