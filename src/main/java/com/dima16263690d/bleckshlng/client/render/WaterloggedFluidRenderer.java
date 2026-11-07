@@ -24,6 +24,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 import org.lwjgl.opengl.GL11;
 
 import com.dima16263690d.bleckshlng.fluid.network.ClientFluidStateCache;
+import com.dima16263690d.bleckshlng.fluid.physics.FluidFlowVector;
 import com.dima16263690d.bleckshlng.fluid.state.FluidHeightCalculator;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
@@ -174,6 +175,9 @@ public final class WaterloggedFluidRenderer {
         float hNE = sampleCornerHeight(world, pos, ownHeight, 1, -1);
         float hSE = sampleCornerHeight(world, pos, ownHeight, 1, 1);
         float hSW = sampleCornerHeight(world, pos, ownHeight, -1, 1);
+        net.minecraft.util.math.Vec3d flowVector =
+                FluidFlowVector.calculate(world, pos, host);
+        float[] topUv = getTopUV(still, flow, flowVector);
         hNW = Math.max(hNW, minY);
         hNE = Math.max(hNE, minY);
         hSE = Math.max(hSE, minY);
@@ -204,7 +208,7 @@ public final class WaterloggedFluidRenderer {
 
         if (!isSameFluid(world, pos.up()) || ownHeight < 1.0F) {
             any |= emitUp(buffer, x, y, z, hNW, hNE, hSE, hSW, minY,
-                    camX, camY, camZ, still, r, g, b, a, sky, block);
+                    camX, camY, camZ, topUv, r, g, b, a, sky, block);
         }
 
         if (minY <= 0.001F && !isSameFluid(world, pos.down())) {
@@ -232,32 +236,64 @@ public final class WaterloggedFluidRenderer {
         return any;
     }
 
+    /**
+     * Matches modern LiquidBlockRenderer's four-cell weighted corner average:
+     * center + two adjacent cells + the diagonal cell when either side has
+     * fluid. Heights at or above 0.8 receive ten times the weight.
+     */
     private static float sampleCornerHeight(World world, BlockPos pos,
                                             float ownHeight, int ox, int oz) {
-        float sum = ownHeight;
-        int count = 1;
-        BlockPos[] samples = new BlockPos[] {
-                pos.add(ox < 0 ? -1 : 0, 0, oz < 0 ? -1 : 0),
-                pos.add(ox > 0 ? 1 : 0, 0, oz < 0 ? -1 : 0),
-                pos.add(ox < 0 ? -1 : 0, 0, oz > 0 ? 1 : 0),
-                pos.add(ox > 0 ? 1 : 0, 0, oz > 0 ? 1 : 0),
-                pos.offset(EnumFacing.NORTH),
-                pos.offset(EnumFacing.SOUTH),
-                pos.offset(EnumFacing.WEST),
-                pos.offset(EnumFacing.EAST)
-        };
-        for (int i = 0; i < samples.length; i++) {
-            BlockPos p = samples[i];
-            if (!world.isBlockLoaded(p)) {
-                continue;
-            }
-            float h = fluidHeightAt(world, p);
-            if (h > 0.0F) {
-                sum += h;
-                count++;
-            }
+        EnumFacing xDirection = ox < 0 ? EnumFacing.WEST : EnumFacing.EAST;
+        EnumFacing zDirection = oz < 0 ? EnumFacing.NORTH : EnumFacing.SOUTH;
+        BlockPos xPos = pos.offset(xDirection);
+        BlockPos zPos = pos.offset(zDirection);
+        BlockPos diagonalPos = xPos.offset(zDirection);
+
+        float xHeight = fluidHeightAt(world, xPos);
+        float zHeight = fluidHeightAt(world, zPos);
+        if (xHeight >= 1.0F || zHeight >= 1.0F) {
+            return 1.0F;
         }
-        return sum / (float) count;
+
+        float weightedHeight = 0.0F;
+        float totalWeight = 0.0F;
+        if (xHeight > 0.0F || zHeight > 0.0F) {
+            float diagonalHeight = fluidHeightAt(world, diagonalPos);
+            if (diagonalHeight >= 1.0F) {
+                return 1.0F;
+            }
+            float[] weighted = addWeightedHeight(
+                    weightedHeight, totalWeight, diagonalHeight);
+            weightedHeight = weighted[0];
+            totalWeight = weighted[1];
+        }
+
+        float[] center = addWeightedHeight(weightedHeight, totalWeight, ownHeight);
+        weightedHeight = center[0];
+        totalWeight = center[1];
+
+        float[] x = addWeightedHeight(weightedHeight, totalWeight, xHeight);
+        weightedHeight = x[0];
+        totalWeight = x[1];
+
+        float[] z = addWeightedHeight(weightedHeight, totalWeight, zHeight);
+        weightedHeight = z[0];
+        totalWeight = z[1];
+
+        return totalWeight <= 0.0F ? 0.0F : weightedHeight / totalWeight;
+    }
+
+    private static float[] addWeightedHeight(float accumulatedHeight,
+                                             float accumulatedWeight,
+                                             float height) {
+        if (height < 0.0F) {
+            return new float[] { accumulatedHeight, accumulatedWeight };
+        }
+        float weight = height >= 0.8F ? 10.0F : 1.0F;
+        return new float[] {
+                accumulatedHeight + height * weight,
+                accumulatedWeight + weight
+        };
     }
 
     private static float fluidHeightAt(World world, BlockPos pos) {
@@ -265,7 +301,7 @@ public final class WaterloggedFluidRenderer {
         if (state.getMaterial() == Material.WATER && state.getBlock() instanceof BlockLiquid) {
             int level = state.getValue(BlockLiquid.LEVEL).intValue();
             if (level >= 8) {
-                return 1.0F;
+                return 8.0F / 9.0F;
             }
             return (float) (8 - level) / 9.0F;
         }
@@ -288,19 +324,56 @@ public final class WaterloggedFluidRenderer {
         return fluid != null && fluid.getKind() == FluidStateBridge.FluidKind.WATER;
     }
 
+    private static float[] getTopUV(TextureAtlasSprite still,
+                                    TextureAtlasSprite flow,
+                                    net.minecraft.util.math.Vec3d direction) {
+        float[] uv = new float[8];
+        if (direction == null || (direction.x == 0.0D && direction.z == 0.0D)) {
+            uv[0] = still.getInterpolatedU(0.0D);
+            uv[1] = still.getInterpolatedV(0.0D);
+            uv[2] = still.getInterpolatedU(0.0D);
+            uv[3] = still.getInterpolatedV(16.0D);
+            uv[4] = still.getInterpolatedU(16.0D);
+            uv[5] = still.getInterpolatedV(16.0D);
+            uv[6] = still.getInterpolatedU(16.0D);
+            uv[7] = still.getInterpolatedV(0.0D);
+        } else {
+            float angle = MathHelper.atan2((float) direction.z, (float) direction.x)
+                    - ((float) Math.PI / 2.0F);
+            float sin = MathHelper.sin(angle) * 0.25F;
+            float cos = MathHelper.cos(angle) * 0.25F;
+            uv[0] = flow.getInterpolatedU((0.5F + (-cos - sin)) * 16.0D);
+            uv[1] = flow.getInterpolatedV((0.5F + (-cos + sin)) * 16.0D);
+            uv[2] = flow.getInterpolatedU((0.5F + (-cos + sin)) * 16.0D);
+            uv[3] = flow.getInterpolatedV((0.5F + (cos + sin)) * 16.0D);
+            uv[4] = flow.getInterpolatedU((0.5F + (cos + sin)) * 16.0D);
+            uv[5] = flow.getInterpolatedV((0.5F + (cos - sin)) * 16.0D);
+            uv[6] = flow.getInterpolatedU((0.5F + (cos - sin)) * 16.0D);
+            uv[7] = flow.getInterpolatedV((0.5F + (-cos - sin)) * 16.0D);
+        }
+
+        float centerU = (uv[0] + uv[2] + uv[4] + uv[6]) * 0.25F;
+        float centerV = (uv[1] + uv[3] + uv[5] + uv[7]) * 0.25F;
+        for (int i = 0; i < 8; i += 2) {
+            uv[i] += (centerU - uv[i]) * 0.001F;
+            uv[i + 1] += (centerV - uv[i + 1]) * 0.001F;
+        }
+        return uv;
+    }
+
     private static boolean emitUp(BufferBuilder buffer, double x, double y, double z,
                                   float hNW, float hNE, float hSE, float hSW, float minY,
                                   double camX, double camY, double camZ,
-                                  TextureAtlasSprite sprite,
+                                  float[] uv,
                                   float r, float g, float b, int a, int sky, int block) {
-        float u0 = sprite.getMinU();
-        float u1 = sprite.getMaxU();
-        float v0 = sprite.getMinV();
-        float v1 = sprite.getMaxV();
-        vert(buffer, x + 0.0D - camX, y + hNW - camY, z + 0.0D - camZ, u0, v0, r, g, b, a, sky, block);
-        vert(buffer, x + 0.0D - camX, y + hSW - camY, z + 1.0D - camZ, u0, v1, r, g, b, a, sky, block);
-        vert(buffer, x + 1.0D - camX, y + hSE - camY, z + 1.0D - camZ, u1, v1, r, g, b, a, sky, block);
-        vert(buffer, x + 1.0D - camX, y + hNE - camY, z + 0.0D - camZ, u1, v0, r, g, b, a, sky, block);
+        vert(buffer, x + 0.0D - camX, y + hNW - camY, z + 0.0D - camZ,
+                uv[0], uv[1], r, g, b, a, sky, block);
+        vert(buffer, x + 0.0D - camX, y + hSW - camY, z + 1.0D - camZ,
+                uv[2], uv[3], r, g, b, a, sky, block);
+        vert(buffer, x + 1.0D - camX, y + hSE - camY, z + 1.0D - camZ,
+                uv[4], uv[5], r, g, b, a, sky, block);
+        vert(buffer, x + 1.0D - camX, y + hNE - camY, z + 0.0D - camZ,
+                uv[6], uv[7], r, g, b, a, sky, block);
         return true;
     }
 
@@ -313,10 +386,15 @@ public final class WaterloggedFluidRenderer {
         float v0 = sprite.getMinV();
         float v1 = sprite.getMaxV();
         double yy = y + minY - camY;
-        vert(buffer, x + 0.0D - camX, yy, z + 1.0D - camZ, u0, v1, r, g, b, a, sky, block);
-        vert(buffer, x + 0.0D - camX, yy, z + 0.0D - camZ, u0, v0, r, g, b, a, sky, block);
-        vert(buffer, x + 1.0D - camX, yy, z + 0.0D - camZ, u1, v0, r, g, b, a, sky, block);
-        vert(buffer, x + 1.0D - camX, yy, z + 1.0D - camZ, u1, v1, r, g, b, a, sky, block);
+        float shade = 0.5F;
+        vert(buffer, x + 0.0D - camX, yy, z + 1.0D - camZ, u0, v1,
+                r * shade, g * shade, b * shade, a, sky, block);
+        vert(buffer, x + 0.0D - camX, yy, z + 0.0D - camZ, u0, v0,
+                r * shade, g * shade, b * shade, a, sky, block);
+        vert(buffer, x + 1.0D - camX, yy, z + 0.0D - camZ, u1, v0,
+                r * shade, g * shade, b * shade, a, sky, block);
+        vert(buffer, x + 1.0D - camX, yy, z + 1.0D - camZ, u1, v1,
+                r * shade, g * shade, b * shade, a, sky, block);
         return true;
     }
 
@@ -335,6 +413,12 @@ public final class WaterloggedFluidRenderer {
         float vTop0 = v0 + (v1 - v0) * (1.0F - MathHelper.clamp(h0, 0.0F, 1.0F));
         float vTop1 = v0 + (v1 - v0) * (1.0F - MathHelper.clamp(h1, 0.0F, 1.0F));
         float vBot = v0 + (v1 - v0) * (1.0F - MathHelper.clamp(minY, 0.0F, 1.0F));
+
+        float shade = (face == EnumFacing.NORTH || face == EnumFacing.SOUTH)
+                ? 0.8F : 0.6F;
+        r *= shade;
+        g *= shade;
+        b *= shade;
 
         switch (face) {
             case NORTH:
