@@ -114,8 +114,8 @@ public final class FluidSpreadEngine {
     }
 
     /**
-     * Recomputes the 1.12/1.13 metadata level in the original order:
-     * horizontal neighbors, falling fluid above, then water source creation.
+     * Recomputes a 1.12.2 legacy metadata level using 1.18.2 FlowingFluid
+     * rules: horizontal neighbors, source conversion, then falling fluid above.
      * Sidecar waterlogged blocks are read as fluid metadata zero.
      */
     public static int getNewLegacyLevel(World world, BlockPos pos, Material material) {
