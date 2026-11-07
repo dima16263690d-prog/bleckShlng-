@@ -17,6 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.dima16263690d.bleckshlng.fluid.engine.FluidFlowEngine;
+import com.dima16263690d.bleckshlng.fluid.engine.LavaRandomTickHandler;
 import com.dima16263690d.bleckshlng.fluid.state.FluidProperties;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.physics.FluidFlowVector;
