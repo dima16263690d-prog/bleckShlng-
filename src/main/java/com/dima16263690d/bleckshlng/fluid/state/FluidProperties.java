@@ -4,7 +4,8 @@ import net.minecraft.block.material.Material;
 import net.minecraft.world.World;
 
 /**
- * Fluid timing and decay follow the Java Edition 1.13.2 baseline.
+ * Fluid timing and decay follow the Java Edition 1.18.2 baseline.
+ * The existing project-specific faster lava settings are retained.
  * Lava is intentionally a little faster and reaches one block farther in
  * ordinary dimensions, as requested; water keeps the 1.13.2 values.
  */
