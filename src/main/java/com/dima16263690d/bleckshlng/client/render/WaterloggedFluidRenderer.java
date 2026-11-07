@@ -9,7 +9,6 @@ import java.util.TreeSet;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockBreakable;
-import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BufferBuilder;
@@ -30,6 +29,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 import org.lwjgl.opengl.GL11;
 
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
+import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
 import com.dima16263690d.bleckshlng.fluid.network.ClientFluidStateCache;
 import com.dima16263690d.bleckshlng.fluid.physics.FluidFlowVector;
 import com.dima16263690d.bleckshlng.fluid.state.FluidHeightCalculator;
@@ -112,7 +112,8 @@ public final class WaterloggedFluidRenderer {
 
                     IBlockState host = world.getBlockState(pos);
                     if (host.getBlock() == Blocks.AIR
-                            || host.getBlock() instanceof net.minecraft.block.BlockLiquid) {
+                            || host.getBlock() instanceof net.minecraft.block.BlockLiquid
+                            || !WaterloggedBlockRegistry.canWaterlog(host.getBlock())) {
                         continue;
                     }
 
@@ -244,7 +245,7 @@ public final class WaterloggedFluidRenderer {
                     cameraX, cameraY, cameraZ);
         }
 
-        rendered |= renderBottomMask(buffer, world, pos, host, kind, boxes,
+        rendered |= renderBottomMask(buffer, world, pos, host, boxes,
                 sprites[0], red, green, blue, light[0], light[1],
                 cameraX, cameraY, cameraZ);
 
@@ -350,7 +351,7 @@ public final class WaterloggedFluidRenderer {
 
     private static boolean renderBottomMask(
             BufferBuilder buffer, World world, BlockPos pos, IBlockState host,
-            FluidStateBridge.FluidKind kind, List<AxisAlignedBB> boxes,
+            List<AxisAlignedBB> boxes,
             TextureAtlasSprite still, float red, float green, float blue,
             int skyLight, int blockLight,
             double cameraX, double cameraY, double cameraZ) {
@@ -500,7 +501,7 @@ public final class WaterloggedFluidRenderer {
                     }
 
                     float localTop = getLocalSurfaceHeight(
-                            world, pos, host, ownHeight,
+                            world, pos, host,
                             northWest, northEast, southEast, southWest,
                             currentX, currentZ);
                     double currentY = baseY + yCenter;
@@ -621,7 +622,7 @@ public final class WaterloggedFluidRenderer {
     }
 
     private static float getLocalSurfaceHeight(
-            World world, BlockPos pos, IBlockState host, float ownHeight,
+            World world, BlockPos pos, IBlockState host,
             float cornerNW, float cornerNE, float cornerSE, float cornerSW,
             double worldX, double worldZ) {
         double localX = MathHelper.clamp((float) (worldX - pos.getX()), 0.0F, 1.0F);
