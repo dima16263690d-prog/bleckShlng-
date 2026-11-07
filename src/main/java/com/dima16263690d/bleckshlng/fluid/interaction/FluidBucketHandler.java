@@ -60,6 +60,8 @@ public final class FluidBucketHandler {
         if (held.getItem() == Items.WATER_BUCKET
                 && WaterloggedBlockRegistry.canWaterlog(clickedState.getBlock())) {
             if (WaterloggedFluidHandler.tryWaterlog(world, pos, clickedState, 0)) {
+                world.playSound(null, pos, net.minecraft.init.SoundEvents.ITEM_BUCKET_EMPTY,
+                        net.minecraft.util.SoundCategory.BLOCKS, 1.0F, 1.0F);
                 replaceFilledBucket(player, hand, held, new ItemStack(Items.BUCKET));
                 event.setCanceled(true);
                 return;
@@ -140,6 +142,8 @@ public final class FluidBucketHandler {
 
             if (WaterloggedFluidHandler.pickupWater(
                     world, pos, world.getBlockState(pos))) {
+                world.playSound(null, pos, net.minecraft.init.SoundEvents.ITEM_BUCKET_FILL,
+                        net.minecraft.util.SoundCategory.BLOCKS, 1.0F, 1.0F);
                 replaceEmptyBucket(player, hand, held,
                         new ItemStack(Items.WATER_BUCKET));
                 event.setCanceled(true);
