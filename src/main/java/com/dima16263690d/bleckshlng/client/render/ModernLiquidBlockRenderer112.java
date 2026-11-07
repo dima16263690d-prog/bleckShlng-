@@ -4,6 +4,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockBreakable;
 import net.minecraft.block.BlockLiquid;
 import net.minecraft.block.material.Material;
+import net.minecraft.block.state.BlockFaceShape;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BlockFluidRenderer;
@@ -11,7 +12,6 @@ import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.color.BlockColors;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureMap;
-import net.minecraft.init.Blocks;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.IBlockAccess;
@@ -356,7 +356,7 @@ public final class ModernLiquidBlockRenderer112 extends BlockFluidRenderer {
     private static boolean isFaceOccludedBySelf(
             IBlockAccess blockAccess, IBlockState state,
             BlockPos pos, EnumFacing face) {
-        return state.getBlock().isSideSolid(state, blockAccess, pos, face);
+        return state.getBlockFaceShape(blockAccess, pos, face) == BlockFaceShape.SOLID;
     }
 
     private static boolean isFaceOccludedByNeighbor(
@@ -371,8 +371,8 @@ public final class ModernLiquidBlockRenderer112 extends BlockFluidRenderer {
             return false;
         }
 
-        return neighborState.getBlock().isSideSolid(
-                neighborState, blockAccess, neighborPos, direction.getOpposite());
+        return neighborState.getBlockFaceShape(
+                blockAccess, neighborPos, direction.getOpposite()) == BlockFaceShape.SOLID;
     }
 
     private static boolean isSameFluid(Material material, IBlockState state) {
