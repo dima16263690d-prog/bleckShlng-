@@ -17,7 +17,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.dima16263690d.bleckshlng.fluid.engine.FluidFlowEngine;
-import com.dima16263690d.bleckshlng.fluid.engine.LavaRandomTickHandler;
 import com.dima16263690d.bleckshlng.fluid.state.FluidProperties;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.physics.FluidFlowVector;
@@ -159,13 +158,10 @@ public final class FluidCoreHooks {
         }
 
         try {
-            if (state.getMaterial() == Material.LAVA) {
-                int tickRate = FluidProperties.tickRate(world, Material.LAVA);
-                int randomTickChance = Math.max(1, 1365 / Math.max(1, tickRate));
-                if (random.nextInt(randomTickChance) == 0) {
-                    LavaRandomTickHandler.randomTick(world, pos, random);
-                }
-            }
+            // Lava fire propagation remains owned by vanilla
+            // BlockStaticLiquid random ticks. Scheduled flow updates must not
+            // synthesize extra fire ticks or make fire frequency depend on
+            // the fluid's spread delay.
             FluidFlowEngine.tick(world, pos, state, random);
             return true;
         } catch (Throwable error) {
