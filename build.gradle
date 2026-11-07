@@ -12,6 +12,10 @@ apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'eclipse'
 apply plugin: 'maven-publish'
 
+repositories {
+    mavenCentral()
+}
+
 version = '1.0.0'
 group = 'com.dima16263690d.bleckshlng'
 archivesBaseName = 'BleckShlng'
@@ -37,6 +41,7 @@ minecraft {
 
 dependencies {
     minecraft 'net.minecraftforge:forge:1.12.2-14.23.5.2864'
+    testImplementation 'junit:junit:4.13.2'
 }
 
 jar {
