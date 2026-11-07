@@ -14,8 +14,8 @@ import static org.junit.Assert.assertTrue;
  */
 public class FluidLevelMapperTest {
     @Test
-    public void everyLegacyMetadataValueRoundTrips() {
-        for (int metadata = 0; metadata <= FluidLevelMapper.MAX_METADATA; metadata++) {
+    public void nonFallingLegacyMetadataValuesRoundTrip() {
+        for (int metadata = 0; metadata <= 7; metadata++) {
             FluidStateBridge water = FluidStateBridge.fromLegacyMetadata(
                     FluidStateBridge.FluidKind.WATER, metadata);
             FluidStateBridge lava = FluidStateBridge.fromLegacyMetadata(
@@ -50,13 +50,14 @@ public class FluidLevelMapperTest {
     }
 
     @Test
-    public void fallingLevelsRetainTheirLowThreeBits() {
+    public void allLegacyFallingLevelsNormalizeToFullStrength() {
         for (int metadata = 8; metadata <= 15; metadata++) {
             FluidStateBridge state = FluidStateBridge.fromLegacyMetadata(
                     FluidStateBridge.FluidKind.WATER, metadata);
             assertFalse(state.isSource());
             assertTrue(state.isFalling());
-            assertEquals(8 - (metadata & 7), state.getAmount());
+            assertEquals(FluidLevelMapper.MAX_AMOUNT, state.getAmount());
+            assertEquals(8, state.toLegacyMetadata());
         }
     }
 
@@ -70,7 +71,7 @@ public class FluidLevelMapperTest {
     @Test
     public void metadataAndAmountsAreClampedToSupportedRanges() {
         assertEquals(8, FluidLevelMapper.amountFromMetadata(-20));
-        assertEquals(1, FluidLevelMapper.amountFromMetadata(50));
+        assertEquals(8, FluidLevelMapper.amountFromMetadata(50));
         assertEquals(7, FluidLevelMapper.toMetadata(0, false, false));
         assertEquals(8, FluidLevelMapper.toMetadata(50, true, false));
     }
