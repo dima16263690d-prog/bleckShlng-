@@ -87,6 +87,21 @@ BleckShlng is a Forge mod intended for both client and dedicated-server environm
 
 The code separates client-only model registration from common block and interaction code. Dedicated-server deployment should still be tested with the exact modpack and server configuration in use.
 
+## Modern render compatibility layer
+
+The client package now contains an initial 1.12.2 adapter for modern rendering
+concepts: render-thread task dispatch, a CPU-side pose stack, render-state
+types, and batched block-vertex submission. It is implemented on the real
+Forge 1.12.2 classes rather than importing 1.21 GPU classes or newer libraries.
+
+This layer is a foundation for custom geometry. The 12 stripped-wood blocks
+still use vanilla blockstate/model JSON and the native baked-model renderer;
+they do not need a custom renderer. The adapter does not replace vanilla
+chunk rendering, entity rendering, particles, or post-processing.
+
+See [docs/modern-render-backend-1122.md](docs/modern-render-backend-1122.md)
+for the API mapping, 1.12.2 vertex-format limitations, and migration stages.
+
 ## Requirements
 
 - Minecraft **1.12.2**
