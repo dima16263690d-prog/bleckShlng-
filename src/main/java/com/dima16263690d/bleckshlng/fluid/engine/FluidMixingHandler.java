@@ -27,8 +27,8 @@ public final class FluidMixingHandler {
 
     /**
      * Handles side/upper water contact with lava, matching the 1.12.2
-     * source rules: source lava becomes obsidian; low-level flowing lava
-     * becomes cobblestone.
+     * source rules: source lava becomes obsidian; any flowing lava becomes
+     * cobblestone. Contact is based on the adjacent fluid state, not shape sampling.
      */
     public static boolean reactAt(World world, BlockPos pos, IBlockState state) {
         if (world == null || world.isRemote || state.getMaterial() != Material.LAVA) {
@@ -44,8 +44,7 @@ public final class FluidMixingHandler {
             }
 
             BlockPos neighbor = pos.offset(side);
-            if (!world.isBlockLoaded(neighbor)
-                    || !FluidShapeCalculator.canPassThroughWall(world, pos, side)) {
+            if (!world.isBlockLoaded(neighbor)) {
                 continue;
             }
 
@@ -84,8 +83,7 @@ public final class FluidMixingHandler {
 
     /**
      * Water entering a lava block reacts with that lava before replacing it.
-     * Source lava becomes obsidian; flowing lava at level 4 or stronger
-     * (legacy metadata 1..4) becomes cobblestone.
+     * Source lava becomes obsidian; every flowing level becomes cobblestone.
      */
     public static boolean reactWaterIntoLava(World world, BlockPos pos,
                                              IBlockState lavaState) {
