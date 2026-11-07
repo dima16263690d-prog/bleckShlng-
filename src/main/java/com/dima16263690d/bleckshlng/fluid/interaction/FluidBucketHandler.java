@@ -36,7 +36,7 @@ public final class FluidBucketHandler {
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
         EntityPlayer player = event.getEntityPlayer();
         World world = event.getWorld();
-        if (player == null || world == null || world.isRemote) {
+        if (player == null || world == null) {
             return;
         }
 
@@ -52,6 +52,31 @@ public final class FluidBucketHandler {
         }
 
         IBlockState clickedState = world.getBlockState(pos);
+        if (world.isRemote) {
+            FluidStateBridge clientFluid = FluidStateMapper.fromWorld(
+                    world, pos, clickedState);
+            boolean waterSource = clientFluid != null
+                    && clientFluid.getKind() == FluidStateBridge.FluidKind.WATER
+                    && clientFluid.isSource();
+
+            // Suppress vanilla client prediction for waterlogging and for
+            // bucket/bottle interactions with fluids stored outside BlockLiquid.
+            if (held.getItem() == Items.WATER_BUCKET
+                    && WaterloggedBlockRegistry.canWaterlog(clickedState.getBlock())
+                    && clientFluid == null) {
+                event.setCanceled(true);
+                event.setCancellationResult(net.minecraft.util.EnumActionResult.SUCCESS);
+            } else if (waterSource
+                    && held.getItem() == Items.GLASS_BOTTLE) {
+                event.setCanceled(true);
+                event.setCancellationResult(net.minecraft.util.EnumActionResult.SUCCESS);
+            } else if (waterSource && held.getItem() == Items.BUCKET
+                    && !(clickedState.getBlock() instanceof net.minecraft.block.BlockLiquid)) {
+                event.setCanceled(true);
+                event.setCancellationResult(net.minecraft.util.EnumActionResult.SUCCESS);
+            }
+            return;
+        }
 
         // Java Edition 1.13 water buckets waterlog the clicked host block
         // before any adjacent-block placement logic is attempted. Keep this
