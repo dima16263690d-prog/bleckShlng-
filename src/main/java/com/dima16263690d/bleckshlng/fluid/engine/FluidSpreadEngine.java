@@ -18,6 +18,7 @@ import com.dima16263690d.bleckshlng.fluid.geometry.FluidOcclusionCache;
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
 import com.dima16263690d.bleckshlng.fluid.state.FluidLevelMapper;
+import com.dima16263690d.bleckshlng.fluid.state.FluidHeightCalculator;
 import com.dima16263690d.bleckshlng.fluid.state.FluidProperties;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
@@ -328,7 +329,8 @@ public final class FluidSpreadEngine {
         // at least 4/9 of a block high. The reaction is handled before placing.
         if (material == Material.WATER && targetMaterial == Material.LAVA) {
             FluidStateBridge lava = FluidStateMapper.fromBlockState(state);
-            return lava != null && lava.getOwnHeight() >= 4.0F / 9.0F;
+            return lava != null && FluidHeightCalculator.getHeight(
+                    world, pos, lava) >= 4.0F / 9.0F;
         }
 
         return BlockGeometryAdapter.canFluidEnter(
