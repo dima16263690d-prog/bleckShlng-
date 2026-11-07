@@ -245,7 +245,7 @@ public final class WaterloggedFluidRenderer {
                     cameraX, cameraY, cameraZ);
         }
 
-        rendered |= renderBottomMask(buffer, world, pos, host, boxes,
+        rendered |= renderBottomMask(buffer, world, pos, host, kind, boxes,
                 sprites[0], red, green, blue, light[0], light[1],
                 cameraX, cameraY, cameraZ);
 
@@ -351,7 +351,7 @@ public final class WaterloggedFluidRenderer {
 
     private static boolean renderBottomMask(
             BufferBuilder buffer, World world, BlockPos pos, IBlockState host,
-            List<AxisAlignedBB> boxes,
+            FluidStateBridge.FluidKind kind, List<AxisAlignedBB> boxes,
             TextureAtlasSprite still, float red, float green, float blue,
             int skyLight, int blockLight,
             double cameraX, double cameraY, double cameraZ) {
