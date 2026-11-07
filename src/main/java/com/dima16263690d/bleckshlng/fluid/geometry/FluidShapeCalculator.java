@@ -12,7 +12,6 @@ import net.minecraft.world.World;
 
 /** Reads actual collision boxes for fluid pass-through decisions. */
 public final class FluidShapeCalculator {
-    private static final int VOLUME_SAMPLES = 6;
     private static final double EPSILON = 1.0E-5D;
 
     private FluidShapeCalculator() { }
@@ -163,22 +162,9 @@ public final class FluidShapeCalculator {
             return true;
         }
         List<AxisAlignedBB> boxes = getCollisionBoxes(world, pos, state);
-        if (boxes.isEmpty()) {
+        if (!coversUnitVolume(boxes, pos)) {
             FluidOcclusionCache.putFullBlock(world, pos, false);
             return false;
-        }
-        for (int x = 0; x < VOLUME_SAMPLES; x++) {
-            for (int y = 0; y < VOLUME_SAMPLES; y++) {
-                for (int z = 0; z < VOLUME_SAMPLES; z++) {
-                    double px = pos.getX() + (x + 0.5D) / VOLUME_SAMPLES;
-                    double py = pos.getY() + (y + 0.5D) / VOLUME_SAMPLES;
-                    double pz = pos.getZ() + (z + 0.5D) / VOLUME_SAMPLES;
-                    if (!insideAny(boxes, px, py, pz)) {
-                        FluidOcclusionCache.putFullBlock(world, pos, false);
-                        return false;
-                    }
-                }
-            }
         }
         FluidOcclusionCache.putFullBlock(world, pos, true);
         return true;
@@ -214,12 +200,35 @@ public final class FluidShapeCalculator {
         }
 
         List<AxisAlignedBB> boxes = getCollisionBoxes(world, pos, state);
-        for (int x = 0; x < 4; x++) {
-            for (int y = 0; y < 4; y++) {
-                for (int z = 0; z < 4; z++) {
-                    double px = minX + (maxX - minX) * (x + 0.5D) / 4.0D;
-                    double py = minY + (maxY - minY) * (y + 0.5D) / 4.0D;
-                    double pz = minZ + (maxZ - minZ) * (z + 0.5D) / 4.0D;
+        // Partition the entity/block intersection at every collision-box
+        // boundary. Midpoint checks are exact for a union of axis-aligned
+        // collision boxes and cannot miss narrow fence/pane openings.
+        TreeSet<Double> xEdges = new TreeSet<Double>();
+        TreeSet<Double> yEdges = new TreeSet<Double>();
+        TreeSet<Double> zEdges = new TreeSet<Double>();
+        xEdges.add(Double.valueOf(minX));
+        xEdges.add(Double.valueOf(maxX));
+        yEdges.add(Double.valueOf(minY));
+        yEdges.add(Double.valueOf(maxY));
+        zEdges.add(Double.valueOf(minZ));
+        zEdges.add(Double.valueOf(maxZ));
+        for (AxisAlignedBB box : boxes) {
+            addClippedEdge(xEdges, box.minX, minX, maxX);
+            addClippedEdge(xEdges, box.maxX, minX, maxX);
+            addClippedEdge(yEdges, box.minY, minY, maxY);
+            addClippedEdge(yEdges, box.maxY, minY, maxY);
+            addClippedEdge(zEdges, box.minZ, minZ, maxZ);
+            addClippedEdge(zEdges, box.maxZ, minZ, maxZ);
+        }
+        List<Double> xs = new ArrayList<Double>(xEdges);
+        List<Double> ys = new ArrayList<Double>(yEdges);
+        List<Double> zs = new ArrayList<Double>(zEdges);
+        for (int x = 0; x + 1 < xs.size(); x++) {
+            double px = (xs.get(x).doubleValue() + xs.get(x + 1).doubleValue()) * 0.5D;
+            for (int y = 0; y + 1 < ys.size(); y++) {
+                double py = (ys.get(y).doubleValue() + ys.get(y + 1).doubleValue()) * 0.5D;
+                for (int z = 0; z + 1 < zs.size(); z++) {
+                    double pz = (zs.get(z).doubleValue() + zs.get(z + 1).doubleValue()) * 0.5D;
                     if (!insideAny(boxes, px, py, pz)) {
                         return true;
                     }
@@ -368,6 +377,62 @@ public final class FluidShapeCalculator {
             }
         }
         return true;
+    }
+
+    private static boolean coversUnitVolume(List<AxisAlignedBB> boxes, BlockPos pos) {
+        if (boxes.isEmpty()) {
+            return false;
+        }
+
+        double minX = pos.getX();
+        double minY = pos.getY();
+        double minZ = pos.getZ();
+        double maxX = minX + 1.0D;
+        double maxY = minY + 1.0D;
+        double maxZ = minZ + 1.0D;
+
+        TreeSet<Double> xEdges = new TreeSet<Double>();
+        TreeSet<Double> yEdges = new TreeSet<Double>();
+        TreeSet<Double> zEdges = new TreeSet<Double>();
+        xEdges.add(Double.valueOf(minX));
+        xEdges.add(Double.valueOf(maxX));
+        yEdges.add(Double.valueOf(minY));
+        yEdges.add(Double.valueOf(maxY));
+        zEdges.add(Double.valueOf(minZ));
+        zEdges.add(Double.valueOf(maxZ));
+
+        for (AxisAlignedBB box : boxes) {
+            addClippedEdge(xEdges, box.minX, minX, maxX);
+            addClippedEdge(xEdges, box.maxX, minX, maxX);
+            addClippedEdge(yEdges, box.minY, minY, maxY);
+            addClippedEdge(yEdges, box.maxY, minY, maxY);
+            addClippedEdge(zEdges, box.minZ, minZ, maxZ);
+            addClippedEdge(zEdges, box.maxZ, minZ, maxZ);
+        }
+
+        List<Double> xs = new ArrayList<Double>(xEdges);
+        List<Double> ys = new ArrayList<Double>(yEdges);
+        List<Double> zs = new ArrayList<Double>(zEdges);
+        for (int x = 0; x + 1 < xs.size(); x++) {
+            double px = (xs.get(x).doubleValue() + xs.get(x + 1).doubleValue()) * 0.5D;
+            for (int y = 0; y + 1 < ys.size(); y++) {
+                double py = (ys.get(y).doubleValue() + ys.get(y + 1).doubleValue()) * 0.5D;
+                for (int z = 0; z + 1 < zs.size(); z++) {
+                    double pz = (zs.get(z).doubleValue() + zs.get(z + 1).doubleValue()) * 0.5D;
+                    if (!insideAny(boxes, px, py, pz)) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    private static void addClippedEdge(TreeSet<Double> edges, double value,
+                                       double min, double max) {
+        if (value > min + EPSILON && value < max - EPSILON) {
+            edges.add(Double.valueOf(value));
+        }
     }
 
     private static void addClippedEdge(TreeSet<Double> edges, double value) {
