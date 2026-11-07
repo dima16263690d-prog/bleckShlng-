@@ -5,6 +5,7 @@ import net.minecraftforge.fml.common.SidedProxy;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.Mod.EventHandler;
 import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
+import com.dima16263690d.bleckshlng.fluid.waterlogging.FluidTickScheduler;
 import org.apache.logging.log4j.Logger;
 
 @Mod(
@@ -27,6 +28,12 @@ public final class BleckShlng {
     @EventHandler
     public void preInit(FMLPreInitializationEvent event) {
         LOGGER = event.getModLog();
+
+        // Forge 1.12.2 posts TickEvent.WorldTickEvent on the FML event bus.
+        // @Mod.EventBusSubscriber registers Forge world/chunk events, so the
+        // tick scheduler must also be attached to the FML bus.
+        FluidTickScheduler.registerFmlTickEvents();
+
         FluidNetwork.init();
         if (PROXY != null) {
             PROXY.preInit(event);

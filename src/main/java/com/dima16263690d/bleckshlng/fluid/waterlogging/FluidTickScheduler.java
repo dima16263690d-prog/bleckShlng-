@@ -14,6 +14,7 @@ import net.minecraftforge.event.world.BlockEvent;
 import net.minecraftforge.event.world.ChunkEvent;
 import net.minecraftforge.event.world.ChunkWatchEvent;
 import net.minecraftforge.event.world.WorldEvent;
+import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.EventPriority;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
@@ -24,13 +25,39 @@ import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
 /**
  * Server-thread scheduler for fluid states stored inside ordinary blocks.
  * Tasks are only executed while their chunk is already loaded.
+ *
+ * Forge 1.12.2 sends TickEvent instances through the FML event bus, while
+ * @Mod.EventBusSubscriber registers this class on MinecraftForge.EVENT_BUS.
+ * The bridge below subscribes only the world-tick callback to the FML bus;
+ * chunk and block callbacks remain on the Forge bus.
  */
 @Mod.EventBusSubscriber(modid = "bleckshlng")
 public final class FluidTickScheduler {
     private static final Map<World, Map<Long, Long>> PENDING =
             new WeakHashMap<World, Map<Long, Long>>();
+    private static boolean fmlTickEventsRegistered;
 
     private FluidTickScheduler() {
+    }
+
+    /**
+     * Register the tick bridge once during mod pre-initialization.
+     * Do not register the whole scheduler on the FML bus: it also handles
+     * Forge-only block/chunk events and should keep the two lifecycles separate.
+     */
+    public static synchronized void registerFmlTickEvents() {
+        if (fmlTickEventsRegistered) {
+            return;
+        }
+        FMLCommonHandler.instance().bus().register(new FmlTickEventBridge());
+        fmlTickEventsRegistered = true;
+    }
+
+    private static final class FmlTickEventBridge {
+        @SubscribeEvent
+        public void onWorldTick(TickEvent.WorldTickEvent event) {
+            FluidTickScheduler.onWorldTick(event);
+        }
     }
 
     public static void schedule(World world, BlockPos pos, int delay) {
