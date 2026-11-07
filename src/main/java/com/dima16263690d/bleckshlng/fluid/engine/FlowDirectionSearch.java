@@ -97,9 +97,9 @@ public final class FlowDirectionSearch {
             return state.getBlock() instanceof BlockLiquid
                     && state.getValue(BlockLiquid.LEVEL).intValue() > 0;
         }
-        // Use the same 1.13.2 source/capacity rule as the actual spread step.
-        // An empty waterloggable block is not an open path unless this spread
-        // would create a source in it immediately.
+        // Use the same target-capacity rule as the actual spread step.
+        // An empty waterloggable block is a valid route when it can accept
+        // water; source conversion is evaluated independently.
         return FluidSpreadEngine.canFlowInto(world, pos, state, fluidMaterial, direction);
     }
 }
