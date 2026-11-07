@@ -1,0 +1,77 @@
+package com.dima16263690d.bleckshlng.fluid.state;
+
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+/**
+ * Regression tests for the legacy BlockLiquid metadata bridge.
+ *
+ * These tests run without launching Minecraft and cover all 16 metadata
+ * encodings used by 1.12.2 water and lava blocks.
+ */
+public class FluidLevelMapperTest {
+    @Test
+    public void everyLegacyMetadataValueRoundTrips() {
+        for (int metadata = 0; metadata <= FluidLevelMapper.MAX_METADATA; metadata++) {
+            FluidStateBridge water = FluidStateBridge.fromLegacyMetadata(
+                    FluidStateBridge.FluidKind.WATER, metadata);
+            FluidStateBridge lava = FluidStateBridge.fromLegacyMetadata(
+                    FluidStateBridge.FluidKind.LAVA, metadata);
+
+            assertEquals("water metadata " + metadata,
+                    metadata, water.toLegacyMetadata());
+            assertEquals("lava metadata " + metadata,
+                    metadata, lava.toLegacyMetadata());
+        }
+    }
+
+    @Test
+    public void sourceMetadataIsFullAndNotFalling() {
+        for (FluidStateBridge.FluidKind kind : FluidStateBridge.FluidKind.values()) {
+            FluidStateBridge source = FluidStateBridge.fromLegacyMetadata(kind, 0);
+            assertTrue(source.isSource());
+            assertFalse(source.isFalling());
+            assertEquals(FluidLevelMapper.MAX_AMOUNT, source.getAmount());
+        }
+    }
+
+    @Test
+    public void horizontalLevelsDecreaseFromEightToOne() {
+        for (int metadata = 1; metadata <= 7; metadata++) {
+            FluidStateBridge state = FluidStateBridge.fromLegacyMetadata(
+                    FluidStateBridge.FluidKind.WATER, metadata);
+            assertFalse(state.isSource());
+            assertFalse(state.isFalling());
+            assertEquals(8 - metadata, state.getAmount());
+        }
+    }
+
+    @Test
+    public void fallingLevelsRetainTheirLowThreeBits() {
+        for (int metadata = 8; metadata <= 15; metadata++) {
+            FluidStateBridge state = FluidStateBridge.fromLegacyMetadata(
+                    FluidStateBridge.FluidKind.WATER, metadata);
+            assertFalse(state.isSource());
+            assertTrue(state.isFalling());
+            assertEquals(8 - (metadata & 7), state.getAmount());
+        }
+    }
+
+    @Test
+    public void downwardFlowUsesFullStrengthFallingMetadata() {
+        assertEquals(8, FluidLevelMapper.toMetadata(8, true, false));
+        assertEquals(8, FluidStateBridge.flowing(
+                FluidStateBridge.FluidKind.WATER, 8, true).toLegacyMetadata());
+    }
+
+    @Test
+    public void metadataAndAmountsAreClampedToSupportedRanges() {
+        assertEquals(8, FluidLevelMapper.amountFromMetadata(-20));
+        assertEquals(1, FluidLevelMapper.amountFromMetadata(50));
+        assertEquals(7, FluidLevelMapper.toMetadata(0, false, false));
+        assertEquals(8, FluidLevelMapper.toMetadata(50, true, false));
+    }
+}
