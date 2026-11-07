@@ -185,7 +185,9 @@ public final class FluidCoreHooks {
         }
 
         if (block == Blocks.FLOWING_LAVA && world != null && !world.isRemote
-                && pos != null && random != null && world.isBlockLoaded(pos)) {
+                && pos != null && state != null && state.getBlock() == block
+                && random != null && world.isBlockLoaded(pos)
+                && world.getBlockState(pos).getBlock() == block) {
             try {
                 LavaRandomTickHandler.randomTick(world, pos, random);
             } catch (Throwable error) {
