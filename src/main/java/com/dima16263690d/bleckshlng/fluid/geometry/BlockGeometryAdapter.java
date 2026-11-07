@@ -2,7 +2,9 @@ package com.dima16263690d.bleckshlng.fluid.geometry;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockDoor;
+import net.minecraft.block.BlockLadder;
 import net.minecraft.block.BlockLiquid;
+import net.minecraft.block.BlockSign;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
 import net.minecraft.block.material.Material;
@@ -39,13 +41,11 @@ public final class BlockGeometryAdapter {
         if (world == null || pos == null || state == null || direction == null) return false;
         Material targetMaterial = state.getMaterial();
         Block targetBlock = state.getBlock();
-        if (targetMaterial == fluidMaterial || isNeverFluidContainer(targetBlock, targetMaterial)) return false;
+        if (targetMaterial == fluidMaterial) return false;
 
-        // Lava displaces water only while flowing down; the lava handler turns it to stone.
-        if (fluidMaterial == Material.LAVA && targetMaterial == Material.WATER) {
-            return direction == EnumFacing.DOWN && targetBlock instanceof BlockLiquid;
-        }
-
+        // LiquidBlockContainer is checked before the general exclusions in
+        // FlowingFluid.canHoldFluid. Signs and ladders accept water, but their
+        // adapters correctly reject lava.
         if (fluidMaterial == Material.WATER && WaterloggedBlockRegistry.canWaterlog(targetBlock)) {
             if (targetBlock instanceof IFluidWaterloggable) {
                 return !((IFluidWaterloggable) targetBlock).isWaterlogged(state);
@@ -57,15 +57,27 @@ public final class BlockGeometryAdapter {
             ChunkFluidData data = ChunkFluidData.get(world);
             return data != null && data.getWater(pos) == null;
         }
+        if (isNeverFluidContainer(targetBlock, targetMaterial)) {
+            return false;
+        }
+
+        // Lava displaces water only while flowing down; the lava handler turns it to stone.
+        if (fluidMaterial == Material.LAVA && targetMaterial == Material.WATER) {
+            return direction == EnumFacing.DOWN && targetBlock instanceof BlockLiquid;
+        }
+
         if (targetMaterial == Material.AIR) return true;
         if (!targetMaterial.blocksMovement()) return true;
         return targetBlock.isReplaceable(world, pos);
     }
 
     private static boolean isNeverFluidContainer(Block block, Material material) {
-        // Signs and ladders are waterloggable in Java Edition 1.13.2.
-        // Doors, sugar cane, portals and structure void remain excluded.
+        // FlowingFluid excludes doors, signs, ladders, sugar cane, portals
+        // and structure void from its generic replaceable-block path. Signs
+        // and ladders have already had their water-container rule checked.
         return block instanceof BlockDoor
+                || block instanceof BlockSign
+                || block instanceof BlockLadder
                 || block == Blocks.REEDS || material == Material.PORTAL
                 || material == Material.STRUCTURE_VOID;
     }
