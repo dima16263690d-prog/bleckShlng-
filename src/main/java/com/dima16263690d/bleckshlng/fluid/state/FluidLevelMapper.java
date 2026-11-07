@@ -2,8 +2,8 @@ package com.dima16263690d.bleckshlng.fluid.state;
 
 /**
  * Converts the legacy 1.12.2 liquid metadata format to the source,
- * flowing-level and falling representation used by the Java 1.13.2
- * Update Aquatic fluid backport.
+ * flowing-level and falling representation used by the modern 1.18.2
+ * FluidState model, encoded through the legacy 1.12.2 metadata layout.
  *
  * Metadata layout used by vanilla BlockLiquid:
  * 0       - source
