@@ -1,6 +1,7 @@
 package com.dima16263690d.bleckshlng.fluid.geometry;
 
 import net.minecraft.block.Block;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.block.BlockFence;
 import net.minecraft.block.BlockChest;
 import net.minecraft.block.BlockEnderChest;
@@ -55,5 +56,16 @@ public final class WaterloggedBlockRegistry {
                 || block instanceof BlockLadder
                 || block instanceof BlockSign
                 || block instanceof BlockPane;
+    }
+
+    /**
+     * True for a non-double slab state. Used by soft fluid-pass checks so the
+     * solid half of a slab does not fully seal the cell against waterlogging.
+     */
+    public static boolean isSingleSlab(IBlockState state) {
+        if (state == null || !(state.getBlock() instanceof BlockSlab)) {
+            return false;
+        }
+        return !((BlockSlab) state.getBlock()).isDouble();
     }
 }
