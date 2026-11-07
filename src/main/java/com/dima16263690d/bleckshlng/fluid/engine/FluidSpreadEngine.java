@@ -301,8 +301,8 @@ public final class FluidSpreadEngine {
     }
 
     /**
-     * Matches legacy BlockDynamicLiquid.canFlowInto while adding the
-     * LiquidBlockContainer-style water capacity check for 1.13 waterlogging.
+     * Adapts FlowingFluid.canSpreadTo/canHoldFluid to the 1.12.2 block and
+     * metadata model, including waterlogging capacity and lava replacement.
      */
     static boolean canFlowInto(World world, BlockPos pos, IBlockState state,
                                        Material material, EnumFacing direction) {
@@ -316,12 +316,6 @@ public final class FluidSpreadEngine {
             return false;
         }
 
-        // Java 1.13.2 Update Aquatic waterlogging rules:
-        // ordinary flowing water passes by waterloggable hosts. It may only
-        // enter one when this position qualifies to become a new source
-        // (18w16a infinite-source rule: two horizontal sources plus support).
-        // Bucket placement and placing a host into existing water are handled
-        // separately by WaterloggedFluidHandler / the World placement hook.
         // FlowingFluid.canHoldFluid delegates to LiquidBlockContainer.
         // Any non-empty water flow may fill an empty waterloggable host; the
         // host then exposes a full source state, as SimpleWaterloggedBlock does.
