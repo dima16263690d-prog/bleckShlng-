@@ -15,6 +15,7 @@ import net.minecraft.world.storage.WorldSavedData;
 import net.minecraft.util.math.BlockPos;
 
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
+import com.dima16263690d.bleckshlng.fluid.state.FluidLevelMapper;
 
 /**
  * Persistent per-dimension storage for water held by legacy blocks.
@@ -24,9 +25,6 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
  * dimension's WorldSavedData file and does not force chunks to load.
  */
 public class ChunkFluidData extends WorldSavedData {
-    private static final class FluidLevelBridgeAmount {
-        private static final int MAX = 8;
-    }
     private static final String DATA_NAME = "bleckshlng_fluid_states";
     private final Map<Long, FluidStateBridge> waterStates =
             new HashMap<Long, FluidStateBridge>();
@@ -122,7 +120,7 @@ public class ChunkFluidData extends WorldSavedData {
             // In that format, amount 8 with no falling bit represented a source.
             boolean source = entry.hasKey("source")
                     ? entry.getBoolean("source")
-                    : amount >= FluidLevelBridgeAmount.MAX && !falling;
+                    : amount >= FluidLevelMapper.MAX_AMOUNT && !falling;
             FluidStateBridge state = source
                     ? FluidStateBridge.source(FluidStateBridge.FluidKind.WATER)
                     : FluidStateBridge.flowing(FluidStateBridge.FluidKind.WATER,
