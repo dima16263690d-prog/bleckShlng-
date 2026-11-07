@@ -141,10 +141,13 @@ public final class FluidMixingHandler {
             return false;
         }
         Block below = world.getBlockState(belowPos).getBlock();
-        if (!hasRegistryPath(below, "soul_soil")) {
+        ResourceLocation soulSoilKey = below.getRegistryName();
+        if (soulSoilKey == null
+                || !"soul_soil".equals(soulSoilKey.getResourcePath())) {
             return false;
         }
 
+        String namespace = soulSoilKey.getResourceDomain();
         boolean blueIceNearby = false;
         for (EnumFacing side : EnumFacing.values()) {
             if (side == EnumFacing.DOWN) {
@@ -153,7 +156,7 @@ public final class FluidMixingHandler {
             BlockPos neighborPos = lavaPos.offset(side);
             if (world.isBlockLoaded(neighborPos)
                     && hasRegistryPath(world.getBlockState(neighborPos).getBlock(),
-                    "blue_ice")) {
+                    namespace, "blue_ice")) {
                 blueIceNearby = true;
                 break;
             }
@@ -162,7 +165,7 @@ public final class FluidMixingHandler {
             return false;
         }
 
-        Block basalt = findRegisteredBlock("basalt");
+        Block basalt = findRegisteredBlock(namespace, "basalt");
         if (basalt == null) {
             return false;
         }
@@ -173,14 +176,15 @@ public final class FluidMixingHandler {
         return true;
     }
 
-    private static boolean hasRegistryPath(Block block, String path) {
+    private static boolean hasRegistryPath(Block block, String namespace, String path) {
         ResourceLocation key = block == null ? null : block.getRegistryName();
-        return key != null && path.equals(key.getResourcePath());
+        return key != null && namespace.equals(key.getResourceDomain())
+                && path.equals(key.getResourcePath());
     }
 
-    private static Block findRegisteredBlock(String path) {
+    private static Block findRegisteredBlock(String namespace, String path) {
         for (Block block : ForgeRegistries.BLOCKS.getValuesCollection()) {
-            if (hasRegistryPath(block, path)) {
+            if (hasRegistryPath(block, namespace, path)) {
                 return block;
             }
         }
