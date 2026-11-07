@@ -97,10 +97,11 @@ public final class FluidEntityHandler {
                     touchingWater = true;
                     maxFluidDepth = Math.max(maxFluidDepth, surfaceY - bounds.minY);
 
+                    double localFluidDepth = surfaceY - bounds.minY;
                     Vec3d localFlow = FluidFlowVector.calculate(
                             entity.world, pos, blockState);
-                    if (maxFluidDepth < 0.4D) {
-                        localFlow = localFlow.scale(maxFluidDepth);
+                    if (localFluidDepth < 0.4D) {
+                        localFlow = localFlow.scale(localFluidDepth);
                     }
                     flow = flow.add(localFlow);
                     flowSamples++;
