@@ -1,5 +1,6 @@
 package com.dima16263690d.bleckshlng.client.render;
 
+import java.lang.reflect.Field;
 import java.util.Map;
 
 import net.minecraft.block.BlockLiquid;
@@ -7,6 +8,7 @@ import net.minecraft.block.BlockSlab;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BlockFluidRenderer;
+import net.minecraft.client.renderer.BlockRendererDispatcher;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.Tessellator;
@@ -26,17 +28,54 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 
 /**
  * Renders waterlogged fluid using vanilla BlockFluidRenderer + FluidViewAccess.
- *
- * Waterlogged cells are exposed as water to the fluid renderer so face culling
- * and heights match adjacent ocean — the closest 1.13 continuous look on 1.12.2
- * without a translucent chunk mesher.
+ * 1.12.2 has no public getFluidRenderer(); resolved via field / constructor.
  */
 @SideOnly(Side.CLIENT)
 public final class WaterloggedFluidRenderer {
     private static final int CHUNK_RADIUS = 3;
     private static final double RENDER_DISTANCE_SQ = 64.0D * 64.0D;
 
+    private static BlockFluidRenderer cachedFluidRenderer;
+
     private WaterloggedFluidRenderer() {
+    }
+
+    private static BlockFluidRenderer resolveFluidRenderer(Minecraft mc) {
+        if (cachedFluidRenderer != null) {
+            return cachedFluidRenderer;
+        }
+        BlockRendererDispatcher dispatcher = mc.getBlockRendererDispatcher();
+        // Prefer the dispatcher instance (shares atlas sprites).
+        try {
+            Field[] fields = BlockRendererDispatcher.class.getDeclaredFields();
+            for (int i = 0; i < fields.length; i++) {
+                Field field = fields[i];
+                if (field.getType() == BlockFluidRenderer.class) {
+                    field.setAccessible(true);
+                    Object value = field.get(dispatcher);
+                    if (value instanceof BlockFluidRenderer) {
+                        cachedFluidRenderer = (BlockFluidRenderer) value;
+                        return cachedFluidRenderer;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        // Fallback: own instance with the same BlockColors.
+        try {
+            cachedFluidRenderer = new BlockFluidRenderer(mc.getBlockColors());
+            // initAtlasSprites is called by dispatcher on resource reload; call if present.
+            try {
+                java.lang.reflect.Method init = BlockFluidRenderer.class
+                        .getDeclaredMethod("initAtlasSprites");
+                init.setAccessible(true);
+                init.invoke(cachedFluidRenderer);
+            } catch (Throwable ignored) {
+            }
+            return cachedFluidRenderer;
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public static void render(float partialTicks) {
@@ -60,12 +99,7 @@ public final class WaterloggedFluidRenderer {
         int originChunkZ = MathHelper.floor(camZ) >> 4;
         int dimension = world.provider.getDimension();
 
-        BlockFluidRenderer fluidRenderer;
-        try {
-            fluidRenderer = mc.getBlockRendererDispatcher().getFluidRenderer();
-        } catch (Throwable t) {
-            return;
-        }
+        BlockFluidRenderer fluidRenderer = resolveFluidRenderer(mc);
         if (fluidRenderer == null) {
             return;
         }
@@ -119,7 +153,6 @@ public final class WaterloggedFluidRenderer {
                         continue;
                     }
 
-                    // Skip solid double slabs — no open fluid volume.
                     IBlockState host = world.getBlockState(pos);
                     if (host.getBlock() instanceof BlockSlab
                             && ((BlockSlab) host.getBlock()).isDouble()) {
@@ -154,9 +187,6 @@ public final class WaterloggedFluidRenderer {
         GlStateManager.popMatrix();
     }
 
-    /**
-     * Optional chunk-pass entry; mesher path stays available for experiments.
-     */
     public static boolean renderIntoChunk(BufferBuilder buffer, World world,
                                           BlockPos pos, IBlockState host,
                                           FluidStateBridge fluid) {
@@ -168,8 +198,10 @@ public final class WaterloggedFluidRenderer {
         }
         try {
             Minecraft mc = Minecraft.getMinecraft();
-            BlockFluidRenderer fluidRenderer =
-                    mc.getBlockRendererDispatcher().getFluidRenderer();
+            BlockFluidRenderer fluidRenderer = resolveFluidRenderer(mc);
+            if (fluidRenderer == null) {
+                return false;
+            }
             FluidViewAccess access = new FluidViewAccess(world);
             IBlockState fluidState = access.getBlockState(pos);
             if (!(fluidState.getBlock() instanceof BlockLiquid)) {
