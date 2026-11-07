@@ -137,11 +137,12 @@ public final class FluidTickTransformer implements IClassTransformer {
                             && !containsHook(method, "tryReactStaticLava")) {
                         injectLiquidBlockAddedHook(method);
                         changed = true;
-                    } else if (isModifyAcceleration(method)
+                    }
+
+                    if (isModifyAcceleration(method)
                             && !containsHook(method, "tryModifyAcceleration")) {
                         injectAccelerationHook(method);
                         changed = true;
-                        break;
                     }
                 }
             }
