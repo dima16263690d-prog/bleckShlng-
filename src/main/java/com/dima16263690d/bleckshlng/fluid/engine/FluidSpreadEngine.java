@@ -175,13 +175,15 @@ public final class FluidSpreadEngine {
                 // Keep the Update Aquatic/Forge support rules, including a
                 // fully closed lower face and a connected source underneath.
                 if (solidSupport || closedBottomFace || waterSourceBelow) {
-                    newLevel = FluidLevelMapper.SOURCE_METADATA;
+                    // FlowingFluid returns the source immediately. A fluid
+                    // above must not overwrite a source created at this pos.
+                    return FluidLevelMapper.SOURCE_METADATA;
                 }
             }
         }
 
-        // FlowingFluid applies the falling override after source conversion.
-        // A matching fluid above always produces a full falling state.
+        // If source conversion did not return above, matching fluid directly
+        // above produces a full-strength falling state.
         BlockPos abovePos = pos.up();
         if (world.isBlockLoaded(abovePos)
                 && FluidShapeCalculator.canPassThroughWall(world, pos, EnumFacing.UP)) {
