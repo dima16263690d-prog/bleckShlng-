@@ -57,6 +57,25 @@ public class ChunkFluidData extends WorldSavedData {
         return data;
     }
 
+    /**
+     * Returns already loaded/saved fluid data without creating an empty
+     * WorldSavedData instance. This is used by hot World#setBlockState hooks,
+     * which must not create persistent data for ordinary block changes.
+     */
+    public static ChunkFluidData getIfPresent(World world) {
+        if (world == null || world.isRemote) {
+            return null;
+        }
+
+        MapStorage storage = world.getPerWorldStorage();
+        if (storage == null) {
+            return null;
+        }
+
+        return (ChunkFluidData) storage.getOrLoadData(
+                ChunkFluidData.class, DATA_NAME);
+    }
+
     public FluidStateBridge getWater(BlockPos pos) {
         return pos == null ? null : waterStates.get(Long.valueOf(pos.toLong()));
     }
