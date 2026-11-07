@@ -47,7 +47,8 @@ public final class WaterloggedFluidHandler {
                 data.putWater(pos, stored);
             }
             FluidNetwork.syncState(world, pos, stored);
-            FluidTickScheduler.schedule(world, pos, 5);
+            FluidTickScheduler.schedule(world, pos, 1);
+            FluidFlowEngine.spreadWaterloggedSource(world, pos);
             return true;
         }
 
@@ -57,65 +58,16 @@ public final class WaterloggedFluidHandler {
         }
 
         FluidStateBridge stored = FluidStateBridge.source(FluidStateBridge.FluidKind.WATER);
-        com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator
-                .invalidate(world, pos);
         if (!data.putWater(pos, stored)) {
             return false;
         }
 
-        // The sidecar is not a block-state property, so explicitly notify
-        // neighbors and synchronize it to clients.
-        FluidNetwork.syncState(world, pos, stored);
-        world.notifyNeighborsOfStateChange(pos, blockState.getBlock(), false);
-        FluidTickScheduler.schedule(world, pos, 5);
-        return true;
-    }
-
-    public static boolean pickupWater(World world, BlockPos pos, IBlockState state) {
-        if (world == null || world.isRemote || pos == null || state == null
-                || !world.isBlockLoaded(pos)) {
-            return false;
-        }
-
-        if (state.getBlock() instanceof IFluidWaterloggable) {
-            IFluidWaterloggable adapter = (IFluidWaterloggable) state.getBlock();
-            if (!adapter.isWaterlogged(state)) {
-                return false;
-            }
-            IBlockState changed = adapter.withWaterlogged(state, false);
-            if (changed == null || changed == state
-                    || !world.setBlockState(pos, changed, 3)) {
-                return false;
-            }
-            ChunkFluidData data = ChunkFluidData.get(world);
-            if (data != null) {
-                data.remove(pos);
-            }
-            FluidNetwork.removeState(world, pos);
-            com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator
-                    .invalidate(world, pos);
-            // setBlockState(..., 3) already notified the neighboring blocks.
-            return true;
-        }
-
-        ChunkFluidData data = ChunkFluidData.get(world);
-        if (data == null) {
-            return false;
-        }
-
-        FluidStateBridge fluid = data.getWater(pos);
-        if (fluid == null || !fluid.isSource()) {
-            return false;
-        }
-
-        if (!data.remove(pos)) {
-            return false;
-        }
-
-        FluidNetwork.removeState(world, pos);
         com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator
                 .invalidate(world, pos);
-        world.notifyNeighborsOfStateChange(pos, state.getBlock(), false);
+        FluidNetwork.syncState(world, pos, stored);
+        FluidTickScheduler.schedule(world, pos, 1);
+        FluidFlowEngine.spreadWaterloggedSource(world, pos);
+        world.notifyNeighborsOfStateChange(pos, blockState.getBlock(), false);
         return true;
     }
 
@@ -152,9 +104,6 @@ public final class WaterloggedFluidHandler {
         }
 
         if (!WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
-            // Java Edition keeps the water source when a waterlogged block is
-            // destroyed (fixed in 18w14b). Convert the sidecar into a real
-            // vanilla source if the host position is now empty/replaceable.
             boolean releaseIntoWorld = world.isAirBlock(pos)
                     || state.getBlock().isReplaceable(world, pos);
             if (data.remove(pos)) {
@@ -162,7 +111,6 @@ public final class WaterloggedFluidHandler {
                 if (releaseIntoWorld) {
                     world.setBlockState(pos, Blocks.WATER.getDefaultState(), 3);
                 } else {
-                    // A different solid block replaced the host before release.
                     world.notifyNeighborsOfStateChange(pos, state.getBlock(), false);
                 }
             }
