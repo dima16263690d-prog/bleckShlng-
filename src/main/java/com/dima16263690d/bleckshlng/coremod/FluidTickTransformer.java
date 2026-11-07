@@ -322,7 +322,7 @@ public final class FluidTickTransformer implements IClassTransformer {
 
     private static boolean isStaticLiquidNeighborChanged(MethodNode method) {
         if (!(method.name.equals("neighborChanged")
-                || method.name.equals("func_ neighborChanged")
+                || method.name.equals("func_189540_a")
                 || method.name.equals("a"))) {
             return false;
         }
