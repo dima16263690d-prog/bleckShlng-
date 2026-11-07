@@ -1,10 +1,11 @@
 package com.dima16263690d.bleckshlng.fluid.state;
 
-import net.minecraft.block.state.BlockFaceShape;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+
+import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 
 /**
  * Java Edition 1.13.2 fluid height calculations mapped to 1.12.2 metadata.
@@ -26,9 +27,7 @@ public final class FluidHeightCalculator {
         /*
          * Match Fluidlogged-API's FluidState.getActualHeight():
          * a fluid above raises this surface to the block ceiling only when
-         * the current block's UP face and the upper block's DOWN face both
-         * allow fluid connectivity. Merely finding fluid in pos.up() is not
-         * enough: a solid slab face must stop the height extension.
+         * both faces of the shared plane allow fluid connectivity.
          */
         IBlockState currentBlock = world.getBlockState(pos);
         if (canFluidConnect(world, pos, currentBlock, EnumFacing.UP)) {
@@ -49,16 +48,13 @@ public final class FluidHeightCalculator {
     }
 
     /**
-     * Fluidlogged-API's default IFluidloggable rule: a face connects unless
-     * its BlockFaceShape is SOLID. This is the correct vanilla rule for the
-     * waterloggable slabs, stairs, fences, walls, trapdoors and panes handled
-     * by this backport.
+     * Face is open to fluid when it is not side-solid (1.12.2 stand-in for
+     * BlockFaceShape != SOLID). Half-slab rules live in FluidShapeCalculator.
      */
     private static boolean canFluidConnect(World world, BlockPos pos,
                                            IBlockState blockState,
                                            EnumFacing side) {
-        return blockState.getBlockFaceShape(world, pos, side)
-                != BlockFaceShape.SOLID;
+        return FluidShapeCalculator.isFaceOpenToFluid(world, pos, blockState, side);
     }
 
     /**
