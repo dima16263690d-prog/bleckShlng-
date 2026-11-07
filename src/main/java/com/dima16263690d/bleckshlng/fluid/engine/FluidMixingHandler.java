@@ -31,7 +31,8 @@ public final class FluidMixingHandler {
      * cobblestone. Contact is based on the adjacent fluid state, not shape sampling.
      */
     public static boolean reactAt(World world, BlockPos pos, IBlockState state) {
-        if (world == null || world.isRemote || state.getMaterial() != Material.LAVA) {
+        if (world == null || world.isRemote || pos == null || state == null
+                || !world.isBlockLoaded(pos) || state.getMaterial() != Material.LAVA) {
             return false;
         }
 
@@ -88,7 +89,7 @@ public final class FluidMixingHandler {
     public static boolean reactWaterIntoLava(World world, BlockPos pos,
                                              IBlockState lavaState) {
         if (world == null || world.isRemote || pos == null || lavaState == null
-                || lavaState.getMaterial() != Material.LAVA
+                || !world.isBlockLoaded(pos) || lavaState.getMaterial() != Material.LAVA
                 || !(lavaState.getBlock() instanceof BlockLiquid)) {
             return false;
         }
@@ -105,7 +106,8 @@ public final class FluidMixingHandler {
      * Vanilla 1.12.2 turns lava flowing directly down into water into stone.
      */
     public static boolean reactDownward(World world, BlockPos pos, IBlockState targetState) {
-        if (world == null || world.isRemote || pos == null || targetState == null) {
+        if (world == null || world.isRemote || pos == null || targetState == null
+                || !world.isBlockLoaded(pos)) {
             return false;
         }
 
@@ -134,7 +136,11 @@ public final class FluidMixingHandler {
      * bridge: it activates only when a backport/mod provides all three blocks.
      */
     private static boolean reactBasalt(World world, BlockPos lavaPos) {
-        Block below = world.getBlockState(lavaPos.down()).getBlock();
+        BlockPos belowPos = lavaPos.down();
+        if (!world.isBlockLoaded(belowPos)) {
+            return false;
+        }
+        Block below = world.getBlockState(belowPos).getBlock();
         if (!hasRegistryPath(below, "soul_soil")) {
             return false;
         }
