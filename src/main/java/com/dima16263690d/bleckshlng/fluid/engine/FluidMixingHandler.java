@@ -33,8 +33,10 @@ public final class FluidMixingHandler {
         }
 
         boolean touchingWater = false;
+        // LiquidBlock checks DOWN and the four horizontal neighbours;
+        // water directly above is not part of its lava solidification test.
         for (EnumFacing side : EnumFacing.values()) {
-            if (side == EnumFacing.DOWN) {
+            if (side == EnumFacing.UP) {
                 continue;
             }
 
@@ -68,21 +70,13 @@ public final class FluidMixingHandler {
         int level = state.getBlock() instanceof BlockLiquid
                 ? state.getValue(BlockLiquid.LEVEL).intValue() : 0;
 
-        if (level == 0) {
-            world.setBlockState(pos, Blocks.OBSIDIAN.getDefaultState(), 3);
-            FluidShapeCalculator.invalidate(world, pos);
-            playExtinguishEffects(world, pos);
-            return true;
-        }
-
-        if (level <= 4) {
-            world.setBlockState(pos, Blocks.COBBLESTONE.getDefaultState(), 3);
-            FluidShapeCalculator.invalidate(world, pos);
-            playExtinguishEffects(world, pos);
-            return true;
-        }
-
-        return false;
+        // In 1.18.2 a lava source becomes obsidian; every flowing state,
+        // regardless of its legacy metadata level, becomes cobblestone.
+        world.setBlockState(pos, (level == 0
+                ? Blocks.OBSIDIAN : Blocks.COBBLESTONE).getDefaultState(), 3);
+        FluidShapeCalculator.invalidate(world, pos);
+        playExtinguishEffects(world, pos);
+        return true;
     }
 
     /**
@@ -99,17 +93,11 @@ public final class FluidMixingHandler {
         }
 
         int level = lavaState.getValue(BlockLiquid.LEVEL).intValue();
-        if (level == 0) {
-            world.setBlockState(pos, Blocks.OBSIDIAN.getDefaultState(), 3);
-            playExtinguishEffects(world, pos);
-            return true;
-        }
-        if (level <= 4) {
-            world.setBlockState(pos, Blocks.COBBLESTONE.getDefaultState(), 3);
-            playExtinguishEffects(world, pos);
-            return true;
-        }
-        return false;
+        world.setBlockState(pos, (level == 0
+                ? Blocks.OBSIDIAN : Blocks.COBBLESTONE).getDefaultState(), 3);
+        FluidShapeCalculator.invalidate(world, pos);
+        playExtinguishEffects(world, pos);
+        return true;
     }
 
     /**
