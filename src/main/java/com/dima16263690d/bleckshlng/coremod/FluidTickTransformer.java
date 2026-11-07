@@ -133,7 +133,11 @@ public final class FluidTickTransformer implements IClassTransformer {
 
             if (liquidTarget) {
                 for (MethodNode method : classNode.methods) {
-                    if (isModifyAcceleration(method)
+                    if (isLiquidBlockAdded(method)
+                            && !containsHook(method, "tryReactStaticLava")) {
+                        injectLiquidBlockAddedHook(method);
+                        changed = true;
+                    } else if (isModifyAcceleration(method)
                             && !containsHook(method, "tryModifyAcceleration")) {
                         injectAccelerationHook(method);
                         changed = true;
@@ -317,6 +321,39 @@ public final class FluidTickTransformer implements IClassTransformer {
         hook.add(new FrameNode(Opcodes.F_SAME, 0, null, 0, null));
         method.instructions.insert(hook);
         method.maxStack = Math.max(method.maxStack, 5);
+    }
+
+    private static boolean isLiquidBlockAdded(MethodNode method) {
+        if (!(method.name.equals("onBlockAdded")
+                || method.name.equals("func_176213_c")
+                || method.name.equals("c"))) {
+            return false;
+        }
+
+        Type[] args = Type.getArgumentTypes(method.desc);
+        return Type.VOID_TYPE.equals(Type.getReturnType(method.desc))
+                && args.length == 3
+                && "net/minecraft/world/World".equals(args[0].getInternalName())
+                && "net/minecraft/util/math/BlockPos".equals(args[1].getInternalName())
+                && "net/minecraft/block/state/IBlockState".equals(args[2].getInternalName());
+    }
+
+    private static void injectLiquidBlockAddedHook(MethodNode method) {
+        LabelNode originalBody = new LabelNode();
+        InsnList hook = new InsnList();
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 1)); // world
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 2)); // position
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 3)); // state
+        hook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                HOOK_OWNER, "tryReactStaticLava",
+                "(Lnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;"
+                + "Lnet/minecraft/block/state/IBlockState;)Z", false));
+        hook.add(new JumpInsnNode(Opcodes.IFEQ, originalBody));
+        hook.add(new InsnNode(Opcodes.RETURN));
+        hook.add(originalBody);
+        hook.add(new FrameNode(Opcodes.F_SAME, 0, null, 0, null));
+        method.instructions.insert(hook);
+        method.maxStack = Math.max(method.maxStack, 3);
     }
 
     private static boolean isStaticLiquidNeighborChanged(MethodNode method) {
