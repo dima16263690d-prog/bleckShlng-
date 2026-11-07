@@ -7,6 +7,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
 import com.dima16263690d.bleckshlng.fluid.engine.FluidFlowEngine;
+import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
 import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
@@ -40,8 +41,7 @@ public final class WaterloggedFluidHandler {
             }
 
             FluidStateBridge stored = FluidStateBridge.source(FluidStateBridge.FluidKind.WATER);
-            com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator
-                    .invalidate(world, pos);
+            FluidShapeCalculator.invalidate(world, pos);
             ChunkFluidData data = ChunkFluidData.get(world);
             if (data != null) {
                 data.putWater(pos, stored);
@@ -62,12 +62,51 @@ public final class WaterloggedFluidHandler {
             return false;
         }
 
-        com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator
-                .invalidate(world, pos);
+        FluidShapeCalculator.invalidate(world, pos);
         FluidNetwork.syncState(world, pos, stored);
         FluidTickScheduler.schedule(world, pos, 1);
         FluidFlowEngine.spreadWaterloggedSource(world, pos);
         world.notifyNeighborsOfStateChange(pos, blockState.getBlock(), false);
+        return true;
+    }
+
+    /**
+     * Removes stored water from a waterlogged host while keeping the block.
+     * Used by empty bucket pickup and sponge absorption.
+     */
+    public static boolean pickupWater(World world, BlockPos pos, IBlockState state) {
+        if (world == null || world.isRemote || pos == null || state == null
+                || !world.isBlockLoaded(pos)) {
+            return false;
+        }
+
+        boolean removed = false;
+
+        if (state.getBlock() instanceof IFluidWaterloggable) {
+            IFluidWaterloggable adapter = (IFluidWaterloggable) state.getBlock();
+            if (adapter.isWaterlogged(state)) {
+                IBlockState changed = adapter.withWaterlogged(state, false);
+                if (changed != null && changed != state) {
+                    world.setBlockState(pos, changed, 3);
+                }
+                removed = true;
+            }
+        }
+
+        ChunkFluidData data = ChunkFluidData.get(world);
+        if (data != null && data.getWater(pos) != null) {
+            if (data.remove(pos)) {
+                removed = true;
+            }
+        }
+
+        if (!removed) {
+            return false;
+        }
+
+        FluidShapeCalculator.invalidate(world, pos);
+        FluidNetwork.removeState(world, pos);
+        world.notifyNeighborsOfStateChange(pos, state.getBlock(), false);
         return true;
     }
 
