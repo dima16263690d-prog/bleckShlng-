@@ -24,7 +24,7 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 import com.dima16263690d.bleckshlng.fluid.waterlogging.WaterloggedFluidHandler;
 
 /**
- * Java Edition 1.13.2 liquid behavior adapted to the existing 1.12.2
+ * Java Edition 1.18.2 FlowingFluid behavior adapted to the existing 1.12.2
  * BlockDynamicLiquid metadata and scheduled-tick system.
  *
  * The legacy level encoding is retained for old-world compatibility, while
