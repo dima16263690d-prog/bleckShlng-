@@ -200,11 +200,14 @@ public final class FluidTickTransformer implements IClassTransformer {
             }
 
             if (!changed) {
+                System.err.println("[BleckShlng] Fluid transformer found no matching target method in "
+                        + transformedName + " (name=" + name + ")");
                 return basicClass;
             }
 
             ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
             classNode.accept(writer);
+            System.out.println("[BleckShlng] Fluid hooks applied to " + transformedName);
             return writer.toByteArray();
         } catch (Throwable error) {
             System.err.println("[BleckShlng] Fluid transformer skipped "
