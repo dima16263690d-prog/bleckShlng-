@@ -5,6 +5,7 @@ on:
     branches:
       - feature/stripped-wood-backport
       - тест-001
+      - fix/1.18-fluid-behavior-audit
   pull_request:
     branches:
       - main
