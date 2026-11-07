@@ -6,7 +6,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
 import net.minecraft.util.EnumFacing;
@@ -41,8 +40,8 @@ public final class WaterloggedSpongeHandler {
     }
 
     /**
-     * Absorbs connected vanilla water blocks. Waterlogged host blocks are
-     * not removed and do not count as absorbable water.
+     * Absorbs connected water states. Ordinary liquid blocks are removed;
+     * waterlogged hosts are drained without removing the host block.
      *
      * Returns true if at least one water position was absorbed. When true,
      * the transformer skips the original vanilla absorb method because this
