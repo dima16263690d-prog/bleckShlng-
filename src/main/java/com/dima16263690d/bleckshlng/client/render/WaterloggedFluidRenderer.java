@@ -236,10 +236,13 @@ public final class WaterloggedFluidRenderer {
         List<AxisAlignedBB> boxes =
                 FluidShapeCalculator.getCollisionBoxes(world, pos, host);
 
-        boolean rendered = renderTopMask(buffer, world, pos, host,
-                ownHeight, boxes, northWest, northEast, southEast, southWest,
-                topUv, red, green, blue, light[0], light[1],
-                cameraX, cameraY, cameraZ);
+        boolean rendered = false;
+        if (!isSameFluid(world, pos.up(), kind)) {
+            rendered = renderTopMask(buffer, world, pos, host,
+                    ownHeight, boxes, northWest, northEast, southEast, southWest,
+                    topUv, red, green, blue, light[0], light[1],
+                    cameraX, cameraY, cameraZ);
+        }
 
         rendered |= renderBottomMask(buffer, world, pos, host, kind, boxes,
                 sprites[0], red, green, blue, light[0], light[1],
@@ -492,7 +495,8 @@ public final class WaterloggedFluidRenderer {
                     }
 
                     float localTop = getLocalSurfaceHeight(
-                            world, pos, host, ownHeight, currentX, currentZ);
+                            world, pos, host, currentFluid.getKind(),
+                            ownHeight, currentX, currentZ);
                     double currentY = baseY + yCenter;
                     if (yCenter < getFluidColumnFloor(
                             currentBoxes, pos, currentX, currentZ) - EDGE_EPSILON
@@ -505,11 +509,15 @@ public final class WaterloggedFluidRenderer {
                     boolean neighborFree = FluidShapeCalculator.containsFluidPoint(
                             world, neighborPos, neighborState, neighborX, currentY,
                             neighborZ, neighborHeight);
-                    if (sameFluid && neighborFree
+                                if (sameFluid && neighborFree
                             && yCenter < neighborHeight - EDGE_EPSILON) {
                         continue;
                     }
-                    if (neighborState.getMaterial().blocksMovement() && !neighborFree) {
+                    boolean overlaySide = currentFluid.getKind()
+                            == FluidStateBridge.FluidKind.WATER
+                            && isWaterOverlayBlock(neighborState, world, neighborPos);
+                    if (neighborState.getMaterial().blocksMovement()
+                            && !neighborFree && !overlaySide) {
                         continue;
                     }
 
@@ -607,16 +615,13 @@ public final class WaterloggedFluidRenderer {
     }
 
     private static float getLocalSurfaceHeight(
-            World world, BlockPos pos, IBlockState host, float ownHeight,
+            World world, BlockPos pos, IBlockState host,
+            FluidStateBridge.FluidKind kind, float ownHeight,
             double worldX, double worldZ) {
-        float cornerNW = sampleCornerHeight(world, pos,
-                FluidStateBridge.FluidKind.WATER, ownHeight, -1, -1);
-        float cornerNE = sampleCornerHeight(world, pos,
-                FluidStateBridge.FluidKind.WATER, ownHeight, 1, -1);
-        float cornerSE = sampleCornerHeight(world, pos,
-                FluidStateBridge.FluidKind.WATER, ownHeight, 1, 1);
-        float cornerSW = sampleCornerHeight(world, pos,
-                FluidStateBridge.FluidKind.WATER, ownHeight, -1, 1);
+        float cornerNW = sampleCornerHeight(world, pos, kind, ownHeight, -1, -1);
+        float cornerNE = sampleCornerHeight(world, pos, kind, ownHeight, 1, -1);
+        float cornerSE = sampleCornerHeight(world, pos, kind, ownHeight, 1, 1);
+        float cornerSW = sampleCornerHeight(world, pos, kind, ownHeight, -1, 1);
         double localX = MathHelper.clamp((float) (worldX - pos.getX()), 0.0F, 1.0F);
         double localZ = MathHelper.clamp((float) (worldZ - pos.getZ()), 0.0F, 1.0F);
         float raw = bilerpHeight(cornerNW, cornerNE, cornerSE, cornerSW, localX, localZ);
@@ -624,7 +629,7 @@ public final class WaterloggedFluidRenderer {
                 world, pos, host, worldX, worldZ, raw);
     }
 
-    private static float getWaterColor(Minecraft mc, World world, BlockPos pos) {
+    private static int getWaterColor(Minecraft mc, World world, BlockPos pos) {
         try {
             int tint = mc.getBlockColors().colorMultiplier(
                     Blocks.WATER.getDefaultState(), world, pos, 0);
