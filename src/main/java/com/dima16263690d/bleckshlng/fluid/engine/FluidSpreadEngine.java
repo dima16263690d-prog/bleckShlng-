@@ -63,8 +63,12 @@ public final class FluidSpreadEngine {
             int newLevel = getNewLegacyLevel(world, pos, material);
 
             if (material == Material.LAVA && level < 8 && newLevel >= 0
-                    && newLevel < 8 && newLevel > level && random.nextInt(4) != 0) {
-                tickDelay *= 4;
+                    && newLevel < 8) {
+                float currentHeight = FluidLevelMapper.amountFromMetadata(level) / 9.0F;
+                float nextHeight = FluidLevelMapper.amountFromMetadata(newLevel) / 9.0F;
+                if (nextHeight > currentHeight && random.nextInt(4) != 0) {
+                    tickDelay *= 4;
+                }
             }
 
             if (newLevel == level) {
