@@ -249,7 +249,8 @@ public final class WaterloggedFluidRenderer {
                 cameraX, cameraY, cameraZ);
 
         rendered |= renderSideMask(buffer, world, pos, host, fluid, ownHeight,
-                boxes, sprites[1], waterOverlay, red, green, blue,
+                boxes, northWest, northEast, southEast, southWest,
+                sprites[1], waterOverlay, red, green, blue,
                 light[0], light[1], cameraX, cameraY, cameraZ);
         return rendered;
     }
@@ -408,6 +409,7 @@ public final class WaterloggedFluidRenderer {
             BufferBuilder buffer, World world, BlockPos pos, IBlockState host,
             FluidStateBridge currentFluid, float ownHeight,
             List<AxisAlignedBB> currentBoxes,
+            float northWest, float northEast, float southEast, float southWest,
             TextureAtlasSprite flow, TextureAtlasSprite waterOverlay,
             float red, float green, float blue, int skyLight, int blockLight,
             double cameraX, double cameraY, double cameraZ) {
@@ -425,7 +427,8 @@ public final class WaterloggedFluidRenderer {
             IBlockState neighborState = world.getBlockState(neighborPos);
             FluidStateBridge neighborFluid = FluidStateMapper.fromWorld(
                     world, neighborPos, neighborState);
-            boolean sameFluid = currentFluid.isSameKind(neighborFluid);
+            boolean sameFluid = neighborFluid != null
+                    && currentFluid.getKind() == neighborFluid.getKind();
             float neighborHeight = sameFluid
                     ? FluidHeightCalculator.getHeight(world, neighborPos, neighborFluid)
                     : 1.0F;
@@ -440,6 +443,8 @@ public final class WaterloggedFluidRenderer {
 
             TextureAtlasSprite sideSprite = flow;
             if (currentFluid.getKind() == FluidStateBridge.FluidKind.WATER
+                    && waterOverlay != null
+                    && !"missingno".equals(waterOverlay.getIconName())
                     && isWaterOverlayBlock(neighborState, world, neighborPos)) {
                 sideSprite = waterOverlay;
             }
@@ -495,8 +500,9 @@ public final class WaterloggedFluidRenderer {
                     }
 
                     float localTop = getLocalSurfaceHeight(
-                            world, pos, host, currentFluid.getKind(),
-                            ownHeight, currentX, currentZ);
+                            world, pos, host, ownHeight,
+                            northWest, northEast, southEast, southWest,
+                            currentX, currentZ);
                     double currentY = baseY + yCenter;
                     if (yCenter < getFluidColumnFloor(
                             currentBoxes, pos, currentX, currentZ) - EDGE_EPSILON
@@ -615,13 +621,9 @@ public final class WaterloggedFluidRenderer {
     }
 
     private static float getLocalSurfaceHeight(
-            World world, BlockPos pos, IBlockState host,
-            FluidStateBridge.FluidKind kind, float ownHeight,
+            World world, BlockPos pos, IBlockState host, float ownHeight,
+            float cornerNW, float cornerNE, float cornerSE, float cornerSW,
             double worldX, double worldZ) {
-        float cornerNW = sampleCornerHeight(world, pos, kind, ownHeight, -1, -1);
-        float cornerNE = sampleCornerHeight(world, pos, kind, ownHeight, 1, -1);
-        float cornerSE = sampleCornerHeight(world, pos, kind, ownHeight, 1, 1);
-        float cornerSW = sampleCornerHeight(world, pos, kind, ownHeight, -1, 1);
         double localX = MathHelper.clamp((float) (worldX - pos.getX()), 0.0F, 1.0F);
         double localZ = MathHelper.clamp((float) (worldZ - pos.getZ()), 0.0F, 1.0F);
         float raw = bilerpHeight(cornerNW, cornerNE, cornerSE, cornerSW, localX, localZ);
