@@ -515,7 +515,7 @@ public final class WaterloggedFluidRenderer {
                     boolean neighborFree = FluidShapeCalculator.containsFluidPoint(
                             world, neighborPos, neighborState, neighborX, currentY,
                             neighborZ, neighborHeight);
-                                if (sameFluid && neighborFree
+                    if (sameFluid && neighborFree
                             && yCenter < neighborHeight - EDGE_EPSILON) {
                         continue;
                     }
@@ -782,7 +782,7 @@ public final class WaterloggedFluidRenderer {
             uv[7] = still.getInterpolatedV(0.0D);
         } else {
             TextureAtlasSprite flow = sprites[1];
-            float angle = MathHelper.atan2((float) direction.z, (float) direction.x)
+            float angle = (float) MathHelper.atan2(direction.z, direction.x)
                     - ((float) Math.PI / 2.0F);
             float sin = MathHelper.sin(angle) * 0.25F;
             float cos = MathHelper.cos(angle) * 0.25F;
