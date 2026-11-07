@@ -24,6 +24,9 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
  * dimension's WorldSavedData file and does not force chunks to load.
  */
 public class ChunkFluidData extends WorldSavedData {
+    private static final class FluidLevelBridgeAmount {
+        private static final int MAX = 8;
+    }
     private static final String DATA_NAME = "bleckshlng_fluid_states";
     private final Map<Long, FluidStateBridge> waterStates =
             new HashMap<Long, FluidStateBridge>();
@@ -115,7 +118,11 @@ public class ChunkFluidData extends WorldSavedData {
             long packedPos = entry.getLong("pos");
             int amount = entry.hasKey("amount") ? entry.getInteger("amount") : 8;
             boolean falling = entry.getBoolean("falling");
-            boolean source = entry.hasKey("source") && entry.getBoolean("source");
+            // Older sidecar saves did not store an explicit source flag.
+            // In that format, amount 8 with no falling bit represented a source.
+            boolean source = entry.hasKey("source")
+                    ? entry.getBoolean("source")
+                    : amount >= FluidLevelBridgeAmount.MAX && !falling;
             FluidStateBridge state = source
                     ? FluidStateBridge.source(FluidStateBridge.FluidKind.WATER)
                     : FluidStateBridge.flowing(FluidStateBridge.FluidKind.WATER,
