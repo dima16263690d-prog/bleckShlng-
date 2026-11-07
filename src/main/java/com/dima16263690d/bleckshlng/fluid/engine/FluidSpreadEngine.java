@@ -315,18 +315,15 @@ public final class FluidSpreadEngine {
             return false;
         }
 
-        // Java 1.13.2 Update Aquatic waterlogging rules:
-        // ordinary flowing water passes by waterloggable hosts. It may only
-        // enter one when this position qualifies to become a new source
-        // (18w16a infinite-source rule: two horizontal sources plus support).
-        // Bucket placement and placing a host into existing water are handled
-        // separately by WaterloggedFluidHandler / the World placement hook.
+        // Modern FlowingFluid does not require a waterloggable target to
+        // become an infinite source before it can accept water. It checks
+        // whether the host can hold this fluid (LiquidBlockContainer /
+        // canPlaceLiquid), then places the resulting fluid state into it.
+        // A vanilla 1.12.2 single slab therefore accepts ordinary flowing
+        // water as well as source water. The waterlogged host is represented
+        // as a source by WaterloggedFluidHandler, matching SimpleWaterloggedBlock.
         if (material == Material.WATER
                 && WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
-            if (getNewLegacyLevel(world, pos, material)
-                    != FluidLevelMapper.SOURCE_METADATA) {
-                return false;
-            }
             return BlockGeometryAdapter.canFluidEnter(
                     world, pos, state, material, direction);
         }
