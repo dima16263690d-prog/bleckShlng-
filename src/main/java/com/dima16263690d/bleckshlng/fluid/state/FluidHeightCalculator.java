@@ -1,8 +1,6 @@
 package com.dima16263690d.bleckshlng.fluid.state;
 
-import net.minecraft.block.state.BlockFaceShape;
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
@@ -23,42 +21,21 @@ public final class FluidHeightCalculator {
             return 0.0F;
         }
 
-        /*
-         * Match Fluidlogged-API's FluidState.getActualHeight():
-         * a fluid above raises this surface to the block ceiling only when
-         * the current block's UP face and the upper block's DOWN face both
-         * allow fluid connectivity. Merely finding fluid in pos.up() is not
-         * enough: a solid slab face must stop the height extension.
-         */
-        IBlockState currentBlock = world.getBlockState(pos);
-        if (canFluidConnect(world, pos, currentBlock, EnumFacing.UP)) {
-            BlockPos above = pos.up();
-            if (world.isBlockLoaded(above)) {
-                IBlockState aboveBlock = world.getBlockState(above);
-                if (canFluidConnect(world, above, aboveBlock, EnumFacing.DOWN)) {
-                    FluidStateBridge aboveState = FluidStateMapper.fromWorld(
-                            world, above, aboveBlock);
-                    if (state.isSameKind(aboveState)) {
-                        return 1.0F;
-                    }
-                }
+        // Port of FlowingFluid.getHeight() / hasSameAbove() from 1.21:
+        // a matching fluid state directly above makes this column full-height.
+        // The host block's collision shape is handled separately by
+        // FluidShapeCalculator when building the visible/free fluid volume.
+        BlockPos above = pos.up();
+        if (world.isBlockLoaded(above)) {
+            IBlockState aboveBlock = world.getBlockState(above);
+            FluidStateBridge aboveState = FluidStateMapper.fromWorld(
+                    world, above, aboveBlock);
+            if (state.isSameKind(aboveState)) {
+                return 1.0F;
             }
         }
 
         return getOwnHeight(state);
-    }
-
-    /**
-     * Fluidlogged-API's default IFluidloggable rule: a face connects unless
-     * its BlockFaceShape is SOLID. This is the correct vanilla rule for the
-     * waterloggable slabs, stairs, fences, walls, trapdoors and panes handled
-     * by this backport.
-     */
-    private static boolean canFluidConnect(World world, BlockPos pos,
-                                           IBlockState blockState,
-                                           EnumFacing side) {
-        return blockState.getBlockFaceShape(world, pos, side)
-                != BlockFaceShape.SOLID;
     }
 
     /**
