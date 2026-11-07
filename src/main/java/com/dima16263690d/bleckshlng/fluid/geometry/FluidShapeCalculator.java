@@ -3,7 +3,6 @@ package com.dima16263690d.bleckshlng.fluid.geometry;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeSet;
-import net.minecraft.block.BlockFaceShape;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.EnumFacing;
@@ -128,8 +127,8 @@ public final class FluidShapeCalculator {
 
     /**
      * Whether fluid can cross the shared face between pos and the neighbour.
-     * Fluidlogged-API / 1.13: face open when getBlockFaceShape != SOLID.
-     * Half slabs expose UNDEFINED on the open half and horizontal sides.
+     * Uses IBlockState.isSideSolid (1.12.2 equivalent of non-SOLID face shape).
+     * Half slabs open the empty half and all horizontal sides to water.
      */
     public static boolean canPassThroughWall(World world, BlockPos pos, EnumFacing direction) {
         if (world == null || pos == null || direction == null || !world.isBlockLoaded(pos)) {
@@ -141,21 +140,48 @@ public final class FluidShapeCalculator {
         }
         IBlockState here = world.getBlockState(pos);
         IBlockState there = world.getBlockState(otherPos);
-        if (here.getBlockFaceShape(world, pos, direction) == BlockFaceShape.SOLID) {
+        if (isSideSolidFace(world, pos, here, direction)) {
             return false;
         }
-        if (there.getBlockFaceShape(world, otherPos, direction.getOpposite()) == BlockFaceShape.SOLID) {
+        if (isSideSolidFace(world, otherPos, there, direction.getOpposite())) {
             return false;
         }
         return true;
     }
 
+    /**
+     * True when fluid may enter/leave through face of this cell.
+     */
     public static boolean isFaceOpenToFluid(World world, BlockPos pos, IBlockState state,
                                             EnumFacing face) {
         if (world == null || pos == null || state == null || face == null) {
             return false;
         }
-        return state.getBlockFaceShape(world, pos, face) != BlockFaceShape.SOLID;
+        return !isSideSolidFace(world, pos, state, face);
+    }
+
+    /**
+     * 1.12.2 stand-in for a non-SOLID face. Prefer isSideSolid; for single
+     * slabs force the open half (and all horizontal sides) to be non-solid so
+     * waterlogging matches 1.13 behaviour.
+     */
+    private static boolean isSideSolidFace(World world, BlockPos pos, IBlockState state,
+                                           EnumFacing face) {
+        if (state.getBlock() instanceof net.minecraft.block.BlockSlab) {
+            net.minecraft.block.BlockSlab slab = (net.minecraft.block.BlockSlab) state.getBlock();
+            if (!slab.isDouble()) {
+                boolean topHalf = state.getValue(net.minecraft.block.BlockSlab.HALF)
+                        == net.minecraft.block.BlockSlab.EnumBlockHalf.TOP;
+                if (face == EnumFacing.UP) {
+                    return topHalf;
+                }
+                if (face == EnumFacing.DOWN) {
+                    return !topHalf;
+                }
+                return false;
+            }
+        }
+        return state.isSideSolid(world, pos, face);
     }
 
     public static boolean fillsBlock(World world, BlockPos pos, IBlockState state) {
