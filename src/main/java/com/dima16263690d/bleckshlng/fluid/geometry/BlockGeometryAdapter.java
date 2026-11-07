@@ -78,7 +78,8 @@ public final class BlockGeometryAdapter {
         return block instanceof BlockDoor
                 || block instanceof BlockSign
                 || block instanceof BlockLadder
-                || block == Blocks.REEDS || material == Material.PORTAL
+                || block == Blocks.REEDS || block == Blocks.WATERLILY
+                || material == Material.PORTAL
                 || material == Material.STRUCTURE_VOID;
     }
 }
