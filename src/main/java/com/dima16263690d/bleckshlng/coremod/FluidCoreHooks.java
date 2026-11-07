@@ -63,7 +63,18 @@ public final class FluidCoreHooks {
                 if (com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry
                         .canWaterlog(newState.getBlock())) {
                     IBlockState oldState = world.getBlockState(pos);
-                    captured = oldState != null && oldState.getMaterial() == Material.WATER;
+                    if (oldState != null && oldState.getMaterial() == Material.WATER) {
+                        captured = true;
+                    } else if (oldState != null) {
+                        // The previous host may already contain water in the
+                        // persistent sidecar or in its own WATERLOGGED state.
+                        FluidStateBridge existingFluid =
+                                com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper
+                                        .fromWorld(world, pos, oldState);
+                        captured = existingFluid != null
+                                && existingFluid.getKind()
+                                == FluidStateBridge.FluidKind.WATER;
+                    }
                 }
             } catch (Throwable error) {
                 LOGGER.error("Could not inspect water before placing waterloggable block at {}", pos, error);
