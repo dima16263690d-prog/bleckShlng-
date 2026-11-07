@@ -85,12 +85,12 @@ public final class FluidEntityHandler {
                         continue;
                     }
 
-                    float height = FluidHeightCalculator.getHeight(
+                    float nominalHeight = FluidHeightCalculator.getHeight(
                             entity.world, pos, fluid);
+                    float height = FluidShapeCalculator.getMaxFluidColumnHeight(
+                            entity.world, pos, blockState, bounds, nominalHeight);
                     double surfaceY = pos.getY() + (double) height;
-                    if (surfaceY < bounds.minY
-                            || !FluidShapeCalculator.intersectsFluidSpace(
-                            entity.world, pos, blockState, bounds, height)) {
+                    if (height <= 0.0F || surfaceY < bounds.minY) {
                         continue;
                     }
 
