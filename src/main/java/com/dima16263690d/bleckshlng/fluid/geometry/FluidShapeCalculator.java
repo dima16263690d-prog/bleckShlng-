@@ -12,7 +12,6 @@ import net.minecraft.world.World;
 
 /** Reads actual collision boxes for fluid pass-through decisions. */
 public final class FluidShapeCalculator {
-    private static final int VOLUME_SAMPLES = 6;
     private static final double EPSILON = 1.0E-5D;
 
     private FluidShapeCalculator() { }
@@ -157,31 +156,17 @@ public final class FluidShapeCalculator {
 
     public static boolean fillsBlock(World world, BlockPos pos, IBlockState state) {
         Boolean cached = FluidOcclusionCache.getFullBlock(world, pos);
-        if (cached != null) return cached.booleanValue();
-        if (state.isFullBlock()) {
-            FluidOcclusionCache.putFullBlock(world, pos, true);
-            return true;
+        if (cached != null) {
+            return cached.booleanValue();
         }
+
         List<AxisAlignedBB> boxes = getCollisionBoxes(world, pos, state);
-        if (boxes.isEmpty()) {
-            FluidOcclusionCache.putFullBlock(world, pos, false);
-            return false;
-        }
-        for (int x = 0; x < VOLUME_SAMPLES; x++) {
-            for (int y = 0; y < VOLUME_SAMPLES; y++) {
-                for (int z = 0; z < VOLUME_SAMPLES; z++) {
-                    double px = pos.getX() + (x + 0.5D) / VOLUME_SAMPLES;
-                    double py = pos.getY() + (y + 0.5D) / VOLUME_SAMPLES;
-                    double pz = pos.getZ() + (z + 0.5D) / VOLUME_SAMPLES;
-                    if (!insideAny(boxes, px, py, pz)) {
-                        FluidOcclusionCache.putFullBlock(world, pos, false);
-                        return false;
-                    }
-                }
-            }
-        }
-        FluidOcclusionCache.putFullBlock(world, pos, true);
-        return true;
+        boolean fills = !boxes.isEmpty() && !hasUncoveredVolume(
+                boxes,
+                pos.getX(), pos.getY(), pos.getZ(),
+                pos.getX() + 1.0D, pos.getY() + 1.0D, pos.getZ() + 1.0D);
+        FluidOcclusionCache.putFullBlock(world, pos, fills);
+        return fills;
     }
 
     public static void invalidate(World world, BlockPos pos) {
@@ -208,25 +193,12 @@ public final class FluidShapeCalculator {
         double maxY = Math.min(bounds.maxY, pos.getY() + (double) fluidHeight);
         double minZ = Math.max(bounds.minZ, pos.getZ());
         double maxZ = Math.min(bounds.maxZ, pos.getZ() + 1.0D);
-        if (maxX - minX <= EPSILON || maxY - minY <= EPSILON
-                || maxZ - minZ <= EPSILON) {
+        if (maxX <= minX || maxY <= minY || maxZ <= minZ) {
             return false;
         }
 
         List<AxisAlignedBB> boxes = getCollisionBoxes(world, pos, state);
-        for (int x = 0; x < 4; x++) {
-            for (int y = 0; y < 4; y++) {
-                for (int z = 0; z < 4; z++) {
-                    double px = minX + (maxX - minX) * (x + 0.5D) / 4.0D;
-                    double py = minY + (maxY - minY) * (y + 0.5D) / 4.0D;
-                    double pz = minZ + (maxZ - minZ) * (z + 0.5D) / 4.0D;
-                    if (!insideAny(boxes, px, py, pz)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
+        return hasUncoveredVolume(boxes, minX, minY, minZ, maxX, maxY, maxZ);
     }
 
     /**
@@ -409,11 +381,94 @@ public final class FluidShapeCalculator {
         }
     }
 
+    /**
+     * Tests an axis-aligned volume against the union of collision boxes.
+     *
+     * Each collision-box boundary partitions the query volume into cells.
+     * Whether a cell is covered is constant throughout its interior, so one
+     * midpoint per cell is an exact union-coverage test for AABB geometry.
+     * Unlike a fixed sample grid, narrow fence, pane and modded-block gaps
+     * cannot be skipped merely because they fall between sample points.
+     */
+    private static boolean hasUncoveredVolume(List<AxisAlignedBB> boxes,
+                                              double minX, double minY, double minZ,
+                                              double maxX, double maxY, double maxZ) {
+        if (maxX <= minX || maxY <= minY || maxZ <= minZ) {
+            return false;
+        }
+
+        TreeSet<Double> xEdges = new TreeSet<Double>();
+        TreeSet<Double> yEdges = new TreeSet<Double>();
+        TreeSet<Double> zEdges = new TreeSet<Double>();
+        xEdges.add(Double.valueOf(minX));
+        xEdges.add(Double.valueOf(maxX));
+        yEdges.add(Double.valueOf(minY));
+        yEdges.add(Double.valueOf(maxY));
+        zEdges.add(Double.valueOf(minZ));
+        zEdges.add(Double.valueOf(maxZ));
+
+        for (AxisAlignedBB box : boxes) {
+            addVolumeEdges(xEdges, box.minX, box.maxX, minX, maxX);
+            addVolumeEdges(yEdges, box.minY, box.maxY, minY, maxY);
+            addVolumeEdges(zEdges, box.minZ, box.maxZ, minZ, maxZ);
+        }
+
+        List<Double> xs = new ArrayList<Double>(xEdges);
+        List<Double> ys = new ArrayList<Double>(yEdges);
+        List<Double> zs = new ArrayList<Double>(zEdges);
+        for (int x = 0; x + 1 < xs.size(); x++) {
+            double x0 = xs.get(x).doubleValue();
+            double x1 = xs.get(x + 1).doubleValue();
+            if (x1 <= x0) {
+                continue;
+            }
+            double px = (x0 + x1) * 0.5D;
+
+            for (int y = 0; y + 1 < ys.size(); y++) {
+                double y0 = ys.get(y).doubleValue();
+                double y1 = ys.get(y + 1).doubleValue();
+                if (y1 <= y0) {
+                    continue;
+                }
+                double py = (y0 + y1) * 0.5D;
+
+                for (int z = 0; z + 1 < zs.size(); z++) {
+                    double z0 = zs.get(z).doubleValue();
+                    double z1 = zs.get(z + 1).doubleValue();
+                    if (z1 <= z0) {
+                        continue;
+                    }
+                    double pz = (z0 + z1) * 0.5D;
+                    if (!insideAny(boxes, px, py, pz)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private static void addVolumeEdges(TreeSet<Double> edges,
+                                       double boxMin, double boxMax,
+                                       double regionMin, double regionMax) {
+        double clippedMin = Math.max(boxMin, regionMin);
+        double clippedMax = Math.min(boxMax, regionMax);
+        if (clippedMax <= clippedMin) {
+            return;
+        }
+        if (clippedMin > regionMin && clippedMin < regionMax) {
+            edges.add(Double.valueOf(clippedMin));
+        }
+        if (clippedMax > regionMin && clippedMax < regionMax) {
+            edges.add(Double.valueOf(clippedMax));
+        }
+    }
+
     private static boolean insideAny(List<AxisAlignedBB> boxes, double x, double y, double z) {
         for (AxisAlignedBB box : boxes) {
-            if (x > box.minX-EPSILON && x < box.maxX+EPSILON
-                    && y > box.minY-EPSILON && y < box.maxY+EPSILON
-                    && z > box.minZ-EPSILON && z < box.maxZ+EPSILON) return true;
+            if (x > box.minX && x < box.maxX
+                    && y > box.minY && y < box.maxY
+                    && z > box.minZ && z < box.maxZ) return true;
         }
         return false;
     }
