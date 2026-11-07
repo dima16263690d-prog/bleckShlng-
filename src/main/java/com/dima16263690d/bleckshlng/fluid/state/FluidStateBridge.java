@@ -4,8 +4,8 @@ package com.dima16263690d.bleckshlng.fluid.state;
  * Immutable compatibility representation of a vanilla water/lava state.
  *
  * This is deliberately separate from BlockLiquid metadata: the internal
- * representation stores source, amount and falling state for the 1.13.2
- * fluid compatibility layer, while the host block metadata remains unchanged.
+ * representation stores source, amount and falling state following the 1.18.2
+ * FluidState model, while the host block metadata remains unchanged.
  */
 public final class FluidStateBridge {
     public enum FluidKind {
