@@ -94,7 +94,7 @@ public final class WaterloggedFluidHandler {
             FluidNetwork.removeState(world, pos);
             com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator
                     .invalidate(world, pos);
-            world.notifyNeighborsOfStateChange(pos, changed.getBlock(), false);
+            // setBlockState(..., 3) already notified the neighboring blocks.
             return true;
         }
 
