@@ -286,6 +286,76 @@ public final class FluidShapeCalculator {
         return Math.max(0.0F, height);
     }
 
+    /**
+     * Finds the highest real fluid surface that overlaps an entity AABB.
+     * The X/Z projection is partitioned at every collision-box boundary, so
+     * upper slabs and stair steps use the height of their actual open columns.
+     */
+    public static float getMaxFluidColumnHeight(World world, BlockPos pos,
+                                                IBlockState state, AxisAlignedBB bounds,
+                                                float nominalHeight) {
+        if (world == null || pos == null || state == null || bounds == null
+                || nominalHeight <= 0.0F || !world.isBlockLoaded(pos)) {
+            return 0.0F;
+        }
+
+        double minX = Math.max(bounds.minX, pos.getX());
+        double maxX = Math.min(bounds.maxX, pos.getX() + 1.0D);
+        double minZ = Math.max(bounds.minZ, pos.getZ());
+        double maxZ = Math.min(bounds.maxZ, pos.getZ() + 1.0D);
+        if (maxX - minX <= EPSILON || maxZ - minZ <= EPSILON) {
+            return 0.0F;
+        }
+
+        List<AxisAlignedBB> boxes = getCollisionBoxes(world, pos, state);
+        TreeSet<Double> xEdges = new TreeSet<Double>();
+        TreeSet<Double> zEdges = new TreeSet<Double>();
+        xEdges.add(Double.valueOf(minX));
+        xEdges.add(Double.valueOf(maxX));
+        zEdges.add(Double.valueOf(minZ));
+        zEdges.add(Double.valueOf(maxZ));
+        for (AxisAlignedBB box : boxes) {
+            addClippedEdge(xEdges, box.minX, minX, maxX);
+            addClippedEdge(xEdges, box.maxX, minX, maxX);
+            addClippedEdge(zEdges, box.minZ, minZ, maxZ);
+            addClippedEdge(zEdges, box.maxZ, minZ, maxZ);
+        }
+
+        List<Double> xs = new ArrayList<Double>(xEdges);
+        List<Double> zs = new ArrayList<Double>(zEdges);
+        float highest = 0.0F;
+        for (int x = 0; x + 1 < xs.size(); x++) {
+            double x0 = xs.get(x).doubleValue();
+            double x1 = xs.get(x + 1).doubleValue();
+            if (x1 - x0 <= EPSILON) {
+                continue;
+            }
+            for (int z = 0; z + 1 < zs.size(); z++) {
+                double z0 = zs.get(z).doubleValue();
+                double z1 = zs.get(z + 1).doubleValue();
+                if (z1 - z0 <= EPSILON) {
+                    continue;
+                }
+
+                double centerX = (x0 + x1) * 0.5D;
+                double centerZ = (z0 + z1) * 0.5D;
+                float columnHeight = getFluidColumnHeight(
+                        world, pos, state, centerX, centerZ, nominalHeight);
+                if (columnHeight <= highest) {
+                    continue;
+                }
+
+                AxisAlignedBB columnBounds = new AxisAlignedBB(
+                        x0, bounds.minY, z0, x1, bounds.maxY, z1);
+                if (intersectsFluidSpace(
+                        world, pos, state, columnBounds, columnHeight)) {
+                    highest = columnHeight;
+                }
+            }
+        }
+        return highest;
+    }
+
     public static boolean containsFluidPoint(World world, BlockPos pos,
                                              IBlockState state, double x,
                                              double y, double z, float fluidHeight) {
