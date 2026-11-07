@@ -108,37 +108,33 @@ public final class FluidSpreadEngine {
     }
 
     /**
-     * 1.18-compatible pass test when spreading toward waterloggable hosts.
-     * Full merged-face occlusion is too strict for slabs and stairs: the solid
-     * half may cover part of the shared face while the empty half still accepts
-     * water (SimpleWaterloggedBlock / canHoldFluid behaviour).
+     * Whether fluid of {@code material} can leave {@code from} toward
+     * {@code direction}. Uses BlockFaceShape (Fluidlogged-API / 1.13 rules)
+     * so half-slabs open their empty half to water.
      */
     static boolean canSpreadThrough(World world, BlockPos from,
                                     EnumFacing direction, Material material) {
         if (world == null || from == null || direction == null || material == null) {
             return false;
         }
+        // Primary rule: open faces on both sides of the shared plane.
         if (FluidShapeCalculator.canPassThroughWall(world, from, direction)) {
             return true;
         }
+        // Waterloggable hosts still accept water even if a partial solid face
+        // reports SOLID on an unrelated edge case (modded slabs, etc.).
         if (material != Material.WATER) {
             return false;
         }
-
         BlockPos to = from.offset(direction);
         if (!world.isBlockLoaded(to)) {
             return false;
         }
-
         IBlockState toState = world.getBlockState(to);
         if (WaterloggedBlockRegistry.canWaterlog(toState.getBlock())
+                && FluidShapeCalculator.isFaceOpenToFluid(
+                        world, to, toState, direction.getOpposite())
                 && canFlowInto(world, to, toState, material, direction)) {
-            return true;
-        }
-
-        IBlockState fromState = world.getBlockState(from);
-        if (WaterloggedBlockRegistry.canWaterlog(fromState.getBlock())
-                && canFlowInto(world, from, fromState, material, direction.getOpposite())) {
             return true;
         }
         return false;
