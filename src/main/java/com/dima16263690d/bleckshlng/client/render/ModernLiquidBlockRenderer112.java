@@ -367,8 +367,11 @@ public final class ModernLiquidBlockRenderer112 extends BlockFluidRenderer {
             float fluidHeight) {
         // A full block above only hides a surface that actually reaches the
         // top of the fluid cell. Side and bottom faces use full-face coverage.
-        if (direction == EnumFacing.UP && fluidHeight < 1.0F) {
-            return false;
+        if (direction == EnumFacing.UP) {
+            return fluidHeight >= 1.0F && neighborState.isFullBlock();
+        }
+        if (direction == EnumFacing.DOWN) {
+            return neighborState.isFullBlock();
         }
 
         return neighborState.getBlockFaceShape(
