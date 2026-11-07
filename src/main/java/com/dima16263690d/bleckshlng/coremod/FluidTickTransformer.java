@@ -16,11 +16,10 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 /**
- * Installs two guarded hooks:
- * - BlockDynamicLiquid.updateTick: modernized server-side liquid update.
- * - BlockLiquid.modifyAcceleration: modernized liquid current vector.
- *
- * Unknown/modded liquids fall through to their original methods.
+ * Installs guarded hooks for vanilla liquid scheduling, random ticks,
+ * collisions, and the waterlogged compatibility checks used by 1.12.2.
+ * Unknown/modded liquids and non-target block classes keep their original
+ * implementations.
  */
 public final class FluidTickTransformer implements IClassTransformer {
     private static final String DYNAMIC_TARGET = "net.minecraft.block.BlockDynamicLiquid";
