@@ -24,6 +24,7 @@ import org.objectweb.asm.tree.VarInsnNode;
  */
 public final class FluidTickTransformer implements IClassTransformer {
     private static final String DYNAMIC_TARGET = "net.minecraft.block.BlockDynamicLiquid";
+    private static final String STATIC_LIQUID_TARGET = "net.minecraft.block.BlockStaticLiquid";
     private static final String BLOCK_TARGET = "net.minecraft.block.Block";
     private static final String WORLD_TARGET = "net.minecraft.world.World";
     private static final String LIQUID_TARGET = "net.minecraft.block.BlockLiquid";
@@ -66,6 +67,7 @@ public final class FluidTickTransformer implements IClassTransformer {
         }
 
         boolean dynamicTarget = isTarget(name, transformedName, DYNAMIC_TARGET);
+        boolean staticLiquidTarget = isTarget(name, transformedName, STATIC_LIQUID_TARGET);
         boolean blockTarget = isTarget(name, transformedName, BLOCK_TARGET);
         boolean worldTarget = isTarget(name, transformedName, WORLD_TARGET);
         boolean liquidTarget = isTarget(name, transformedName, LIQUID_TARGET);
@@ -76,7 +78,8 @@ public final class FluidTickTransformer implements IClassTransformer {
         boolean bushTarget = isTarget(name, transformedName, BUSH_TARGET);
         boolean spongeTarget = isTarget(name, transformedName, SPONGE_TARGET);
         boolean fishHookTarget = isTarget(name, transformedName, FISH_HOOK_TARGET);
-        if (!dynamicTarget && !blockTarget && !worldTarget && !liquidTarget && !entityTarget
+        if (!dynamicTarget && !staticLiquidTarget && !blockTarget
+                && !worldTarget && !liquidTarget && !entityTarget
                 && !farmlandTarget && !reedTarget && !lilyPadTarget
                 && !bushTarget && !spongeTarget && !fishHookTarget) {
             return basicClass;
@@ -112,6 +115,17 @@ public final class FluidTickTransformer implements IClassTransformer {
                     if (isRandomTick(method)
                             && !containsHook(method, "tryRandomTickDynamicLiquid")) {
                         injectRandomTickHook(method);
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+
+            if (staticLiquidTarget) {
+                for (MethodNode method : classNode.methods) {
+                    if (isStaticLiquidNeighborChanged(method)
+                            && !containsHook(method, "tryReactStaticLava")) {
+                        injectStaticLiquidNeighborHook(method);
                         changed = true;
                         break;
                     }
@@ -304,6 +318,41 @@ public final class FluidTickTransformer implements IClassTransformer {
         hook.add(new FrameNode(Opcodes.F_SAME, 0, null, 0, null));
         method.instructions.insert(hook);
         method.maxStack = Math.max(method.maxStack, 5);
+    }
+
+    private static boolean isStaticLiquidNeighborChanged(MethodNode method) {
+        if (!(method.name.equals("neighborChanged")
+                || method.name.equals("func_ neighborChanged")
+                || method.name.equals("a"))) {
+            return false;
+        }
+
+        Type[] args = Type.getArgumentTypes(method.desc);
+        return Type.VOID_TYPE.equals(Type.getReturnType(method.desc))
+                && args.length == 5
+                && "net/minecraft/block/state/IBlockState".equals(args[0].getInternalName())
+                && "net/minecraft/world/World".equals(args[1].getInternalName())
+                && "net/minecraft/util/math/BlockPos".equals(args[2].getInternalName())
+                && "net/minecraft/block/Block".equals(args[3].getInternalName())
+                && "net/minecraft/util/math/BlockPos".equals(args[4].getInternalName());
+    }
+
+    private static void injectStaticLiquidNeighborHook(MethodNode method) {
+        LabelNode originalBody = new LabelNode();
+        InsnList hook = new InsnList();
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 2)); // world
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 3)); // position
+        hook.add(new VarInsnNode(Opcodes.ALOAD, 1)); // current state
+        hook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                HOOK_OWNER, "tryReactStaticLava",
+                "(Lnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;"
+                + "Lnet/minecraft/block/state/IBlockState;)Z", false));
+        hook.add(new JumpInsnNode(Opcodes.IFEQ, originalBody));
+        hook.add(new InsnNode(Opcodes.RETURN));
+        hook.add(originalBody);
+        hook.add(new FrameNode(Opcodes.F_SAME, 0, null, 0, null));
+        method.instructions.insert(hook);
+        method.maxStack = Math.max(method.maxStack, 3);
     }
 
     private static boolean isModifyAcceleration(MethodNode method) {
