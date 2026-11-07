@@ -196,6 +196,28 @@ public final class FluidCoreHooks {
         return true;
     }
 
+    /**
+     * Modern LiquidBlock performs lava/water and basalt checks on neighbor
+     * changes for both source and flowing states. Keep this hook restricted
+     * to the vanilla static lava block; unrelated modded liquids remain owned
+     * by their original implementation.
+     */
+    public static boolean tryReactStaticLava(World world, BlockPos pos,
+                                             IBlockState state) {
+        if (world == null || world.isRemote || pos == null || state == null
+                || state.getBlock() != Blocks.LAVA || !world.isBlockLoaded(pos)) {
+            return false;
+        }
+        try {
+            return com.dima16263690d.bleckshlng.fluid.engine.FluidMixingHandler
+                    .reactAt(world, pos, state);
+        } catch (Throwable error) {
+            LOGGER.error("Static lava reaction failed at {}; retaining vanilla handling",
+                    pos, error);
+            return false;
+        }
+    }
+
     public static boolean tryUpdateDynamicLiquid(World world, BlockPos pos,
                                                  IBlockState state, Random random) {
         // Do not take ownership of client ticks, modded liquids, or unrelated
