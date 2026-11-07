@@ -1,13 +1,10 @@
 package com.dima16263690d.bleckshlng.fluid.waterlogging;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.init.Blocks;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -55,7 +52,6 @@ public final class WaterloggedSpongeHandler {
 
         ArrayDeque<Node> queue = new ArrayDeque<Node>();
         Set<Long> visited = new HashSet<Long>();
-        List<BlockPos> changedPositions = new ArrayList<BlockPos>();
         int absorbed = 0;
 
         queue.addLast(new Node(spongePos, 0));
@@ -84,14 +80,12 @@ public final class WaterloggedSpongeHandler {
                 }
 
                 boolean removed;
-                boolean needsNeighborNotify = false;
                 if (state.getBlock() instanceof net.minecraft.block.BlockLiquid) {
                     // A liquid block is removed directly, including flowing
                     // water, exactly as the LiquidBlock sponge path does.
                     removed = world.setBlockToAir(next);
                     if (removed) {
                         FluidShapeCalculator.invalidate(world, next);
-                        needsNeighborNotify = true;
                     }
                 } else if (WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
                     // 1.18.2 SimpleWaterloggedBlock implements BucketPickup:
@@ -106,9 +100,6 @@ public final class WaterloggedSpongeHandler {
                     continue;
                 }
 
-                if (needsNeighborNotify) {
-                    changedPositions.add(next);
-                }
                 ++absorbed;
 
                 if (node.depth < MAX_DEPTH) {
@@ -119,10 +110,6 @@ public final class WaterloggedSpongeHandler {
                     break;
                 }
             }
-        }
-
-        for (BlockPos changed : changedPositions) {
-            world.notifyNeighborsOfStateChange(changed, Blocks.AIR, false);
         }
 
         return absorbed > 0;
