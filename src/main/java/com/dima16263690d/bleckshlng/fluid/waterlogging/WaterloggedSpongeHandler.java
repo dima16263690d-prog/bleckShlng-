@@ -14,10 +14,14 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
+import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
+import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
+import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 
 /**
- * Java Edition 1.13.2 sponge absorption. Only actual water blocks are absorbed;
- * water stored inside a waterlogged host is deliberately not removed.
+ * Sponge absorption adapted to the 1.18.2 FluidState/BucketPickup model.
+ * Ordinary liquid blocks are removed; water inside a waterloggable host is
+ * picked up without destroying or replacing that host block.
  */
 public final class WaterloggedSpongeHandler {
     private static final int MAX_DEPTH = 6;
@@ -73,14 +77,34 @@ public final class WaterloggedSpongeHandler {
                 }
 
                 IBlockState state = world.getBlockState(next);
-                // In 1.13.2, sponges absorb water blocks but do not drain
-                // water stored inside waterlogged blocks (MC-126914).
-                if (state.getMaterial() != Material.WATER) {
+                FluidStateBridge fluid = FluidStateMapper.fromWorld(
+                        world, next, state);
+                if (fluid == null
+                        || fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
                     continue;
                 }
 
-                world.setBlockState(next, Blocks.AIR.getDefaultState(), 2);
-                FluidShapeCalculator.invalidate(world, next);
+                boolean removed;
+                if (state.getBlock() instanceof net.minecraft.block.BlockLiquid) {
+                    // A liquid block is removed directly, including flowing
+                    // water, exactly as the LiquidBlock sponge path does.
+                    removed = world.setBlockToAir(next);
+                    if (removed) {
+                        FluidShapeCalculator.invalidate(world, next);
+                    }
+                } else if (WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
+                    // 1.18.2 SimpleWaterloggedBlock implements BucketPickup:
+                    // clear the stored fluid while preserving the host block.
+                    removed = com.dima16263690d.bleckshlng.fluid.waterlogging
+                            .WaterloggedFluidHandler.pickupWater(world, next, state);
+                } else {
+                    removed = false;
+                }
+
+                if (!removed) {
+                    continue;
+                }
+
                 changedPositions.add(next);
                 ++absorbed;
 
