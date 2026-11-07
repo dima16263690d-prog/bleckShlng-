@@ -29,12 +29,8 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 
 /**
- * Client fluid overlay adapted from modern LiquidBlockRenderer ideas
- * (corner heights, per-face culling against same fluid, still/flow sprites)
- * onto the Minecraft 1.12.2 Tessellator / BufferBuilder pipeline.
- *
- * This only DRAWS water stored in ClientFluidStateCache. It does not run
- * server fluid physics — that remains FluidSpreadEngine / tryWaterlog.
+ * Waterlogged fluid overlay. Faces against neighbouring water are omitted so
+ * the volume merges with the ocean instead of looking like a separate box.
  */
 @SideOnly(Side.CLIENT)
 public final class WaterloggedFluidRenderer {
@@ -170,6 +166,12 @@ public final class WaterloggedFluidRenderer {
             }
         }
 
+        // Full column when submerged so side heights match neighbouring ocean.
+        boolean waterAbove = isSameFluid(world, pos.up());
+        if (waterAbove) {
+            ownHeight = 1.0F;
+        }
+
         float hNW = sampleCornerHeight(world, pos, ownHeight, -1, -1);
         float hNE = sampleCornerHeight(world, pos, ownHeight, 1, -1);
         float hSE = sampleCornerHeight(world, pos, ownHeight, 1, 1);
@@ -178,6 +180,12 @@ public final class WaterloggedFluidRenderer {
         hNE = Math.max(hNE, minY);
         hSE = Math.max(hSE, minY);
         hSW = Math.max(hSW, minY);
+        if (waterAbove) {
+            hNW = 1.0F;
+            hNE = 1.0F;
+            hSE = 1.0F;
+            hSW = 1.0F;
+        }
 
         int color = 0x3F76E4;
         try {
@@ -191,7 +199,7 @@ public final class WaterloggedFluidRenderer {
         float r = (float) (color >> 16 & 255) / 255.0F;
         float g = (float) (color >> 8 & 255) / 255.0F;
         float b = (float) (color & 255) / 255.0F;
-        int a = 160;
+        int a = 180;
 
         int packed = world.getCombinedLight(pos, 0);
         int sky = packed >> 16 & 65535;
@@ -202,7 +210,8 @@ public final class WaterloggedFluidRenderer {
         double y = pos.getY();
         double z = pos.getZ();
 
-        if (!isSameFluid(world, pos.up()) || ownHeight < 1.0F) {
+        // Never draw UP against water above — removes the floating box seam.
+        if (!waterAbove) {
             any |= emitUp(buffer, x, y, z, hNW, hNE, hSE, hSW, minY,
                     camX, camY, camZ, still, r, g, b, a, sky, block);
         }
