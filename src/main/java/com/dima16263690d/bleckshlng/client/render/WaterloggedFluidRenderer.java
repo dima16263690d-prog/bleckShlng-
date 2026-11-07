@@ -86,7 +86,8 @@ public final class WaterloggedFluidRenderer {
                 GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA,
                 GlStateManager.SourceFactor.ONE,
                 GlStateManager.DestFactor.ZERO);
-        GlStateManager.disableCull();
+        // Back-face cull: disableCull made every waterlogged cell a solid blue box.
+        GlStateManager.enableCull();
         GlStateManager.enableDepth();
         GlStateManager.depthMask(false);
         GlStateManager.enablePolygonOffset();
@@ -135,16 +136,11 @@ public final class WaterloggedFluidRenderer {
 
         GlStateManager.disablePolygonOffset();
         GlStateManager.depthMask(true);
-        GlStateManager.enableCull();
         GlStateManager.enableAlpha();
         GlStateManager.disableBlend();
         GlStateManager.popMatrix();
     }
 
-    /**
-     * Called from FluidRenderHooks during chunk rebuild.
-     * WorldClient is a subclass of World — callers may pass either.
-     */
     public static boolean renderIntoChunk(BufferBuilder buffer, World world,
                                           BlockPos pos, IBlockState host,
                                           FluidStateBridge fluid) {
