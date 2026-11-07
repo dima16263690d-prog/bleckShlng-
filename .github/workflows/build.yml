@@ -6,9 +6,11 @@ on:
       - feature/stripped-wood-backport
       - тест-001
       - fix/1.18-fluid-behavior-audit
+      - feature/modern-liquid-renderer-1122
   pull_request:
     branches:
       - main
+      - fix/1.18-fluid-behavior-audit
 
 jobs:
   build:
