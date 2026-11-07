@@ -26,16 +26,13 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 /**
  * Stable overlay for water stored in the sidecar (waterlogged half-slabs etc.).
  *
- * Unlike a full port of the 1.21 liquid mesher (not usable on 1.12 GL/TESSELLATOR),
- * this draws a simple water volume in the free half of the host block. Designed to
- * avoid the z-fighting flicker of the previous surface-only path when next to
- * vanilla water blocks.
+ * Draws a simple water volume in the free half of the host block to avoid the
+ * z-fighting flicker of a surface-only path next to vanilla water blocks.
  */
 @SideOnly(Side.CLIENT)
 public final class WaterloggedFluidRenderer {
     private static final int CHUNK_RADIUS = 3;
     private static final double RENDER_DISTANCE_SQ = 48.0D * 48.0D;
-    /** Slight inset so quads do not z-fight neighbouring vanilla water faces. */
     private static final float INSET = 0.002F;
 
     private WaterloggedFluidRenderer() {
@@ -91,13 +88,16 @@ public final class WaterloggedFluidRenderer {
         boolean hasVertices = false;
         for (int cx = centerChunkX - CHUNK_RADIUS; cx <= centerChunkX + CHUNK_RADIUS; cx++) {
             for (int cz = centerChunkZ - CHUNK_RADIUS; cz <= centerChunkZ + CHUNK_RADIUS; cz++) {
-                Map<BlockPos, FluidStateBridge> states =
+                Map<Long, FluidStateBridge> states =
                         ClientFluidStateCache.copyChunk(dimension, cx, cz);
                 if (states == null || states.isEmpty()) {
                     continue;
                 }
-                for (Map.Entry<BlockPos, FluidStateBridge> entry : states.entrySet()) {
-                    BlockPos pos = entry.getKey();
+                for (Map.Entry<Long, FluidStateBridge> entry : states.entrySet()) {
+                    if (entry.getKey() == null) {
+                        continue;
+                    }
+                    BlockPos pos = BlockPos.fromLong(entry.getKey().longValue());
                     FluidStateBridge fluid = entry.getValue();
                     if (fluid == null || fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
                         continue;
