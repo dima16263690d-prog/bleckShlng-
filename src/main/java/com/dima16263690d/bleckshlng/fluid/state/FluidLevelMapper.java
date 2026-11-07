@@ -8,7 +8,7 @@ package com.dima16263690d.bleckshlng.fluid.state;
  * Metadata layout used by vanilla BlockLiquid:
  * 0       - source
  * 1..7    - horizontal flow level
- * 8..15   - falling flow (low three bits retain the level)
+ * 8..15   - legacy falling flow; modern FlowingFluid normalizes it to amount 8
  */
 public final class FluidLevelMapper {
     public static final int SOURCE_METADATA = 0;
@@ -20,10 +20,12 @@ public final class FluidLevelMapper {
 
     public static int amountFromMetadata(int metadata) {
         int value = clampMetadata(metadata);
-        if (value == SOURCE_METADATA) {
+        if (value == SOURCE_METADATA || (value & 8) != 0) {
+            // In the modern fluid model a falling state is always full-height.
+            // The low bits in 1.12 metadata only describe the fluid above it.
             return MAX_AMOUNT;
         }
-        return MAX_AMOUNT - (value & 7);
+        return MAX_AMOUNT - value;
     }
 
     public static boolean isFallingMetadata(int metadata) {
@@ -40,9 +42,11 @@ public final class FluidLevelMapper {
             return SOURCE_METADATA;
         }
 
+        if (falling) {
+            return 8;
+        }
         int safeAmount = clampAmount(amount);
-        int level = MAX_AMOUNT - safeAmount;
-        return level | (falling ? 8 : 0);
+        return MAX_AMOUNT - safeAmount;
     }
 
     private static int clampMetadata(int metadata) {
