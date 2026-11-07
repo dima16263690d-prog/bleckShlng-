@@ -22,6 +22,41 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 public final class WaterloggedSpongeHandler {
     private static final int MAX_DEPTH = 6;
     private static final int MAX_WATER_BLOCKS = 65;
+    private static final ThreadLocal<Set<AbsorbKey>> ACTIVE =
+            new ThreadLocal<Set<AbsorbKey>>() {
+                @Override
+                protected Set<AbsorbKey> initialValue() {
+                    return new HashSet<AbsorbKey>();
+                }
+            };
+
+    private static final class AbsorbKey {
+        private final World world;
+        private final long position;
+
+        private AbsorbKey(World world, BlockPos pos) {
+            this.world = world;
+            this.position = pos.toLong();
+        }
+
+        @Override
+        public boolean equals(Object object) {
+            if (this == object) {
+                return true;
+            }
+            if (!(object instanceof AbsorbKey)) {
+                return false;
+            }
+            AbsorbKey other = (AbsorbKey) object;
+            return world == other.world && position == other.position;
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * System.identityHashCode(world)
+                    + (int) (position ^ (position >>> 32));
+        }
+    }
 
     private WaterloggedSpongeHandler() {
     }
@@ -50,6 +85,25 @@ public final class WaterloggedSpongeHandler {
             return false;
         }
 
+        Set<AbsorbKey> active = ACTIVE.get();
+        AbsorbKey key = new AbsorbKey(world, spongePos);
+        if (!active.add(key)) {
+            // Removing a water block notifies the sponge and can re-enter
+            // BlockSponge.neighborChanged before the original BFS completes.
+            return false;
+        }
+
+        try {
+            return absorbInternal(world, spongePos);
+        } finally {
+            active.remove(key);
+            if (active.isEmpty()) {
+                ACTIVE.remove();
+            }
+        }
+    }
+
+    private static boolean absorbInternal(World world, BlockPos spongePos) {
         ArrayDeque<Node> queue = new ArrayDeque<Node>();
         Set<Long> visited = new HashSet<Long>();
         int absorbed = 0;
