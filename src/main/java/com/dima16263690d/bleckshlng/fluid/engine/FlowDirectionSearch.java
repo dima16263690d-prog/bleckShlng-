@@ -14,7 +14,7 @@ import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 
-/** 1.13.2 shortest-slope search using the legacy 1.12.2 block metadata. */
+/** FlowingFluid shortest-slope search using the legacy 1.12.2 block metadata. */
 public final class FlowDirectionSearch {
     private static final int NO_PATH = 1000;
     private FlowDirectionSearch() { }
