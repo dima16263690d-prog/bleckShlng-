@@ -23,14 +23,16 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 import org.lwjgl.opengl.GL11;
 
+import com.dima16263690d.bleckshlng.fluid.api.FluidFaceMask;
+import com.dima16263690d.bleckshlng.fluid.api.FluidWorldView;
 import com.dima16263690d.bleckshlng.fluid.network.ClientFluidStateCache;
 import com.dima16263690d.bleckshlng.fluid.state.FluidHeightCalculator;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 
 /**
- * Waterlogged fluid overlay. Faces against neighbouring water are omitted so
- * the volume merges with the ocean instead of looking like a separate box.
+ * Draws waterlogged 1x1 cells (sidecar fluid). Face mask from FluidWorldView
+ * so adjacent water shares one continuous volume (no internal walls / blue box).
  */
 @SideOnly(Side.CLIENT)
 public final class WaterloggedFluidRenderer {
@@ -86,7 +88,6 @@ public final class WaterloggedFluidRenderer {
                 GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA,
                 GlStateManager.SourceFactor.ONE,
                 GlStateManager.DestFactor.ZERO);
-        // Back-face cull: disableCull made every waterlogged cell a solid blue box.
         GlStateManager.enableCull();
         GlStateManager.enableDepth();
         GlStateManager.depthMask(false);
@@ -165,10 +166,7 @@ public final class WaterloggedFluidRenderer {
                                                     double camX, double camY, double camZ,
                                                     Minecraft mc) {
         IBlockState host = world.getBlockState(pos);
-        float ownHeight = FluidHeightCalculator.getHeight(world, pos, fluid);
-        if (ownHeight <= 0.001F) {
-            ownHeight = 0.8888889F;
-        }
+        float ownHeight = FluidWorldView.getHeight(world, pos, fluid);
 
         float minY = 0.0F;
         if (host.getBlock() instanceof BlockSlab
@@ -183,7 +181,7 @@ public final class WaterloggedFluidRenderer {
             }
         }
 
-        boolean waterAbove = isSameFluid(world, pos.up());
+        boolean waterAbove = FluidWorldView.isSameFluid(world, pos.up(), fluid.getKind());
         if (waterAbove) {
             ownHeight = 1.0F;
         }
@@ -221,34 +219,38 @@ public final class WaterloggedFluidRenderer {
         int sky = packed >> 16 & 65535;
         int block = packed & 65535;
 
+        FluidFaceMask faces = FluidWorldView.facesToRender(world, pos, fluid);
+        if (minY > 0.001F) {
+            faces = new FluidFaceMask(faces.up, false, faces.north, faces.south,
+                    faces.west, faces.east);
+        }
+
         boolean any = false;
         double x = pos.getX();
         double y = pos.getY();
         double z = pos.getZ();
 
-        if (!waterAbove) {
+        if (faces.up) {
             any |= emitUp(buffer, x, y, z, hNW, hNE, hSE, hSW, minY,
                     camX, camY, camZ, still, r, g, b, a, sky, block);
         }
-
-        if (minY <= 0.001F && !isSameFluid(world, pos.down())) {
+        if (faces.down) {
             any |= emitDown(buffer, x, y, z, minY, camX, camY, camZ,
                     still, r, g, b, a, sky, block);
         }
-
-        if (!isSameFluid(world, pos.north())) {
+        if (faces.north) {
             any |= emitSide(buffer, x, y, z, EnumFacing.NORTH, hNW, hNE, minY,
                     camX, camY, camZ, flow, r, g, b, a, sky, block);
         }
-        if (!isSameFluid(world, pos.south())) {
+        if (faces.south) {
             any |= emitSide(buffer, x, y, z, EnumFacing.SOUTH, hSW, hSE, minY,
                     camX, camY, camZ, flow, r, g, b, a, sky, block);
         }
-        if (!isSameFluid(world, pos.west())) {
+        if (faces.west) {
             any |= emitSide(buffer, x, y, z, EnumFacing.WEST, hNW, hSW, minY,
                     camX, camY, camZ, flow, r, g, b, a, sky, block);
         }
-        if (!isSameFluid(world, pos.east())) {
+        if (faces.east) {
             any |= emitSide(buffer, x, y, z, EnumFacing.EAST, hNE, hSE, minY,
                     camX, camY, camZ, flow, r, g, b, a, sky, block);
         }
@@ -285,31 +287,11 @@ public final class WaterloggedFluidRenderer {
     }
 
     private static float fluidHeightAt(World world, BlockPos pos) {
-        IBlockState state = world.getBlockState(pos);
-        if (state.getMaterial() == Material.WATER && state.getBlock() instanceof BlockLiquid) {
-            int level = state.getValue(BlockLiquid.LEVEL).intValue();
-            if (level >= 8) {
-                return 1.0F;
-            }
-            return (float) (8 - level) / 9.0F;
+        FluidStateBridge fluid = FluidWorldView.getFluid(world, pos);
+        if (fluid == null) {
+            return 0.0F;
         }
-        FluidStateBridge fluid = FluidStateMapper.fromWorld(world, pos, state);
-        if (fluid != null && fluid.getKind() == FluidStateBridge.FluidKind.WATER) {
-            return FluidHeightCalculator.getHeight(world, pos, fluid);
-        }
-        return 0.0F;
-    }
-
-    private static boolean isSameFluid(World world, BlockPos pos) {
-        if (!world.isBlockLoaded(pos)) {
-            return false;
-        }
-        IBlockState state = world.getBlockState(pos);
-        if (state.getMaterial() == Material.WATER) {
-            return true;
-        }
-        FluidStateBridge fluid = FluidStateMapper.fromWorld(world, pos, state);
-        return fluid != null && fluid.getKind() == FluidStateBridge.FluidKind.WATER;
+        return FluidWorldView.getHeight(world, pos, fluid);
     }
 
     private static boolean emitUp(BufferBuilder buffer, double x, double y, double z,
