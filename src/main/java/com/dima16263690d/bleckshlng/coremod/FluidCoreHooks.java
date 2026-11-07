@@ -74,6 +74,21 @@ public final class FluidCoreHooks {
                         captured = existingFluid != null
                                 && existingFluid.getKind()
                                 == FluidStateBridge.FluidKind.WATER;
+
+                        // A native adapter changing WATERLOGGED=true to false
+                        // is an intentional pickup/state transition, not a
+                        // placement into an existing water source.
+                        if (captured && oldState.getBlock() == newState.getBlock()
+                                && oldState.getBlock() instanceof
+                                com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable) {
+                            com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable adapter =
+                                    (com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable)
+                                            oldState.getBlock();
+                            if (adapter.isWaterlogged(oldState)
+                                    && !adapter.isWaterlogged(newState)) {
+                                captured = false;
+                            }
+                        }
                     }
                 }
             } catch (Throwable error) {
