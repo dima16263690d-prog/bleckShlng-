@@ -35,7 +35,7 @@ public class BlockFlowingFluid extends BlockDynamicLiquid {
             this.setLightLevel(1.0F);
         }
         this.disableStats();
-        this.setTickRandomly(true);
+        this.setTickRandomly(fluid.isRandomlyTicking());
     }
 
     public FlowingFluid getFluid() {
@@ -52,6 +52,21 @@ public class BlockFlowingFluid extends BlockDynamicLiquid {
         }
         FluidState fluidState = FluidAccess.getFluidState(world, pos);
         this.fluid.tick(world, pos, state, fluidState);
+    }
+
+    /**
+     * Random ticks drive the fluid's own {@code randomTick} (lava fire spreading) rather than the
+     * legacy flow update, matching 1.21 where only randomly-ticking fluids are affected.
+     */
+    @Override
+    public void randomTick(World world, BlockPos pos, IBlockState state, Random rand) {
+        if (!world.isAreaLoaded(pos, 4)) {
+            return;
+        }
+        FluidState fluidState = FluidAccess.getFluidState(world, pos);
+        if (!fluidState.isEmpty()) {
+            this.fluid.randomTick(world, pos, fluidState, rand);
+        }
     }
 
     @Override

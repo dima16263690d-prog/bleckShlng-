@@ -14,6 +14,7 @@ import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.init.Blocks;
 import net.minecraft.util.EnumFacing;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -31,6 +32,8 @@ import net.minecraftforge.fml.relauncher.SideOnly;
  */
 @SideOnly(Side.CLIENT)
 public class FluidRenderer extends BlockFluidRenderer {
+    private static final float MAX_FLUID_HEIGHT = 0.8888889F;
+    private static final double OCCLUDE_EPSILON = 1.0E-7D;
     private final BlockColors blockColors;
     private final TextureAtlasSprite[] lavaIcons = new TextureAtlasSprite[2];
     private final TextureAtlasSprite[] waterIcons = new TextureAtlasSprite[2];
@@ -90,22 +93,6 @@ public class FluidRenderer extends BlockFluidRenderer {
         IBlockState eastState = world.getBlockState(pos.east());
         FluidState eastFluid = FluidAccess.getFluidState(world, pos.east());
 
-        boolean renderTop = !isNeighborSameFluid(state, aboveFluid);
-        boolean renderBottom = shouldRenderFace(state, blockState, EnumFacing.DOWN, belowFluid) && !belowState.isOpaqueCube();
-        boolean renderNorth = shouldRenderFace(state, blockState, EnumFacing.NORTH, northFluid);
-        boolean renderSouth = shouldRenderFace(state, blockState, EnumFacing.SOUTH, southFluid);
-        boolean renderWest = shouldRenderFace(state, blockState, EnumFacing.WEST, westFluid);
-        boolean renderEast = shouldRenderFace(state, blockState, EnumFacing.EAST, eastFluid);
-
-        if (!renderTop && !renderBottom && !renderNorth && !renderSouth && !renderWest && !renderEast) {
-            return false;
-        }
-
-        float shadeDown = 0.5F;
-        float shadeUp = 1.0F;
-        float shadeNorthSouth = 0.8F;
-        float shadeWestEast = 0.6F;
-
         float heightSelf = this.getHeight(world, state, pos, blockState, state);
         float cornerNW;
         float cornerNE;
@@ -126,6 +113,36 @@ public class FluidRenderer extends BlockFluidRenderer {
             cornerSE = this.calculateAverageHeight(world, state, heightSelf, rawSouth, rawEast, pos.south().east());
             cornerSW = this.calculateAverageHeight(world, state, heightSelf, rawSouth, rawWest, pos.south().west());
         }
+
+        float topHeight = Math.min(Math.min(cornerNW, cornerNE), Math.min(cornerSE, cornerSW));
+        boolean renderTop = !isNeighborSameFluid(state, aboveFluid)
+                && !isFaceOccludedByNeighbor(EnumFacing.UP, topHeight, aboveState, world, pos.up());
+        if (renderTop) {
+            cornerNW -= 0.001F;
+            cornerNE -= 0.001F;
+            cornerSE -= 0.001F;
+            cornerSW -= 0.001F;
+        }
+
+        boolean renderBottom = shouldRenderFace(state, blockState, EnumFacing.DOWN, belowFluid)
+                && !isFaceOccludedByNeighbor(EnumFacing.DOWN, MAX_FLUID_HEIGHT, belowState, world, pos.down());
+        boolean renderNorth = shouldRenderFace(state, blockState, EnumFacing.NORTH, northFluid)
+                && !isFaceOccludedByNeighbor(EnumFacing.NORTH, Math.max(cornerNW, cornerNE), northState, world, pos.north());
+        boolean renderSouth = shouldRenderFace(state, blockState, EnumFacing.SOUTH, southFluid)
+                && !isFaceOccludedByNeighbor(EnumFacing.SOUTH, Math.max(cornerSW, cornerSE), southState, world, pos.south());
+        boolean renderWest = shouldRenderFace(state, blockState, EnumFacing.WEST, westFluid)
+                && !isFaceOccludedByNeighbor(EnumFacing.WEST, Math.max(cornerNW, cornerSW), westState, world, pos.west());
+        boolean renderEast = shouldRenderFace(state, blockState, EnumFacing.EAST, eastFluid)
+                && !isFaceOccludedByNeighbor(EnumFacing.EAST, Math.max(cornerNE, cornerSE), eastState, world, pos.east());
+
+        if (!renderTop && !renderBottom && !renderNorth && !renderSouth && !renderWest && !renderEast) {
+            return false;
+        }
+
+        float shadeDown = 0.5F;
+        float shadeUp = 1.0F;
+        float shadeNorthSouth = 0.8F;
+        float shadeWestEast = 0.6F;
 
         double x = pos.getX();
         double y = pos.getY();
@@ -298,6 +315,92 @@ public class FluidRenderer extends BlockFluidRenderer {
         return Vec3d.ZERO;
     }
 
+    /**
+     * Port of {@code LiquidBlockRenderer.isFaceOccludedByNeighbor}. The neighbour's collision shape
+     * decides whether the fluid face is hidden, using the legacy collision AABB in place of the
+     * modern {@code VoxelShape} machinery.
+     */
+    private static boolean isFaceOccludedByNeighbor(EnumFacing face, float height, IBlockState neighborState,
+            IBlockAccess world, BlockPos neighborPos) {
+        AxisAlignedBB neighborBox = collisionBox(world, neighborPos, neighborState);
+        if (neighborBox == null) {
+            return false;
+        }
+        if (isFullBox(neighborBox)) {
+            return face != EnumFacing.UP || height >= 1.0F;
+        }
+        return blockOccudes(new AxisAlignedBB(0.0D, 0.0D, 0.0D, 1.0D, (double) height, 1.0D), neighborBox, face);
+    }
+
+    /** Port of {@code Shapes.blockOccudes} for the fluid box against a neighbour shape. */
+    private static boolean blockOccudes(AxisAlignedBB fluidBox, AxisAlignedBB neighborBox, EnumFacing face) {
+        if (isFullBox(fluidBox) && isFullBox(neighborBox)) {
+            return true;
+        }
+        EnumFacing.Axis axis = face.getAxis();
+        boolean positive = face.getAxisDirection() == EnumFacing.AxisDirection.POSITIVE;
+        AxisAlignedBB near = positive ? fluidBox : neighborBox;
+        AxisAlignedBB far = positive ? neighborBox : fluidBox;
+        if (axisMax(near, axis) < 1.0D - OCCLUDE_EPSILON) {
+            return false;
+        }
+        if (axisMin(far, axis) > OCCLUDE_EPSILON) {
+            return false;
+        }
+        // Occluded only when the fluid's face rectangle lies inside the neighbour's face rectangle.
+        double[] inner = planeRect(fluidBox, axis);
+        double[] outer = planeRect(neighborBox, axis);
+        return inner[0] >= outer[0] - OCCLUDE_EPSILON && inner[1] <= outer[1] + OCCLUDE_EPSILON
+                && inner[2] >= outer[2] - OCCLUDE_EPSILON && inner[3] <= outer[3] + OCCLUDE_EPSILON;
+    }
+
+    private static AxisAlignedBB collisionBox(IBlockAccess world, BlockPos pos, IBlockState state) {
+        AxisAlignedBB box = state.getCollisionBoundingBox(world, pos);
+        return box == null || box == Block.NULL_AABB ? null : box;
+    }
+
+    private static boolean isFullBox(AxisAlignedBB box) {
+        return box != null
+                && box.minX <= 0.0D && box.minY <= 0.0D && box.minZ <= 0.0D
+                && box.maxX >= 1.0D && box.maxY >= 1.0D && box.maxZ >= 1.0D;
+    }
+
+    private static double[] planeRect(AxisAlignedBB box, EnumFacing.Axis axis) {
+        switch (axis) {
+            case X:
+                return new double[] {box.minY, box.maxY, box.minZ, box.maxZ};
+            case Z:
+                return new double[] {box.minX, box.maxX, box.minY, box.maxY};
+            case Y:
+            default:
+                return new double[] {box.minX, box.maxX, box.minZ, box.maxZ};
+        }
+    }
+
+    private static double axisMin(AxisAlignedBB box, EnumFacing.Axis axis) {
+        switch (axis) {
+            case X:
+                return box.minX;
+            case Y:
+                return box.minY;
+            case Z:
+            default:
+                return box.minZ;
+        }
+    }
+
+    private static double axisMax(AxisAlignedBB box, EnumFacing.Axis axis) {
+        switch (axis) {
+            case X:
+                return box.maxX;
+            case Y:
+                return box.maxY;
+            case Z:
+            default:
+                return box.maxZ;
+        }
+    }
+
     /** Port of {@code FluidState.shouldRenderBackwardUpFace} from Minecraft 1.21. */
     private boolean shouldRenderBackwardUpFace(IBlockAccess world, BlockPos center, FluidState state) {
         for (int dx = -1; dx <= 1; dx++) {
@@ -351,7 +454,7 @@ public class FluidRenderer extends BlockFluidRenderer {
                     ? 1.0F
                     : otherState.getOwnHeight();
         }
-        return blockState.getMaterial().isSolid() ? 0.0F : -1.0F;
+        return !blockState.getMaterial().isSolid() ? 0.0F : -1.0F;
     }
 
     private void vertex(BufferBuilder buffer, double x, double y, double z, float r, float g, float b, float u, float v, int lightU, int lightV) {

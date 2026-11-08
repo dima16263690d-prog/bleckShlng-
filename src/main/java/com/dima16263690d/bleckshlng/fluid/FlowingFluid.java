@@ -10,6 +10,7 @@ import net.minecraft.block.state.BlockFaceShape;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
 import net.minecraft.util.EnumFacing;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.IBlockAccess;
@@ -24,6 +25,7 @@ import net.minecraft.world.World;
  */
 public abstract class FlowingFluid extends Fluid {
     private static final double MIN_LEVEL_CUTOFF = 0.8888889D;
+    private static final double OCCLUDE_EPSILON = 1.0E-7D;
 
     protected FlowingFluid(String name) {
         super(name);
@@ -306,23 +308,123 @@ public abstract class FlowingFluid extends Fluid {
 
     // ------------------------------------------------------------------ helpers
 
+    /**
+     * Port of {@code FlowingFluid.canPassThroughWall}. The modern game decides this from the two
+     * blocks' collision shapes ({@code Shapes.mergedFaceOccludes}); the legacy {@code
+     * getBlockFaceShape} approximation used before mis-handled partial blocks such as slabs, so it
+     * is reproduced here with the legacy collision AABBs.
+     */
     private static boolean canPassThroughWall(EnumFacing direction, IBlockAccess world, BlockPos pos1, IBlockState state1,
             BlockPos pos2, IBlockState state2) {
-        if (isFullBlockingCube(state2) || isFullBlockingCube(state1)) {
+        AxisAlignedBB box1 = collisionBox(world, pos1, state1);
+        AxisAlignedBB box2 = collisionBox(world, pos2, state2);
+        if (isFullBox(box1) || isFullBox(box2)) {
             return false;
         }
-        boolean empty1 = state1.getMaterial().isReplaceable();
-        boolean empty2 = state2.getMaterial().isReplaceable();
-        if (empty1 && empty2) {
+        if (box1 == null && box2 == null) {
             return true;
         }
-        boolean occluded = state1.getBlockFaceShape(world, pos1, direction) == BlockFaceShape.SOLID
-                && state2.getBlockFaceShape(world, pos2, direction.getOpposite()) == BlockFaceShape.SOLID;
-        return !occluded;
+        return !mergedFaceOccludes(box1, box2, direction);
     }
 
-    private static boolean isFullBlockingCube(IBlockState state) {
-        return state.isFullCube() && state.getMaterial().blocksMovement();
+    private static AxisAlignedBB collisionBox(IBlockAccess world, BlockPos pos, IBlockState state) {
+        AxisAlignedBB box = state.getCollisionBoundingBox(world, pos);
+        return box == null || box == Block.NULL_AABB ? null : box;
+    }
+
+    private static boolean isFullBox(AxisAlignedBB box) {
+        return box != null
+                && box.minX <= 0.0D && box.minY <= 0.0D && box.minZ <= 0.0D
+                && box.maxX >= 1.0D && box.maxY >= 1.0D && box.maxZ >= 1.0D;
+    }
+
+    /**
+     * Legacy counterpart of {@code Shapes.mergedFaceOccludes}: the face between the two shapes is
+     * occluded only when together they cover the whole face plane.
+     */
+    private static boolean mergedFaceOccludes(AxisAlignedBB a, AxisAlignedBB b, EnumFacing direction) {
+        if (isFullBox(a) || isFullBox(b)) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        EnumFacing.Axis axis = direction.getAxis();
+        boolean positive = direction.getAxisDirection() == EnumFacing.AxisDirection.POSITIVE;
+        AxisAlignedBB shapeA = positive ? a : b;
+        AxisAlignedBB shapeB = positive ? b : a;
+        if (axisMax(shapeA, axis) < 1.0D - OCCLUDE_EPSILON) {
+            return false;
+        }
+        if (axisMin(shapeB, axis) > OCCLUDE_EPSILON) {
+            return false;
+        }
+        return coversFace(shapeA, shapeB, axis);
+    }
+
+    private static boolean coversFace(AxisAlignedBB s1, AxisAlignedBB s2, EnumFacing.Axis axis) {
+        double[] r1 = planeRect(s1, axis);
+        double[] r2 = planeRect(s2, axis);
+        double[] edges = {0.0D, 1.0D, r1[0], r1[1], r2[0], r2[1]};
+        java.util.Arrays.sort(edges);
+        for (int i = 0; i < edges.length - 1; i++) {
+            double lo = edges[i];
+            double hi = edges[i + 1];
+            if (hi - lo <= OCCLUDE_EPSILON) {
+                continue;
+            }
+            double mid = (lo + hi) * 0.5D;
+            double vMin = Double.MAX_VALUE;
+            double vMax = -Double.MAX_VALUE;
+            if (mid >= r1[0] && mid <= r1[1]) {
+                vMin = Math.min(vMin, r1[2]);
+                vMax = Math.max(vMax, r1[3]);
+            }
+            if (mid >= r2[0] && mid <= r2[1]) {
+                vMin = Math.min(vMin, r2[2]);
+                vMax = Math.max(vMax, r2[3]);
+            }
+            if (vMin > OCCLUDE_EPSILON || vMax < 1.0D - OCCLUDE_EPSILON) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static double[] planeRect(AxisAlignedBB box, EnumFacing.Axis axis) {
+        switch (axis) {
+            case X:
+                return new double[] {box.minY, box.maxY, box.minZ, box.maxZ};
+            case Z:
+                return new double[] {box.minX, box.maxX, box.minY, box.maxY};
+            case Y:
+            default:
+                return new double[] {box.minX, box.maxX, box.minZ, box.maxZ};
+        }
+    }
+
+    private static double axisMin(AxisAlignedBB box, EnumFacing.Axis axis) {
+        switch (axis) {
+            case X:
+                return box.minX;
+            case Y:
+                return box.minY;
+            case Z:
+            default:
+                return box.minZ;
+        }
+    }
+
+    private static double axisMax(AxisAlignedBB box, EnumFacing.Axis axis) {
+        switch (axis) {
+            case X:
+                return box.maxX;
+            case Y:
+                return box.maxY;
+            case Z:
+            default:
+                return box.maxZ;
+        }
     }
 
     private static boolean canHoldAnyFluid(IBlockState state) {

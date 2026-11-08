@@ -45,8 +45,9 @@ public class BlockStaticFluid extends BlockStaticLiquid {
 
     @Override
     public void onBlockAdded(World world, BlockPos pos, IBlockState state) {
-        super.onBlockAdded(world, pos, state);
-        world.scheduleUpdate(pos, this, this.fluid.getTickDelay(world));
+        if (!this.checkForMixing(world, pos, state)) {
+            world.scheduleUpdate(pos, this, this.fluid.getTickDelay(world));
+        }
     }
 
     @Override
@@ -59,6 +60,17 @@ public class BlockStaticFluid extends BlockStaticLiquid {
         }
         FluidState fluidState = FluidAccess.getFluidState(world, pos);
         this.fluid.tick(world, pos, state, fluidState);
+    }
+
+    @Override
+    public void randomTick(World world, BlockPos pos, IBlockState state, Random rand) {
+        if (!world.isAreaLoaded(pos, 4)) {
+            return;
+        }
+        FluidState fluidState = FluidAccess.getFluidState(world, pos);
+        if (!fluidState.isEmpty()) {
+            this.fluid.randomTick(world, pos, fluidState, rand);
+        }
     }
 
     @Override
