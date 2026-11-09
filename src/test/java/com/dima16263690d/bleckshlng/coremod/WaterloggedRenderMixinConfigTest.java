@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 
 import org.junit.Test;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -34,5 +35,7 @@ public class WaterloggedRenderMixinConfigTest {
                 json.contains("client.RenderChunkWaterloggedMixin"));
         assertTrue("Mixin config must be client-only",
                 json.contains("\"client\""));
+        assertFalse("The compile-task mixin must not start BufferBuilder early",
+                json.contains("ChunkCompileTaskGeneratorMixin"));
     }
 }
