@@ -86,8 +86,11 @@ public final class WaterloggedFluidHandler {
             IFluidWaterloggable adapter = (IFluidWaterloggable) state.getBlock();
             if (adapter.isWaterlogged(state)) {
                 IBlockState changed = adapter.withWaterlogged(state, false);
-                if (changed != null && changed != state) {
-                    world.setBlockState(pos, changed, 3);
+                // Do not remove the synchronized sidecar state unless the
+                // host block actually accepted the transition to dry.
+                if (changed == null || changed == state || changed.equals(state)
+                        || !world.setBlockState(pos, changed, 3)) {
+                    return false;
                 }
                 removed = true;
             }
