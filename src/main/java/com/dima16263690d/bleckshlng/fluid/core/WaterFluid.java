@@ -58,6 +58,11 @@ public final class WaterFluid extends FlowingFluid {
     }
 
     @Override
+    public FluidSound getPickupSound() {
+        return FluidSound.BUCKET_FILL_WATER;
+    }
+
+    @Override
     public FluidParticle getDripParticle() {
         return FluidParticle.DRIPPING_WATER;
     }
