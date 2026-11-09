@@ -17,6 +17,7 @@ import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.init.Blocks;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
@@ -190,25 +191,37 @@ public final class WaterloggedFluidRenderer {
     public static boolean renderIntoChunk(BufferBuilder buffer, World world,
                                           BlockPos pos, IBlockState host,
                                           FluidStateBridge fluid) {
-        if (buffer == null || world == null || pos == null || fluid == null) {
+        if (world == null) {
             return false;
         }
-        if (fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
+        return renderIntoChunk(buffer, new FluidViewAccess(world), pos, fluid);
+    }
+
+    /**
+     * Chunk rebuild overload: use the immutable ChunkCache snapshot supplied
+     * by RenderChunk, not the live World. This keeps neighbor visibility and
+     * lighting consistent with the block mesh being compiled.
+     */
+    public static boolean renderIntoChunk(BufferBuilder buffer, IBlockAccess access,
+                                          BlockPos pos, FluidStateBridge fluid) {
+        if (buffer == null || access == null || pos == null || fluid == null
+                || fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
             return false;
         }
         try {
-            Minecraft mc = Minecraft.getMinecraft();
-            BlockFluidRenderer fluidRenderer = resolveFluidRenderer(mc);
+            BlockFluidRenderer fluidRenderer =
+                    resolveFluidRenderer(Minecraft.getMinecraft());
             if (fluidRenderer == null) {
                 return false;
             }
-            FluidViewAccess access = new FluidViewAccess(world);
+
             IBlockState fluidState = access.getBlockState(pos);
             if (!(fluidState.getBlock() instanceof BlockLiquid)) {
                 fluidState = Blocks.WATER.getDefaultState();
             }
+
             return fluidRenderer.renderFluid(access, fluidState, pos, buffer);
-        } catch (Throwable t) {
+        } catch (Throwable error) {
             return false;
         }
     }
