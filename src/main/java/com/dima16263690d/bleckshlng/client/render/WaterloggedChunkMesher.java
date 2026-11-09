@@ -127,9 +127,9 @@ public final class WaterloggedChunkMesher {
         int b = color & 255;
         int a = 255;
 
-        int packed = access.getCombinedLight(pos, 0);
-        int sky = packed >> 16 & 65535;
-        int block = packed & 65535;
+        int[] fluidLight = getFluidLight(access, pos);
+        int sky = fluidLight[0];
+        int block = fluidLight[1];
 
         double x = pos.getX();
         double y = pos.getY();
@@ -220,19 +220,33 @@ public final class WaterloggedChunkMesher {
                 }
             }
         }
-        float u0 = sprite.getMinU();
-        float u1 = sprite.getMaxU();
-        float v0 = sprite.getMinV();
-        float v1 = sprite.getMaxV();
-        float vTop0 = v0 + (v1 - v0) * (1.0F - MathHelper.clamp(h0, 0.0F, 1.0F));
-        float vTop1 = v0 + (v1 - v0) * (1.0F - MathHelper.clamp(h1, 0.0F, 1.0F));
-        float vBot = v0 + (v1 - v0) * (1.0F - MathHelper.clamp(minY, 0.0F, 1.0F));
+        IBlockState neighborState = access.getBlockState(pos.offset(face));
+        TextureAtlasSprite sideSprite = sprite;
+        boolean overlay = neighborState.getBlock() instanceof net.minecraft.block.BlockLeaves
+                || neighborState.getMaterial() == Material.GLASS;
+        if (overlay) {
+            TextureAtlasSprite waterOverlay = Minecraft.getMinecraft().getTextureMapBlocks()
+                    .getAtlasSprite("minecraft:blocks/water_overlay");
+            if (waterOverlay != null && !"missingno".equals(waterOverlay.getIconName())) {
+                sideSprite = waterOverlay;
+            } else {
+                overlay = false;
+            }
+        }
+
+        float u0 = sideSprite.getInterpolatedU(0.0D);
+        float u1 = sideSprite.getInterpolatedU(8.0D);
+        float vTop0 = sideSprite.getInterpolatedV(
+                (1.0F - MathHelper.clamp(h0, 0.0F, 1.0F)) * 8.0F);
+        float vTop1 = sideSprite.getInterpolatedV(
+                (1.0F - MathHelper.clamp(h1, 0.0F, 1.0F)) * 8.0F);
+        float vBot = sideSprite.getInterpolatedV(8.0D);
 
         float shade = face == EnumFacing.NORTH || face == EnumFacing.SOUTH
                 ? 0.8F : 0.6F;
-        int packed = access.getCombinedLight(pos.offset(face), 0);
-        int sky = packed >> 16 & 65535;
-        int block = packed & 65535;
+        int[] sideLight = getFluidLight(access, pos);
+        int sky = sideLight[0];
+        int block = sideLight[1];
         int sr = shade(r, shade);
         int sg = shade(g, shade);
         int sb = shade(b, shade);
@@ -264,6 +278,48 @@ public final class WaterloggedChunkMesher {
             default:
                 break;
         }
+
+        // The 1.18.2 renderer emits the reverse side for ordinary water
+        // walls so translucent water remains visible from both directions.
+        // Overlay faces intentionally stay single-sided.
+        if (!overlay) {
+            switch (face) {
+                case NORTH:
+                    vert(buffer, x + 0, y + minY, z + 0, u0, vBot, sr, sg, sb, a, sky, block);
+                    vert(buffer, x + 1, y + minY, z + 0, u1, vBot, sr, sg, sb, a, sky, block);
+                    vert(buffer, x + 1, y + h1, z + 0, u1, vTop1, sr, sg, sb, a, sky, block);
+                    vert(buffer, x + 0, y + h0, z + 0, u0, vTop0, sr, sg, sb, a, sky, block);
+                    break;
+                case SOUTH:
+                    vert(buffer, x + 1, y + minY, z + 1, u0, vBot, sr, sg, sb, a, sky, block);
+                    vert(buffer, x + 0, y + minY, z + 1, u1, vBot, sr, sg, sb, a, sky, block);
+                    vert(buffer, x + 0, y + h0, z + 1, u1, vTop0, sr, sg, sb, a, sky, block);
+                    vert(buffer, x + 1, y + h1, z + 1, u0, vTop1, sr, sg, sb, a, sky, block);
+                    break;
+                case WEST:
+                    vert(buffer, x + 0, y + minY, z + 1, u0, vBot, sr, sg, sb, a, sky, block);
+                    vert(buffer, x + 0, y + minY, z + 0, u1, vBot, sr, sg, sb, a, sky, block);
+                    vert(buffer, x + 0, y + h1, z + 0, u1, vTop1, sr, sg, sb, a, sky, block);
+                    vert(buffer, x + 0, y + h0, z + 1, u0, vTop0, sr, sg, sb, a, sky, block);
+                    break;
+                case EAST:
+                    vert(buffer, x + 1, y + minY, z + 0, u0, vBot, sr, sg, sb, a, sky, block);
+                    vert(buffer, x + 1, y + minY, z + 1, u1, vBot, sr, sg, sb, a, sky, block);
+                    vert(buffer, x + 1, y + h1, z + 1, u1, vTop1, sr, sg, sb, a, sky, block);
+                    vert(buffer, x + 1, y + h0, z + 0, u0, vTop0, sr, sg, sb, a, sky, block);
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    private static int[] getFluidLight(IBlockAccess access, BlockPos pos) {
+        int current = access.getCombinedLight(pos, 0);
+        int above = access.getCombinedLight(pos.up(), 0);
+        int sky = Math.max(current >> 16 & 65535, above >> 16 & 65535);
+        int block = Math.max(current & 65535, above & 65535);
+        return new int[] {sky, block};
     }
 
     /**
