@@ -58,9 +58,9 @@ public final class BlockGeometryAdapter {
             return false;
         }
 
-        // LavaFluid.canBeReplacedWith (1.18.2) requires a water
-        // column at least 4/9 high. The rule is not limited to downward
-        // flow; downward contact is converted to stone by spreadTo().
+        // WaterFluid#canBeReplacedWith permits incoming lava only from DOWN.
+        // It has no minimum water-height check; the 4/9 threshold applies to
+        // incoming water replacing lava, handled by FluidSpreadEngine.
         if (fluidMaterial == Material.LAVA && targetMaterial == Material.WATER) {
             // WaterFluid#canBeReplacedWith in 1.18.2 only checks direction
             // and fluid tag. The 4/9 height threshold belongs to the opposite
@@ -69,10 +69,9 @@ public final class BlockGeometryAdapter {
                     && targetBlock instanceof BlockLiquid;
         }
 
-        if (targetMaterial == Material.AIR) return true;
-        // FlowingFluid#canHoldFluid rejects motion-blocking materials;
-        // Block#isReplaceable is not a substitute for fluid capacity.
-        return false;
+        // FlowingFluid#canHoldFluid accepts generic non-motion-blocking
+        // materials, but not motion-blocking replaceable blocks.
+        return !targetMaterial.blocksMovement();
     }
 
     /**
