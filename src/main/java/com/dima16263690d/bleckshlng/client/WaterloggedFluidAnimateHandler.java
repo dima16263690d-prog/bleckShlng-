@@ -137,9 +137,8 @@ public final class WaterloggedFluidAnimateHandler {
      */
     private static void trySpawnDrippingWater(World world, BlockPos fluidPos,
                                               IBlockState waterloggedHost) {
-        if (!waterloggedHost.isSideSolid(world, fluidPos, EnumFacing.DOWN)) {
-            return;
-        }
+        boolean sturdyHostBottom =
+                waterloggedHost.isSideSolid(world, fluidPos, EnumFacing.DOWN);
 
         BlockPos belowPos = fluidPos.down();
         if (!world.isBlockLoaded(belowPos)) {
@@ -153,8 +152,10 @@ public final class WaterloggedFluidAnimateHandler {
 
         ShapeBounds belowShape = getShapeBounds(world, belowPos, belowState);
         if (belowShape.maxY < 1.0D) {
-            spawnDrip(world, belowPos, 0.0D, 1.0D,
-                    0.0D, 1.0D, 1.0D - 0.05D);
+            if (sturdyHostBottom) {
+                spawnDrip(world, belowPos, 0.0D, 1.0D,
+                        0.0D, 1.0D, 1.0D - 0.05D);
+            }
             return;
         }
 
