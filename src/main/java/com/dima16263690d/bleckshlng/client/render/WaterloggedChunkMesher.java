@@ -162,13 +162,19 @@ public final class WaterloggedChunkMesher {
         TextureAtlasSprite topSprite = flowingSurface ? flow : still;
 
         boolean topOccluded = false;
+        BlockPos abovePos = pos.up();
+        IBlockState aboveState = access.getBlockState(abovePos);
         if (access instanceof FluidViewAccess) {
             World world = ((FluidViewAccess) access).getWorld();
-            if (world != null && world.isBlockLoaded(pos.up())) {
-                IBlockState above = world.getBlockState(pos.up());
+            if (world != null && world.isBlockLoaded(abovePos)) {
+                IBlockState above = world.getBlockState(abovePos);
                 topOccluded = FluidShapeCalculator.isFaceFullyCovered(
-                        world, pos.up(), above, EnumFacing.DOWN);
+                        world, abovePos, above, EnumFacing.DOWN);
+            } else {
+                topOccluded = aboveState.isSideSolid(access, abovePos, EnumFacing.DOWN);
             }
+        } else {
+            topOccluded = aboveState.isSideSolid(access, abovePos, EnumFacing.DOWN);
         }
         if (!topSlabHost && !topOccluded && !isSameFluid(access, pos.up(), fluid.getKind())) {
             topQuad(buffer, x, y, z, hNW, hNE, hSE, hSW,
@@ -176,13 +182,19 @@ public final class WaterloggedChunkMesher {
         }
 
         boolean bottomOccluded = false;
+        BlockPos belowPos = pos.down();
+        IBlockState belowState = access.getBlockState(belowPos);
         if (access instanceof FluidViewAccess) {
             World world = ((FluidViewAccess) access).getWorld();
-            if (world != null && world.isBlockLoaded(pos.down())) {
-                IBlockState below = world.getBlockState(pos.down());
+            if (world != null && world.isBlockLoaded(belowPos)) {
+                IBlockState below = world.getBlockState(belowPos);
                 bottomOccluded = FluidShapeCalculator.isFaceFullyCovered(
-                        world, pos.down(), below, EnumFacing.UP);
+                        world, belowPos, below, EnumFacing.UP);
+            } else {
+                bottomOccluded = belowState.isSideSolid(access, belowPos, EnumFacing.UP);
             }
+        } else {
+            bottomOccluded = belowState.isSideSolid(access, belowPos, EnumFacing.UP);
         }
         if (minY <= 0.001F && !bottomOccluded && !isSameFluid(access, pos.down(), fluid.getKind())) {
             double yy = y + minY;
@@ -219,6 +231,8 @@ public final class WaterloggedChunkMesher {
         if (h0 <= minY && h1 <= minY) {
             return;
         }
+        BlockPos neighborPos = pos.offset(face);
+        IBlockState neighborState = access.getBlockState(neighborPos);
         if (access instanceof FluidViewAccess) {
             World world = ((FluidViewAccess) access).getWorld();
             if (world != null && world.isBlockLoaded(pos)) {
@@ -227,7 +241,6 @@ public final class WaterloggedChunkMesher {
                         world, pos, host, face, minY, maxHeight)) {
                     return;
                 }
-                BlockPos neighborPos = pos.offset(face);
                 if (world.isBlockLoaded(neighborPos)) {
                     IBlockState neighbor = world.getBlockState(neighborPos);
                     if (FluidShapeCalculator.isFaceRectangleCovered(
@@ -236,9 +249,14 @@ public final class WaterloggedChunkMesher {
                         return;
                     }
                 }
+            } else if (host.isSideSolid(access, pos, face)
+                    || neighborState.isSideSolid(access, neighborPos, face.getOpposite())) {
+                return;
             }
+        } else if (host.isSideSolid(access, pos, face)
+                || neighborState.isSideSolid(access, neighborPos, face.getOpposite())) {
+            return;
         }
-        IBlockState neighborState = access.getBlockState(pos.offset(face));
         TextureAtlasSprite sideSprite = sprite;
         boolean overlay = kind == FluidStateBridge.FluidKind.WATER
                 && (neighborState.getBlock() instanceof net.minecraft.block.BlockLeaves
