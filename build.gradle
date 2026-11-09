@@ -47,7 +47,7 @@ dependencies {
 
     // MixinBooter supplies the shared Mixin runtime for Forge 1.12.2.
     // It is a required runtime mod; do not shade it into BleckShlng.
-    def mixinBooter = 'zone.rong:mixinbooter:12.3'
+    def mixinBooter = 'zone.rong:mixinbooter:12.2'
     implementation(mixinBooter) {
         transitive = false
     }
