@@ -95,8 +95,10 @@ public final class FlowDirectionSearch {
             return state.getBlock() instanceof BlockLiquid
                     && state.getValue(BlockLiquid.LEVEL).intValue() > 0;
         }
-        // Use the same FlowingFluid capacity rule as the actual spread step.
-        // Empty waterloggable hosts are valid routes while they can accept water.
-        return FluidSpreadEngine.canFlowInto(world, pos, state, fluidMaterial, direction);
+        // FlowingFluid#getSlopeDistance uses canPassThrough(), whose
+        // destination check is canHoldFluid(), not canSpreadTo() and therefore
+        // does not apply directional replacement/height restrictions.
+        return com.dima16263690d.bleckshlng.fluid.geometry.BlockGeometryAdapter
+                .canHoldFluid(world, pos, state, fluidMaterial);
     }
 }
