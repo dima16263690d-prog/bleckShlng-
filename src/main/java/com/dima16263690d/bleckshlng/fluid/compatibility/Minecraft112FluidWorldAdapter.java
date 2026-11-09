@@ -382,32 +382,43 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
     @Override
     public void playSound(FluidSound sound, double x, double y, double z,
                           float volume, float pitch) {
+        if (sound == null) {
+            return;
+        }
+        net.minecraft.util.SoundEvent event;
+        switch (sound) {
+            case WATER_AMBIENT:
+                event = SoundEvents.BLOCK_WATER_AMBIENT;
+                break;
+            case LAVA_AMBIENT:
+                event = SoundEvents.BLOCK_LAVA_AMBIENT;
+                break;
+            case LAVA_POP:
+                event = SoundEvents.BLOCK_LAVA_POP;
+                break;
+            case FLUID_FIZZ:
+                event = SoundEvents.BLOCK_LAVA_EXTINGUISH;
+                break;
+            case BUCKET_FILL_WATER:
+                event = SoundEvents.ITEM_BUCKET_FILL;
+                break;
+            case BUCKET_FILL_LAVA:
+                event = SoundEvents.ITEM_BUCKET_FILL_LAVA;
+                break;
+            default:
+                return;
+        }
+
         if (world.isRemote) {
-            net.minecraft.util.SoundEvent event;
-            switch (sound) {
-                case WATER_AMBIENT:
-                    event = SoundEvents.BLOCK_WATER_AMBIENT;
-                    break;
-                case LAVA_AMBIENT:
-                    event = SoundEvents.BLOCK_LAVA_AMBIENT;
-                    break;
-                case LAVA_POP:
-                    event = SoundEvents.BLOCK_LAVA_POP;
-                    break;
-                case FLUID_FIZZ:
-                    event = SoundEvents.BLOCK_LAVA_EXTINGUISH;
-                    break;
-                case BUCKET_FILL_WATER:
-                    event = SoundEvents.ITEM_BUCKET_FILL;
-                    break;
-                case BUCKET_FILL_LAVA:
-                    event = SoundEvents.ITEM_BUCKET_FILL_LAVA;
-                    break;
-                default:
-                    return;
-            }
             world.playSound(x, y, z, event, SoundCategory.BLOCKS,
                     volume, pitch, false);
+        } else {
+            BlockPos soundPos = new BlockPos(
+                    net.minecraft.util.math.MathHelper.floor(x),
+                    net.minecraft.util.math.MathHelper.floor(y),
+                    net.minecraft.util.math.MathHelper.floor(z));
+            world.playSound((net.minecraft.entity.player.EntityPlayer) null,
+                    soundPos, event, SoundCategory.BLOCKS, volume, pitch);
         }
     }
 
