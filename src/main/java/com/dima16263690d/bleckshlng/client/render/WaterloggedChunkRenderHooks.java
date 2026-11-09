@@ -221,7 +221,7 @@ public final class WaterloggedChunkRenderHooks {
             }
 
             FluidViewAccess fluidAccess =
-                    new FluidViewAccess(chunkAccess, dimension);
+                    new FluidViewAccess(chunkAccess, dimension, world);
 
             int minX = origin.getX();
             int minY = origin.getY();
