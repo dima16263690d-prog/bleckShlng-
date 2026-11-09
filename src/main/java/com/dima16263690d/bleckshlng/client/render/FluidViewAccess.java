@@ -24,17 +24,23 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 public final class FluidViewAccess implements IBlockAccess {
     private final IBlockAccess delegate;
     private final int dimension;
+    private final World world;
 
     public FluidViewAccess(World world) {
-        this((IBlockAccess) world, world.provider.getDimension());
+        this((IBlockAccess) world, world.provider.getDimension(), world);
     }
 
     public FluidViewAccess(IBlockAccess delegate, int dimension) {
+        this(delegate, dimension, delegate instanceof World ? (World) delegate : null);
+    }
+
+    public FluidViewAccess(IBlockAccess delegate, int dimension, World world) {
         if (delegate == null) {
             throw new IllegalArgumentException("delegate cannot be null");
         }
         this.delegate = delegate;
         this.dimension = dimension;
+        this.world = world;
     }
 
     public IBlockState getOriginalBlockState(BlockPos pos) {
@@ -43,6 +49,10 @@ public final class FluidViewAccess implements IBlockAccess {
 
     public int getDimension() {
         return dimension;
+    }
+
+    public World getWorld() {
+        return world;
     }
 
     public FluidStateBridge getFluidState(BlockPos pos) {
