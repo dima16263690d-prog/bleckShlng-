@@ -340,12 +340,14 @@ public final class WaterloggedChunkMesher {
 
         BlockPos neighborPos = pos.offset(face);
         IBlockState neighborState = access.getBlockState(neighborPos);
-        // Modern LiquidBlockRenderer uses the water overlay for
-        // HalfTransparentBlock and LeavesBlock only. In 1.12.2,
-        // BlockBreakable is the matching base for glass/ice blocks.
+        // HalfTransparentBlock in 1.18.2 maps to the glass/ice
+        // materials in 1.12.2; LeavesBlock remains a separate case.
+        // Portals also inherit BlockBreakable in legacy code, so do not
+        // classify every BlockBreakable as a water-overlay surface.
         boolean overlay = kind == FluidKind.WATER
-                && (neighborState.getBlock() instanceof net.minecraft.block.BlockBreakable
-                || neighborState.getBlock() instanceof net.minecraft.block.BlockLeaves);
+                && (neighborState.getBlock() instanceof net.minecraft.block.BlockLeaves
+                || neighborState.getMaterial() == Material.GLASS
+                || neighborState.getMaterial() == Material.ICE);
         List<SideOcclusionRect> occlusions =
                 collectSideOcclusions(access, host, pos, neighborState,
                         neighborPos, face, minY, overlay);
