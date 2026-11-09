@@ -50,7 +50,7 @@ public final class WaterloggedFluidHandler {
             // Placement only records the source and schedules its first
             // fluid tick. Immediate spreading here duplicated the scheduled
             // update and caused waterlogged blocks to fan out too early.
-            FluidTickScheduler.schedule(world, pos, 1);
+            FluidTickScheduler.schedule(world, pos, 5);
             return true;
         }
 
