@@ -352,12 +352,10 @@ public final class FluidSpreadEngine {
             }
         }
 
-        if (material == Material.WATER
-                && WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
-            return !canFlowInto(world, pos, state, material, EnumFacing.DOWN);
-        }
-
-        return !canFlowInto(world, pos, state, material, EnumFacing.DOWN);
+        // FlowingFluid#isWaterHole uses canHoldFluid(), not canSpreadTo().
+        // The downward replacement/height rule has already been checked by
+        // the failed downward spread attempt and must not affect this test.
+        return !BlockGeometryAdapter.canHoldFluid(world, pos, state, material);
     }
 
     private static int getDepth(World world, BlockPos pos, Material material) {
