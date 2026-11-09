@@ -254,7 +254,7 @@ public abstract class FlowingFluid extends Fluid {
             if (sourceNeighborCount(world, pos) >= 3) {
                 spreadToSides(world, pos, state);
             }
-        } else if (state.isSource() || !isWaterHole(world, below)) {
+        } else if (state.isSource() || !isWaterHole(world, pos, below)) {
             spreadToSides(world, pos, state);
         }
     }
