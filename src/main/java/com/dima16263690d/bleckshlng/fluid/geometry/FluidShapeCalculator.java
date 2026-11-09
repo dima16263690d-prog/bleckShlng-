@@ -178,18 +178,16 @@ public final class FluidShapeCalculator {
                 minV = box.minZ - pos.getZ();
                 maxV = box.maxZ - pos.getZ();
             }
-            addClippedEdge(uEdges, minU);
-            addClippedEdge(uEdges, maxU);
             if (face.getAxis() == EnumFacing.Axis.Z) {
+                addClippedEdge(uEdges, minU);
+                addClippedEdge(uEdges, maxU);
                 if (maxV > low + EPSILON && minV < high - EPSILON) {
                     vEdges.add(Double.valueOf(Math.max(low, Math.min(high, minV))));
                     vEdges.add(Double.valueOf(Math.max(low, Math.min(high, maxV))));
                 }
             } else {
-                if (maxU > low + EPSILON && minU < high - EPSILON) {
-                    uEdges.add(Double.valueOf(Math.max(low, Math.min(high, minU))));
-                    uEdges.add(Double.valueOf(Math.max(low, Math.min(high, maxU))));
-                }
+                addClippedEdge(uEdges, minU, low, high);
+                addClippedEdge(uEdges, maxU, low, high);
                 addClippedEdge(vEdges, minV);
                 addClippedEdge(vEdges, maxV);
             }
