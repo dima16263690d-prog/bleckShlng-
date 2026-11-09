@@ -79,6 +79,45 @@ public class ModernFluidCoreTest {
     }
 
     @Test
+    public void twoWaterSourcesCreateSourceAboveSolidSupport() {
+        TestWorld world = new TestWorld();
+        FluidPos target = new FluidPos(0, 10, 0);
+        world.fluids.put(target.offset(FluidDirection.NORTH), Fluids.waterSource());
+        world.fluids.put(target.offset(FluidDirection.SOUTH), Fluids.waterSource());
+        world.solid.add(target.below());
+
+        FluidState result = Fluids.WATER.getNewLiquid(world, target);
+
+        assertTrue(result.isSource());
+        assertEquals(8, result.getAmount());
+    }
+
+    @Test
+    public void waterOnlyAllowsDifferentFluidToReplaceFromAbove() {
+        TestWorld world = new TestWorld();
+        FluidPos pos = new FluidPos(0, 10, 0);
+        FluidState water = Fluids.waterSource();
+
+        assertFalse(Fluids.WATER.canBeReplacedWith(
+                water, world, pos, Fluids.LAVA, FluidDirection.EAST));
+        assertTrue(Fluids.WATER.canBeReplacedWith(
+                water, world, pos, Fluids.LAVA, FluidDirection.DOWN));
+    }
+
+    @Test
+    public void lavaReplacementUsesModernFourNinthsHeightThreshold() {
+        TestWorld world = new TestWorld();
+        FluidPos pos = new FluidPos(0, 10, 0);
+        FluidState levelFour = Fluids.LAVA.flowingState(4, false);
+        FluidState levelThree = Fluids.LAVA.flowingState(3, false);
+
+        assertTrue(Fluids.LAVA.canBeReplacedWith(
+                levelFour, world, pos, Fluids.WATER, FluidDirection.EAST));
+        assertFalse(Fluids.LAVA.canBeReplacedWith(
+                levelThree, world, pos, Fluids.WATER, FluidDirection.DOWN));
+    }
+
+    @Test
     public void waterAndLavaKeepModernTickAndSlopeRules() {
         TestWorld overworld = new TestWorld();
         TestWorld ultrawarm = new TestWorld();
