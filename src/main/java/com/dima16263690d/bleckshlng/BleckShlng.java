@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
         name = BleckShlng.NAME,
         version = BleckShlng.VERSION,
         acceptedMinecraftVersions = "[1.12.2]",
-        dependencies = "required-after:mixinbooter"
+        dependencies = "required-after:mixinbooter@[12.2,)"
 )
 public final class BleckShlng {
     public static final String MODID = "bleckshlng";
