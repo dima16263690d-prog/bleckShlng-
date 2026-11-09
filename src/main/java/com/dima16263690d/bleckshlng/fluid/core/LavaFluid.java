@@ -132,6 +132,11 @@ public final class LavaFluid extends FlowingFluid {
     }
 
     @Override
+    public FluidSound getPickupSound() {
+        return FluidSound.BUCKET_FILL_LAVA;
+    }
+
+    @Override
     public FluidParticle getDripParticle() {
         return FluidParticle.DRIPPING_LAVA;
     }
