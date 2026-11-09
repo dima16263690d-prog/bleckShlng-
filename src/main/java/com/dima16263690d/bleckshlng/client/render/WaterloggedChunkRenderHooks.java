@@ -34,6 +34,8 @@ public final class WaterloggedChunkRenderHooks {
     private static volatile Field chunkCacheField;
     private static volatile boolean cacheFieldResolved;
     private static volatile boolean warned;
+    private static final ThreadLocal<Boolean> WATERLOGGED_REBUILD_ACTIVE =
+            new ThreadLocal<Boolean>();
 
     private static volatile Method compiledChunkSetLayerUsed;
     private static volatile boolean compiledChunkMethodResolved;
@@ -62,6 +64,26 @@ public final class WaterloggedChunkRenderHooks {
             }
             return false;
         }
+    }
+
+    /**
+     * Marks the current chunk-compile worker while it is rebuilding a chunk
+     * with waterlogged states. Transparency resort tasks must not append the
+     * same sidecar quads a second time.
+     */
+    public static void beginWaterloggedRebuild(RenderChunk renderChunk) {
+        WATERLOGGED_REBUILD_ACTIVE.remove();
+        if (hasWaterloggedFluid(renderChunk)) {
+            WATERLOGGED_REBUILD_ACTIVE.set(Boolean.TRUE);
+        }
+    }
+
+    public static boolean isWaterloggedRebuildActive() {
+        return Boolean.TRUE.equals(WATERLOGGED_REBUILD_ACTIVE.get());
+    }
+
+    public static void endWaterloggedRebuild() {
+        WATERLOGGED_REBUILD_ACTIVE.remove();
     }
 
     /**
