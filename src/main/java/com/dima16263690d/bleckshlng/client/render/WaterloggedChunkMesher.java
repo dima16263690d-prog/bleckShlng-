@@ -951,7 +951,11 @@ public final class WaterloggedChunkMesher {
                              double x, double y, double z,
                              float u, float v,
                              int r, int g, int b, int a, int sky, int block) {
+        // DefaultVertexFormats.BLOCK in Forge 1.12.2 has no NORMAL element.
+        // Calling BufferBuilder.normal() here wraps its element cursor to
+        // POSITION and overwrites this vertex's coordinates with the normal.
+        // Vanilla fluid rendering uses the BLOCK format without normal().
         buffer.pos(x, y, z).color(r, g, b, a).tex(u, v)
-                .lightmap(sky, block).normal(0.0F, 1.0F, 0.0F).endVertex();
+                .lightmap(sky, block).endVertex();
     }
 }
