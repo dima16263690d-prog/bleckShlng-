@@ -11,6 +11,6 @@
     "credits": "Vanilla Minecraft axe stripping behaviour",
     "logoFile": "",
     "screenshots": [],
-    "dependencies": []
+    "dependencies": ["required-after:mixinbooter"]
   }
 ]
