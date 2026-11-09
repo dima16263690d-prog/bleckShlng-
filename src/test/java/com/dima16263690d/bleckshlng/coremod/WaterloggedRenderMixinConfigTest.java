@@ -33,6 +33,8 @@ public class WaterloggedRenderMixinConfigTest {
         String json = new String(bytes, StandardCharsets.UTF_8);
         assertTrue("RenderChunk mixin is not registered",
                 json.contains("client.RenderChunkWaterloggedMixin"));
+        assertTrue("Modern BlockFluidRenderer replacement is not registered",
+                json.contains("client.BlockFluidRendererMixin"));
         assertTrue("Mixin config must be client-only",
                 json.contains("\"client\""));
         assertFalse("The compile-task mixin must not start BufferBuilder early",
