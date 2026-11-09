@@ -185,9 +185,13 @@ public final class FluidShapeCalculator {
                     vEdges.add(Double.valueOf(Math.max(low, Math.min(high, minV))));
                     vEdges.add(Double.valueOf(Math.max(low, Math.min(high, maxV))));
                 }
-            } else if (maxU > low + EPSILON && minU < high - EPSILON) {
-                uEdges.add(Double.valueOf(Math.max(low, Math.min(high, minU))));
-                uEdges.add(Double.valueOf(Math.max(low, Math.min(high, maxU))));
+            } else {
+                if (maxU > low + EPSILON && minU < high - EPSILON) {
+                    uEdges.add(Double.valueOf(Math.max(low, Math.min(high, minU))));
+                    uEdges.add(Double.valueOf(Math.max(low, Math.min(high, maxU))));
+                }
+                addClippedEdge(vEdges, minV);
+                addClippedEdge(vEdges, maxV);
             }
         }
 
