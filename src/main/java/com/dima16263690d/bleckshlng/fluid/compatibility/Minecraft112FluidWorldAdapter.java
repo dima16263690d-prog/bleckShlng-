@@ -32,7 +32,7 @@ import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.SoundCategory;
-import net.minecraft.util.math.BlockPos as LegacyBlockPos;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.event.ForgeEventFactory;
 
@@ -65,7 +65,7 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
             return FluidState.EMPTY;
         }
 
-        LegacyBlockPos blockPos = toBlockPos(pos);
+        BlockPos blockPos = toBlockPos(pos);
         IBlockState host = world.getBlockState(blockPos);
         FluidStateBridge state = FluidStateMapper.fromWorld(world, blockPos, host);
         if (state == null) {
