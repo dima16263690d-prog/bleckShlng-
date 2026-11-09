@@ -147,6 +147,16 @@ public final class FluidTickTransformer implements IClassTransformer {
                         changed = true;
                     }
 
+                    // BlockDynamicLiquid inherits BlockLiquid#neighborChanged.
+                    // The static-liquid override is transformed separately,
+                    // so this base hook covers flowing water/lava and
+                    // waterlogged-fluid contact without double invocation.
+                    if (isStaticLiquidNeighborChanged(method)
+                            && !containsHook(method, "tryReactStaticLava")) {
+                        injectStaticLiquidNeighborHook(method);
+                        changed = true;
+                    }
+
                     if (isModifyAcceleration(method)
                             && !containsHook(method, "tryModifyAcceleration")) {
                         injectAccelerationHook(method);
