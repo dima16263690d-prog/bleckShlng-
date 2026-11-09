@@ -189,4 +189,5 @@ public final class FluidMixingHandler {
                 && world.isBlockLoaded(pos)) {
             // 1.18.2 LavaFluid/LiquidBlock use the common fizz level event.
             world.playEvent(1501, pos, 0);
-        }}
+        }
+    }
