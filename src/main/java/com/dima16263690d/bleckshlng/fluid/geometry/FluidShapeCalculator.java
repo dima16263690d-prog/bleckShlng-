@@ -138,15 +138,11 @@ public final class FluidShapeCalculator {
         if (!world.isBlockLoaded(otherPos)) {
             return false;
         }
-        IBlockState here = world.getBlockState(pos);
-        IBlockState there = world.getBlockState(otherPos);
-        if (isSideSolidFace(world, pos, here, direction)) {
-            return false;
-        }
-        if (isSideSolidFace(world, otherPos, there, direction.getOpposite())) {
-            return false;
-        }
-        return true;
+        // FlowingFluid.canPassThroughWall uses the merged occlusion
+        // shape of both cells, not a pair of coarse side-solid booleans.
+        // This matters for complementary slabs, stairs, fences and panes:
+        // only a completely covered shared plane blocks the fluid path.
+        return !isMergedFaceOccluded(world, pos, direction);
     }
 
     /**
