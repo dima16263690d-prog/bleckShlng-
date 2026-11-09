@@ -5,7 +5,9 @@ import java.util.Map;
 import net.minecraftforge.fml.relauncher.IFMLLoadingPlugin;
 
 /**
- * Loads the fluid tick and chunk-render transformers before normal mod init.
+ * Loads legacy fluid tick/render transformers. Chunk waterlogging rendering
+ * is injected through MixinBooter to avoid depending on an already-started
+ * translucent layer.
  */
 @IFMLLoadingPlugin.MCVersion("1.12.2")
 @IFMLLoadingPlugin.TransformerExclusions({
@@ -16,8 +18,7 @@ public final class FluidCorePlugin implements IFMLLoadingPlugin {
     public String[] getASMTransformerClass() {
         return new String[] {
                 "com.dima16263690d.bleckshlng.coremod.FluidTickTransformer",
-                "com.dima16263690d.bleckshlng.coremod.FluidRenderTransformer",
-                "com.dima16263690d.bleckshlng.coremod.FluidChunkRenderTransformer"
+                "com.dima16263690d.bleckshlng.coremod.FluidRenderTransformer"
         };
     }
 
