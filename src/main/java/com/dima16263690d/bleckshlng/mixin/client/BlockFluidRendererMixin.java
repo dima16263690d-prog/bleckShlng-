@@ -3,6 +3,7 @@ package com.dima16263690d.bleckshlng.mixin.client;
 import com.dima16263690d.bleckshlng.client.render.WaterloggedChunkMesher;
 
 import net.minecraft.block.BlockLiquid;
+import net.minecraft.init.Blocks;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.renderer.BlockFluidRenderer;
 import net.minecraft.client.renderer.BufferBuilder;
@@ -34,9 +35,14 @@ public abstract class BlockFluidRendererMixin {
             BlockPos pos,
             BufferBuilder buffer,
             CallbackInfoReturnable<Boolean> callback) {
-        if (state == null || !(state.getBlock() instanceof BlockLiquid)
-                || state.getMaterial() != net.minecraft.block.material.Material.WATER
-                && state.getMaterial() != net.minecraft.block.material.Material.LAVA) {
+        if (state == null || !(state.getBlock() instanceof BlockLiquid)) {
+            return;
+        }
+        // Do not replace third-party BlockLiquid subclasses or Forge fluids.
+        if (state.getBlock() != Blocks.WATER
+                && state.getBlock() != Blocks.FLOWING_WATER
+                && state.getBlock() != Blocks.LAVA
+                && state.getBlock() != Blocks.FLOWING_LAVA) {
             return;
         }
 
