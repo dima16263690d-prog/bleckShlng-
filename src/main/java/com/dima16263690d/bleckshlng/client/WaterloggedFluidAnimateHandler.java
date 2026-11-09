@@ -103,7 +103,7 @@ public final class WaterloggedFluidAnimateHandler {
             // ClientLevel.doAnimateTick also asks FluidState#getDripParticle
             // once per selected position, independently of animateTick().
             if (world.rand.nextInt(10) == 0) {
-                trySpawnDrippingWater(world, pos, host);
+                trySpawnDrippingFluid(world, pos);
             }
         }
     }
@@ -124,10 +124,20 @@ public final class WaterloggedFluidAnimateHandler {
      * Ports ClientLevel.trySpawnDripParticles for WaterFluid's
      * DRIPPING_WATER particle. 1.12.2 exposes the matching DRIP_WATER particle.
      */
-    private static void trySpawnDrippingWater(World world, BlockPos fluidPos,
-                                              IBlockState waterloggedHost) {
+    public static void trySpawnDrippingFluid(World world, BlockPos fluidPos) {
+        if (world == null || !world.isRemote || fluidPos == null
+                || !world.isBlockLoaded(fluidPos)) {
+            return;
+        }
+        IBlockState fluidHost = world.getBlockState(fluidPos);
+        FluidStateBridge fluid = FluidStateMapper.fromWorld(world, fluidPos, fluidHost);
+        if (fluid == null) {
+            return;
+        }
+        EnumParticleTypes dripParticle = fluid.getKind() == FluidStateBridge.FluidKind.LAVA
+                ? EnumParticleTypes.DRIP_LAVA : EnumParticleTypes.DRIP_WATER;
         boolean sturdyHostBottom =
-                waterloggedHost.isSideSolid(world, fluidPos, EnumFacing.DOWN);
+                fluidHost.isSideSolid(world, fluidPos, EnumFacing.DOWN);
 
         BlockPos belowPos = fluidPos.down();
         if (!world.isBlockLoaded(belowPos)) {
@@ -143,7 +153,7 @@ public final class WaterloggedFluidAnimateHandler {
         if (belowShape.maxY < 1.0D) {
             if (sturdyHostBottom) {
                 spawnDrip(world, belowPos, 0.0D, 1.0D,
-                        0.0D, 1.0D, 1.0D - 0.05D);
+                        0.0D, 1.0D, 1.0D - 0.05D, dripParticle);
             }
             return;
         }
@@ -159,7 +169,7 @@ public final class WaterloggedFluidAnimateHandler {
             spawnDrip(world, belowPos,
                     belowShape.minX, belowShape.maxX,
                     belowShape.minZ, belowShape.maxZ,
-                    belowShape.minY - 0.05D);
+                    belowShape.minY - 0.05D, dripParticle);
             return;
         }
 
@@ -178,7 +188,7 @@ public final class WaterloggedFluidAnimateHandler {
             spawnDrip(world, belowPos,
                     belowShape.minX, belowShape.maxX,
                     belowShape.minZ, belowShape.maxZ,
-                    -0.05D);
+                    -0.05D, dripParticle);
         }
     }
 
@@ -217,14 +227,14 @@ public final class WaterloggedFluidAnimateHandler {
 
     private static void spawnDrip(World world, BlockPos pos,
                                   double minX, double maxX,
-                                  double minZ, double maxZ, double yOffset) {
+                                  double minZ, double maxZ, double yOffset,
+                                  EnumParticleTypes particle) {
         double xRange = Math.max(0.0D, maxX - minX);
         double zRange = Math.max(0.0D, maxZ - minZ);
         double x = pos.getX() + minX + world.rand.nextDouble() * xRange;
         double z = pos.getZ() + minZ + world.rand.nextDouble() * zRange;
         double y = pos.getY() + yOffset;
-        world.spawnParticle(EnumParticleTypes.DRIP_WATER,
-                x, y, z, 0.0D, 0.0D, 0.0D);
+        world.spawnParticle(particle, x, y, z, 0.0D, 0.0D, 0.0D);
     }
 
     private static int floor(double value) {
