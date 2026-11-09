@@ -383,6 +383,12 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
                 case FLUID_FIZZ:
                     event = SoundEvents.BLOCK_LAVA_EXTINGUISH;
                     break;
+                case BUCKET_FILL_WATER:
+                    event = SoundEvents.ITEM_BUCKET_FILL;
+                    break;
+                case BUCKET_FILL_LAVA:
+                    event = SoundEvents.ITEM_BUCKET_FILL_LAVA;
+                    break;
                 default:
                     return;
             }
