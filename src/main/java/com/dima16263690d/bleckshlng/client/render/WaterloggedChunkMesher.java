@@ -11,6 +11,7 @@ import net.minecraft.init.Blocks;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 import net.minecraftforge.fml.relauncher.Side;
@@ -19,6 +20,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 import com.dima16263690d.bleckshlng.fluid.state.FluidHeightCalculator;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
+import com.dima16263690d.bleckshlng.fluid.physics.FluidFlowVector;
 
 /**
  * Emits water quads into the chunk BufferBuilder (same pass as vanilla fluids).
@@ -80,6 +82,9 @@ public final class WaterloggedChunkMesher {
             return;
         }
 
+        // LiquidBlockRenderer 1.18.2 corner order: north-west,
+        // north-east, south-east, south-west. Solid non-fluid neighbours
+        // contribute -1 and are excluded from the weighted average.
         float hNW = sampleCorner(access, pos, ownHeight, -1, -1);
         float hNE = sampleCorner(access, pos, ownHeight, 1, -1);
         float hSE = sampleCorner(access, pos, ownHeight, 1, 1);
@@ -131,15 +136,15 @@ public final class WaterloggedChunkMesher {
         boolean topSlabHost = host.getBlock() instanceof BlockSlab
                 && !((BlockSlab) host.getBlock()).isDouble()
                 && host.getValue(BlockSlab.HALF) == BlockSlab.EnumBlockHalf.TOP;
-        float flowX = sampleFlowX(access, pos);
-        float flowZ = sampleFlowZ(access, pos);
-        float flowAngle = (float) Math.atan2(flowZ, flowX);
+        Vec3d flowVector = getFlowVector(access, pos, fluid);
+        float flowX = (float) flowVector.x;
+        float flowZ = (float) flowVector.z;
         boolean flowingSurface = flowX * flowX + flowZ * flowZ > 1.0E-4F;
         TextureAtlasSprite topSprite = flowingSurface ? flow : still;
 
         if (!topSlabHost && (!isSameFluid(access, pos.up()) || ownHeight < 1.0F)) {
             topQuad(buffer, x, y, z, hNW, hNE, hSE, hSW,
-                    topSprite, flowAngle, flowingSurface, r, g, b, a, sky, block);
+                    topSprite, flowX, flowZ, flowingSurface, r, g, b, a, sky, block);
         }
 
         if (minY <= 0.001F && !isSameFluid(access, pos.down())) {
@@ -221,83 +226,189 @@ public final class WaterloggedChunkMesher {
         }
     }
 
+    /**
+     * 1.18.2 top-face UV projection. Flowing surfaces use the flow sprite
+     * and orient its UVs from the fluid flow vector, rather than rotating a
+     * square still texture.
+     */
     private static void topQuad(BufferBuilder buffer, double x, double y, double z,
                                  float hNW, float hNE, float hSE, float hSW,
-                                 TextureAtlasSprite sprite, float angle,
-                                 boolean rotate, int r, int g, int b, int a,
+                                 TextureAtlasSprite sprite, float flowX, float flowZ,
+                                 boolean flowing, int r, int g, int b, int a,
                                  int sky, int block) {
-        float[][] uv = new float[][] {
-                {sprite.getMinU(), sprite.getMinV()},
-                {sprite.getMinU(), sprite.getMaxV()},
-                {sprite.getMaxU(), sprite.getMaxV()},
-                {sprite.getMaxU(), sprite.getMinV()}
-        };
-        if (rotate) {
-            float cos = (float) Math.cos(angle);
-            float sin = (float) Math.sin(angle);
-            float centerU = (sprite.getMinU() + sprite.getMaxU()) * 0.5F;
-            float centerV = (sprite.getMinV() + sprite.getMaxV()) * 0.5F;
-            for (int i = 0; i < uv.length; i++) {
-                float du = uv[i][0] - centerU;
-                float dv = uv[i][1] - centerV;
-                uv[i][0] = centerU + du * cos - dv * sin;
-                uv[i][1] = centerV + du * sin + dv * cos;
+        float uNW;
+        float vNW;
+        float uSW;
+        float vSW;
+        float uSE;
+        float vSE;
+        float uNE;
+        float vNE;
+
+        if (!flowing) {
+            uNW = sprite.getMinU();
+            vNW = sprite.getMinV();
+            uSW = sprite.getMinU();
+            vSW = sprite.getMaxV();
+            uSE = sprite.getMaxU();
+            vSE = sprite.getMaxV();
+            uNE = sprite.getMaxU();
+            vNE = sprite.getMinV();
+        } else {
+            float angle = (float) Math.atan2(flowZ, flowX) - (float) (Math.PI / 2.0D);
+            float sin = (float) Math.sin(angle) * 0.25F;
+            float cos = (float) Math.cos(angle) * 0.25F;
+            uNW = sprite.getInterpolatedU(8.0F + (-cos - sin) * 16.0F);
+            vNW = sprite.getInterpolatedV(8.0F + (-cos + sin) * 16.0F);
+            uSW = sprite.getInterpolatedU(8.0F + (-cos + sin) * 16.0F);
+            vSW = sprite.getInterpolatedV(8.0F + (cos + sin) * 16.0F);
+            uSE = sprite.getInterpolatedU(8.0F + (cos + sin) * 16.0F);
+            vSE = sprite.getInterpolatedV(8.0F + (cos - sin) * 16.0F);
+            uNE = sprite.getInterpolatedU(8.0F + (cos - sin) * 16.0F);
+            vNE = sprite.getInterpolatedV(8.0F + (-cos - sin) * 16.0F);
+
+            float centerU = (uNW + uSW + uSE + uNE) * 0.25F;
+            float centerV = (vNW + vSW + vSE + vNE) * 0.25F;
+            float spriteWidth = (float) sprite.getIconWidth()
+                    / Math.max(1.0E-6F, sprite.getMaxU() - sprite.getMinU());
+            float spriteHeight = (float) sprite.getIconHeight()
+                    / Math.max(1.0E-6F, sprite.getMaxV() - sprite.getMinV());
+            float shrink = 4.0F / Math.max(spriteWidth, spriteHeight);
+            uNW = centerU + (uNW - centerU) * (1.0F - shrink);
+            uSW = centerU + (uSW - centerU) * (1.0F - shrink);
+            uSE = centerU + (uSE - centerU) * (1.0F - shrink);
+            uNE = centerU + (uNE - centerU) * (1.0F - shrink);
+            vNW = centerV + (vNW - centerV) * (1.0F - shrink);
+            vSW = centerV + (vSW - centerV) * (1.0F - shrink);
+            vSE = centerV + (vSE - centerV) * (1.0F - shrink);
+            vNE = centerV + (vNE - centerV) * (1.0F - shrink);
+        }
+
+        vert(buffer, x, y + hNW, z, uNW, vNW, r, g, b, a, sky, block);
+        vert(buffer, x, y + hSW, z + 1, uSW, vSW, r, g, b, a, sky, block);
+        vert(buffer, x + 1, y + hSE, z + 1, uSE, vSE, r, g, b, a, sky, block);
+        vert(buffer, x + 1, y + hNE, z, uNE, vNE, r, g, b, a, sky, block);
+    }
+
+    private static Vec3d getFlowVector(IBlockAccess access, BlockPos pos,
+                                       FluidStateBridge current) {
+        double x = 0.0D;
+        double z = 0.0D;
+        float currentHeight = current.getOwnHeight();
+        for (EnumFacing direction : EnumFacing.Plane.HORIZONTAL) {
+            BlockPos neighborPos = pos.offset(direction);
+            IBlockState neighborBlock = access.getBlockState(neighborPos);
+            FluidStateBridge neighbor = getFluidState(access, neighborPos, neighborBlock);
+            if (neighbor != null && !current.isSameKind(neighbor)) {
+                continue;
+            }
+
+            float neighborHeight = neighbor == null ? 0.0F : neighbor.getOwnHeight();
+            float difference = 0.0F;
+            if (neighborHeight == 0.0F && !neighborBlock.getMaterial().blocksMovement()) {
+                BlockPos belowPos = neighborPos.down();
+                IBlockState belowBlock = access.getBlockState(belowPos);
+                FluidStateBridge below = getFluidState(access, belowPos, belowBlock);
+                if (below != null && current.isSameKind(below)) {
+                    neighborHeight = below.getOwnHeight();
+                    difference = currentHeight - (neighborHeight - 0.8888889F);
+                }
+            } else if (neighborHeight > 0.0F) {
+                difference = currentHeight - neighborHeight;
+            }
+
+            x += direction.getFrontOffsetX() * (double) difference;
+            z += direction.getFrontOffsetZ() * (double) difference;
+        }
+
+        Vec3d vector = new Vec3d(x, 0.0D, z);
+        if (current.isFalling()) {
+            for (EnumFacing direction : EnumFacing.Plane.HORIZONTAL) {
+                IBlockState side = access.getBlockState(pos.offset(direction));
+                if (side.getMaterial().blocksMovement()) {
+                    vector = vector.normalize().addVector(0.0D, -6.0D, 0.0D);
+                    break;
+                }
             }
         }
-        vert(buffer, x, y + hNW, z, uv[0][0], uv[0][1], r, g, b, a, sky, block);
-        vert(buffer, x, y + hSW, z + 1, uv[1][0], uv[1][1], r, g, b, a, sky, block);
-        vert(buffer, x + 1, y + hSE, z + 1, uv[2][0], uv[2][1], r, g, b, a, sky, block);
-        vert(buffer, x + 1, y + hNE, z, uv[3][0], uv[3][1], r, g, b, a, sky, block);
+        return vector.normalize();
     }
 
-    private static float sampleFlowX(IBlockAccess access, BlockPos pos) {
-        return fluidHeight(access, pos.west()) - fluidHeight(access, pos.east());
-    }
-
-    private static float sampleFlowZ(IBlockAccess access, BlockPos pos) {
-        return fluidHeight(access, pos.north()) - fluidHeight(access, pos.south());
-    }
-
-    private static int shade(int channel, float factor) {
-        return Math.min(255, Math.max(0, Math.round((float) channel * factor)));
+    private static FluidStateBridge getFluidState(IBlockAccess access, BlockPos pos,
+                                                   IBlockState state) {
+        if (access instanceof FluidViewAccess) {
+            FluidStateBridge cached = ClientFluidStateCache.get(
+                    ((FluidViewAccess) access).getDimension(), pos.toLong());
+            if (cached != null) {
+                return cached;
+            }
+        }
+        return state.getMaterial() == Material.WATER
+                ? FluidStateMapper.fromBlockState(state) : null;
     }
 
     private static float sampleCorner(IBlockAccess access, BlockPos pos,
                                       float own, int ox, int oz) {
-        float sum = own;
-        int n = 1;
-        BlockPos[] samples = new BlockPos[] {
-                pos.add(ox < 0 ? -1 : 0, 0, oz < 0 ? -1 : 0),
-                pos.add(ox > 0 ? 1 : 0, 0, oz < 0 ? -1 : 0),
-                pos.add(ox < 0 ? -1 : 0, 0, oz > 0 ? 1 : 0),
-                pos.add(ox > 0 ? 1 : 0, 0, oz > 0 ? 1 : 0)
-        };
-        for (int i = 0; i < samples.length; i++) {
-            float h = fluidHeight(access, samples[i]);
-            if (h > 0.0F) {
-                sum += h;
-                n++;
-            }
+        BlockPos north = pos.add(0, 0, -1);
+        BlockPos south = pos.add(0, 0, 1);
+        BlockPos east = pos.add(1, 0, 0);
+        BlockPos west = pos.add(-1, 0, 0);
+        float hNorth = fluidHeight(access, north);
+        float hSouth = fluidHeight(access, south);
+        float hEast = fluidHeight(access, east);
+        float hWest = fluidHeight(access, west);
+        BlockPos diagonal = pos.add(ox, 0, oz);
+        float hDiagonal = fluidHeight(access, diagonal);
+        float first = ox < 0 ? hWest : hEast;
+        float second = oz < 0 ? hNorth : hSouth;
+
+        if (first >= 1.0F || second >= 1.0F) {
+            return 1.0F;
         }
-        return sum / (float) n;
+
+        float[] weighted = new float[2];
+        if (first > 0.0F || second > 0.0F) {
+            if (hDiagonal >= 1.0F) {
+                return 1.0F;
+            }
+            addWeightedHeight(weighted, hDiagonal);
+        }
+        addWeightedHeight(weighted, own);
+        addWeightedHeight(weighted, first);
+        addWeightedHeight(weighted, second);
+        return weighted[1] == 0.0F ? own : weighted[0] / weighted[1];
+    }
+
+    private static void addWeightedHeight(float[] weighted, float height) {
+        if (height >= 0.8F) {
+            weighted[0] += height * 10.0F;
+            weighted[1] += 10.0F;
+        } else if (height >= 0.0F) {
+            weighted[0] += height;
+            weighted[1] += 1.0F;
+        }
     }
 
     private static float fluidHeight(IBlockAccess access, BlockPos pos) {
-        if (access instanceof FluidViewAccess) {
-            return ((FluidViewAccess) access).getFluidSurfaceHeight(pos);
-        }
         IBlockState state = access.getBlockState(pos);
-        if (state.getMaterial() == Material.WATER && state.getBlock() instanceof BlockLiquid) {
-            int level = state.getValue(BlockLiquid.LEVEL).intValue();
-            return level >= 8 ? 1.0F : (float) (8 - level) / 9.0F;
+        FluidStateBridge fluid = null;
+        if (access instanceof FluidViewAccess) {
+            fluid = ((FluidViewAccess) access).getFluidState(pos);
         }
-        if (access instanceof World) {
-            FluidStateBridge fluid = FluidStateMapper.fromWorld((World) access, pos, state);
-            if (fluid != null && fluid.getKind() == FluidStateBridge.FluidKind.WATER) {
-                return FluidHeightCalculator.getHeight((World) access, pos, fluid);
+        if (fluid == null && state.getMaterial() == Material.WATER
+                && state.getBlock() instanceof BlockLiquid) {
+            fluid = FluidStateMapper.fromBlockState(state);
+        }
+        if (fluid != null && fluid.getKind() == FluidStateBridge.FluidKind.WATER) {
+            if (isSameFluid(access, pos.up())) {
+                return 1.0F;
             }
+            if (access instanceof FluidViewAccess) {
+                return ((FluidViewAccess) access).getFluidSurfaceHeight(pos);
+            }
+            return fluid.getOwnHeight();
         }
-        return 0.0F;
+        return state.getMaterial().blocksMovement() ? -1.0F : 0.0F;
     }
 
     private static boolean isSameFluid(IBlockAccess access, BlockPos pos) {
