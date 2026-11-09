@@ -31,8 +31,8 @@ public final class FluidChunkRenderTransformer implements IClassTransformer {
 
     @Override
     public byte[] transform(String name, String transformedName, byte[] basicClass) {
-        if (basicClass == null || transformedName == null
-                || !TARGET.equals(transformedName)) {
+        if (basicClass == null
+                || (!TARGET.equals(name) && !TARGET.equals(transformedName))) {
             return basicClass;
         }
 
