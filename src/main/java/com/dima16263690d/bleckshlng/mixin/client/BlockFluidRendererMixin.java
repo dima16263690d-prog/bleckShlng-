@@ -58,7 +58,11 @@ public abstract class BlockFluidRendererMixin {
                         access, world.provider.getDimension(), world);
             }
         }
-        callback.setReturnValue(
-                WaterloggedChunkMesher.tessellateFluid(renderAccess, state, pos, buffer));
+        // Only cancel vanilla after the custom mesher actually emitted geometry.
+        // A false result means that our visibility/occlusion pass produced no
+        // vertices; vanilla must still get a chance to render the liquid.
+        if (WaterloggedChunkMesher.tessellateFluid(renderAccess, state, pos, buffer)) {
+            callback.setReturnValue(true);
+        }
     }
 }
