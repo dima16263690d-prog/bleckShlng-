@@ -65,7 +65,7 @@ public abstract class RenderChunkWaterloggedMixin {
 
         if (WaterloggedChunkRenderHooks.renderTranslucentLayer(
                 renderChunk, layer, buffer)) {
-            compiledChunk.setLayerUsed(layer);
+            WaterloggedChunkRenderHooks.markLayerUsed(compiledChunk, layer);
         }
     }
 }
