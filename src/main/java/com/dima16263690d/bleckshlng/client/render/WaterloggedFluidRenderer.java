@@ -9,6 +9,9 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BlockFluidRenderer;
 import net.minecraft.client.renderer.BlockRendererDispatcher;
+import net.minecraft.util.BlockRenderLayer;
+import net.minecraftforge.client.ForgeHooksClient;
+import net.minecraftforge.client.MinecraftForgeClient;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.Tessellator;
@@ -209,18 +212,26 @@ public final class WaterloggedFluidRenderer {
             return false;
         }
         try {
-            BlockFluidRenderer fluidRenderer =
-                    resolveFluidRenderer(Minecraft.getMinecraft());
-            if (fluidRenderer == null) {
-                return false;
-            }
+            Minecraft mc = Minecraft.getMinecraft();
+            BlockRendererDispatcher dispatcher = mc.getBlockRendererDispatcher();
 
             IBlockState fluidState = access.getBlockState(pos);
             if (!(fluidState.getBlock() instanceof BlockLiquid)) {
                 fluidState = Blocks.WATER.getDefaultState();
             }
 
-            return fluidRenderer.renderFluid(access, fluidState, pos, buffer);
+            // Fluidlogged-API renders stored FluidStates via
+            // BlockRendererDispatcher.renderBlock(), not by manually
+            // tessellating a host-specific cube. This preserves Forge/OptiFine
+            // fluid render hooks and uses the ordinary BlockLiquid model path.
+            // Keep the current layer explicit while the dispatcher runs.
+            BlockRenderLayer previousLayer = MinecraftForgeClient.getRenderLayer();
+            ForgeHooksClient.setRenderLayer(BlockRenderLayer.TRANSLUCENT);
+            try {
+                return dispatcher.renderBlock(fluidState, pos, access, buffer);
+            } finally {
+                ForgeHooksClient.setRenderLayer(previousLayer);
+            }
         } catch (Throwable error) {
             return false;
         }
