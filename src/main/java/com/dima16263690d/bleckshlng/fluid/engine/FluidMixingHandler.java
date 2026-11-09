@@ -11,6 +11,7 @@ import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.ResourceLocation;
 import net.minecraft.world.World;
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
@@ -65,6 +66,11 @@ public final class FluidMixingHandler {
         }
 
         if (!touchingWater) {
+            // LiquidBlock#shouldSpreadLiquid in 1.18.2 also converts lava
+            // above soul soil when blue ice is adjacent (above or horizontally).
+            if (tryFormBasalt(world, pos)) {
+                return true;
+            }
             return false;
         }
 
@@ -78,6 +84,56 @@ public final class FluidMixingHandler {
         FluidShapeCalculator.invalidate(world, pos);
         playExtinguishEffects(world, pos);
         return true;
+    }
+
+    /**
+     * 1.18.2 LiquidBlock#shouldSpreadLiquid basalt reaction.
+     *
+     * Minecraft 1.12.2 has no built-in soul soil, blue ice or basalt blocks;
+     * resolve their vanilla registry names at runtime so a backport providing
+     * these blocks can participate without a compile-time dependency.
+     */
+    private static boolean tryFormBasalt(World world, BlockPos lavaPos) {
+        Block soulSoil = Block.REGISTRY.getObject(
+                new ResourceLocation("minecraft:soul_soil"));
+        Block blueIce = Block.REGISTRY.getObject(
+                new ResourceLocation("minecraft:blue_ice"));
+        Block basalt = Block.REGISTRY.getObject(
+                new ResourceLocation("minecraft:basalt"));
+        if (soulSoil == null || blueIce == null || basalt == null
+                || soulSoil == Blocks.AIR || blueIce == Blocks.AIR
+                || basalt == Blocks.AIR) {
+            return false;
+        }
+
+        BlockPos belowPos = lavaPos.down();
+        if (!world.isBlockLoaded(belowPos)
+                || world.getBlockState(belowPos).getBlock() != soulSoil) {
+            return false;
+        }
+
+        // POSSIBLE_FLOW_DIRECTIONS in 1.18.2 is DOWN + horizontal; the
+        // LiquidBlock check examines the opposite positions: UP + horizontal.
+        for (EnumFacing direction : EnumFacing.Plane.HORIZONTAL) {
+            BlockPos neighborPos = lavaPos.offset(direction);
+            if (world.isBlockLoaded(neighborPos)
+                    && world.getBlockState(neighborPos).getBlock() == blueIce) {
+                world.setBlockState(lavaPos, basalt.getDefaultState(), 3);
+                FluidShapeCalculator.invalidate(world, lavaPos);
+                world.playEvent(1501, lavaPos, 0);
+                return true;
+            }
+        }
+
+        BlockPos abovePos = lavaPos.up();
+        if (world.isBlockLoaded(abovePos)
+                && world.getBlockState(abovePos).getBlock() == blueIce) {
+            world.setBlockState(lavaPos, basalt.getDefaultState(), 3);
+            FluidShapeCalculator.invalidate(world, lavaPos);
+            world.playEvent(1501, lavaPos, 0);
+            return true;
+        }
+        return false;
     }
 
     /**
