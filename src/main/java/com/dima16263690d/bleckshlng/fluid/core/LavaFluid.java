@@ -21,7 +21,7 @@ public final class LavaFluid extends FlowingFluid {
     }
 
     @Override
-    protected int getSlopeFindDistance(FluidWorld world) {
+    public int getSlopeFindDistance(FluidWorld world) {
         return world != null && world.isUltraWarm() ? 4 : 2;
     }
 
