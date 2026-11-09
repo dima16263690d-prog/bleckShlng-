@@ -26,6 +26,8 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
 import com.dima16263690d.bleckshlng.BleckShlng;
 import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
+import com.dima16263690d.bleckshlng.fluid.api.FluidAPI;
+import com.dima16263690d.bleckshlng.fluid.core.Fluids;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 import com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData;
@@ -83,8 +85,7 @@ public final class FluidBucketHandler {
             return;
         }
 
-        world.playSound(null, pickPos, SoundEvents.ITEM_BUCKET_FILL,
-                SoundCategory.BLOCKS, 1.0F, 1.0F);
+        FluidAPI.playPickupSound(world, pickPos, Fluids.WATER);
         event.setFilledBucket(new ItemStack(Items.WATER_BUCKET));
         event.setResult(Event.Result.ALLOW);
     }
@@ -182,8 +183,7 @@ public final class FluidBucketHandler {
             if (pickPos != null) {
                 IBlockState pickState = world.getBlockState(pickPos);
                 if (WaterloggedFluidHandler.pickupWater(world, pickPos, pickState)) {
-                    world.playSound(null, pickPos, SoundEvents.ITEM_BUCKET_FILL,
-                            SoundCategory.BLOCKS, 1.0F, 1.0F);
+                    FluidAPI.playPickupSound(world, pickPos, Fluids.WATER);
                     replaceEmptyBucket(player, hand, held, new ItemStack(Items.WATER_BUCKET));
                     event.setCanceled(true);
                     event.setCancellationResult(net.minecraft.util.EnumActionResult.SUCCESS);
