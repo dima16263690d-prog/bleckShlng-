@@ -37,7 +37,10 @@ public abstract class RenderChunkWaterloggedMixin {
             CompiledChunk compiledChunk,
             CallbackInfo callbackInfo) {
         if (layer != BlockRenderLayer.TRANSLUCENT
-                || compiledChunk == null || buffer == null) {
+                || compiledChunk == null || buffer == null
+                // Transparency resort reuses the previously compiled vertex
+                // state. Do not append the same waterlogged quads a second time.
+                || compiledChunk.getState() != null) {
             return;
         }
 
