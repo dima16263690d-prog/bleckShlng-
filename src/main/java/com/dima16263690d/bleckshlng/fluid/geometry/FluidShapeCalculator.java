@@ -147,10 +147,17 @@ public final class FluidShapeCalculator {
         List<AxisAlignedBB> boxes = getCollisionBoxes(world, pos, state);
         TreeSet<Double> uEdges = new TreeSet<Double>();
         TreeSet<Double> vEdges = new TreeSet<Double>();
-        uEdges.add(Double.valueOf(0.0D));
-        uEdges.add(Double.valueOf(1.0D));
-        vEdges.add(Double.valueOf(low));
-        vEdges.add(Double.valueOf(high));
+        if (face.getAxis() == EnumFacing.Axis.Z) {
+            uEdges.add(Double.valueOf(0.0D));
+            uEdges.add(Double.valueOf(1.0D));
+            vEdges.add(Double.valueOf(low));
+            vEdges.add(Double.valueOf(high));
+        } else {
+            uEdges.add(Double.valueOf(low));
+            uEdges.add(Double.valueOf(high));
+            vEdges.add(Double.valueOf(0.0D));
+            vEdges.add(Double.valueOf(1.0D));
+        }
 
         for (AxisAlignedBB box : boxes) {
             if (!touchesFace(box, pos, face)) {
@@ -166,16 +173,21 @@ public final class FluidShapeCalculator {
                 minV = box.minY - pos.getY();
                 maxV = box.maxY - pos.getY();
             } else {
-                minU = box.minZ - pos.getZ();
-                maxU = box.maxZ - pos.getZ();
-                minV = box.minY - pos.getY();
-                maxV = box.maxY - pos.getY();
+                minU = box.minY - pos.getY();
+                maxU = box.maxY - pos.getY();
+                minV = box.minZ - pos.getZ();
+                maxV = box.maxZ - pos.getZ();
             }
             addClippedEdge(uEdges, minU);
             addClippedEdge(uEdges, maxU);
-            if (maxV > low + EPSILON && minV < high - EPSILON) {
-                vEdges.add(Double.valueOf(Math.max(low, Math.min(high, minV))));
-                vEdges.add(Double.valueOf(Math.max(low, Math.min(high, maxV))));
+            if (face.getAxis() == EnumFacing.Axis.Z) {
+                if (maxV > low + EPSILON && minV < high - EPSILON) {
+                    vEdges.add(Double.valueOf(Math.max(low, Math.min(high, minV))));
+                    vEdges.add(Double.valueOf(Math.max(low, Math.min(high, maxV))));
+                }
+            } else if (maxU > low + EPSILON && minU < high - EPSILON) {
+                uEdges.add(Double.valueOf(Math.max(low, Math.min(high, minU))));
+                uEdges.add(Double.valueOf(Math.max(low, Math.min(high, maxU))));
             }
         }
 
