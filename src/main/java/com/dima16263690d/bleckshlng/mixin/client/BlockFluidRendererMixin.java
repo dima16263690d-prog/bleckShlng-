@@ -5,10 +5,14 @@ import com.dima16263690d.bleckshlng.client.render.WaterloggedChunkMesher;
 import net.minecraft.block.BlockLiquid;
 import net.minecraft.init.Blocks;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BlockFluidRenderer;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.IBlockAccess;
+import net.minecraft.world.World;
+
+import com.dima16263690d.bleckshlng.client.render.FluidViewAccess;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -46,7 +50,15 @@ public abstract class BlockFluidRendererMixin {
             return;
         }
 
+        IBlockAccess renderAccess = access;
+        if (!(access instanceof FluidViewAccess)) {
+            World world = Minecraft.getMinecraft().world;
+            if (world != null) {
+                renderAccess = new FluidViewAccess(
+                        access, world.provider.getDimension(), world);
+            }
+        }
         callback.setReturnValue(
-                WaterloggedChunkMesher.tessellateFluid(access, state, pos, buffer));
+                WaterloggedChunkMesher.tessellateFluid(renderAccess, state, pos, buffer));
     }
 }
