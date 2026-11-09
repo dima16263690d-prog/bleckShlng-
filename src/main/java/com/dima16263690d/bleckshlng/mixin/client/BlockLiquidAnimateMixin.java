@@ -3,6 +3,7 @@ package com.dima16263690d.bleckshlng.mixin.client;
 import java.util.Random;
 
 import com.dima16263690d.bleckshlng.fluid.core.ModernFluidEngine;
+import com.dima16263690d.bleckshlng.client.WaterloggedFluidAnimateHandler;
 
 import net.minecraft.block.BlockLiquid;
 import net.minecraft.init.Blocks;
@@ -42,6 +43,10 @@ public abstract class BlockLiquidAnimateMixin {
         }
 
         if (ModernFluidEngine.animateTick(world, pos, random)) {
+            // 1.18.2 samples Fluid#getDripParticle separately from animateTick.
+            if (random.nextInt(10) == 0) {
+                WaterloggedFluidAnimateHandler.trySpawnDrippingFluid(world, pos);
+            }
             callback.cancel();
         }
     }
