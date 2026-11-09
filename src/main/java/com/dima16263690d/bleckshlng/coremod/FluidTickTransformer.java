@@ -104,7 +104,15 @@ public final class FluidTickTransformer implements IClassTransformer {
                     if (isUpdateTick(method) && !containsHook(method, "tryUpdateDynamicLiquid")) {
                         injectTickHook(method);
                         changed = true;
-                        break;
+                    }
+
+                    // BlockDynamicLiquid overrides BlockLiquid#onBlockAdded.
+                    // Install the same immediate lava-contact reaction hook
+                    // on that override so flowing lava matches LiquidBlock#onPlace.
+                    if (isLiquidBlockAdded(method)
+                            && !containsHook(method, "tryReactStaticLava")) {
+                        injectLiquidBlockAddedHook(method);
+                        changed = true;
                     }
                 }
             }
