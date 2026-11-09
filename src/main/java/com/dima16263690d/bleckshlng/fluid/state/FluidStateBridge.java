@@ -65,6 +65,16 @@ public final class FluidStateBridge {
         return (float) amount / 9.0F;
     }
 
+    /**
+     * Matches FlowingFluid#getHeight from Minecraft 1.18.2:
+     * a same-fluid block directly above makes this column reach the cell top;
+     * otherwise the fluid keeps its own amount-based height. Falling alone
+     * does not force the surface to y=1.
+     */
+    public float getHeight(boolean sameFluidAbove) {
+        return sameFluidAbove ? 1.0F : getOwnHeight();
+    }
+
     public int toLegacyMetadata() {
         return FluidLevelMapper.toMetadata(amount, falling, source);
     }
