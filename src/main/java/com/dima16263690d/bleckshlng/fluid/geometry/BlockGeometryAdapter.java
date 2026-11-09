@@ -70,8 +70,9 @@ public final class BlockGeometryAdapter {
         }
 
         if (targetMaterial == Material.AIR) return true;
-        if (!targetMaterial.blocksMovement()) return true;
-        return targetBlock.isReplaceable(world, pos);
+        // FlowingFluid#canHoldFluid rejects motion-blocking materials;
+        // Block#isReplaceable is not a substitute for fluid capacity.
+        return false;
     }
 
     /**
