@@ -1,23 +1,15 @@
 package com.dima16263690d.bleckshlng.client.render;
 
-import java.lang.reflect.Field;
 import java.util.Map;
 
-import net.minecraft.block.BlockLiquid;
 import net.minecraft.block.BlockSlab;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.BlockFluidRenderer;
-import net.minecraft.client.renderer.BlockRendererDispatcher;
-import net.minecraft.util.BlockRenderLayer;
-import net.minecraftforge.client.ForgeHooksClient;
-import net.minecraftforge.client.MinecraftForgeClient;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
-import net.minecraft.init.Blocks;
+import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.IBlockAccess;
@@ -31,57 +23,25 @@ import com.dima16263690d.bleckshlng.fluid.network.ClientFluidStateCache;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 
 /**
- * Renders waterlogged fluid using vanilla BlockFluidRenderer + FluidViewAccess.
- * 1.12.2 has no public getFluidRenderer(); resolved via field / constructor.
+ * Waterlogged-fluid renderer for the 1.12.2 client.
+ *
+ * Deliberately does not call BlockFluidRenderer or
+ * BlockRendererDispatcher.renderBlock: waterlogged geometry is emitted by
+ * WaterloggedChunkMesher, which owns fluid surface heights, flow UVs and
+ * directional lighting independently of the legacy fluid renderer.
  */
 @SideOnly(Side.CLIENT)
 public final class WaterloggedFluidRenderer {
     private static final int CHUNK_RADIUS = 3;
     private static final double RENDER_DISTANCE_SQ = 64.0D * 64.0D;
 
-    private static BlockFluidRenderer cachedFluidRenderer;
-
     private WaterloggedFluidRenderer() {
     }
 
-    private static BlockFluidRenderer resolveFluidRenderer(Minecraft mc) {
-        if (cachedFluidRenderer != null) {
-            return cachedFluidRenderer;
-        }
-        BlockRendererDispatcher dispatcher = mc.getBlockRendererDispatcher();
-        // Prefer the dispatcher instance (shares atlas sprites).
-        try {
-            Field[] fields = BlockRendererDispatcher.class.getDeclaredFields();
-            for (int i = 0; i < fields.length; i++) {
-                Field field = fields[i];
-                if (field.getType() == BlockFluidRenderer.class) {
-                    field.setAccessible(true);
-                    Object value = field.get(dispatcher);
-                    if (value instanceof BlockFluidRenderer) {
-                        cachedFluidRenderer = (BlockFluidRenderer) value;
-                        return cachedFluidRenderer;
-                    }
-                }
-            }
-        } catch (Throwable ignored) {
-        }
-        // Fallback: own instance with the same BlockColors.
-        try {
-            cachedFluidRenderer = new BlockFluidRenderer(mc.getBlockColors());
-            // initAtlasSprites is called by dispatcher on resource reload; call if present.
-            try {
-                java.lang.reflect.Method init = BlockFluidRenderer.class
-                        .getDeclaredMethod("initAtlasSprites");
-                init.setAccessible(true);
-                init.invoke(cachedFluidRenderer);
-            } catch (Throwable ignored) {
-            }
-            return cachedFluidRenderer;
-        } catch (Throwable t) {
-            return null;
-        }
-    }
-
+    /**
+     * Optional WorldLast fallback. Normal operation renders through the
+     * compiled chunk layer; this path is retained only for diagnostics.
+     */
     public static void render(float partialTicks) {
         Minecraft mc = Minecraft.getMinecraft();
         World world = mc.world;
@@ -102,20 +62,12 @@ public final class WaterloggedFluidRenderer {
         int originChunkX = MathHelper.floor(camX) >> 4;
         int originChunkZ = MathHelper.floor(camZ) >> 4;
         int dimension = world.provider.getDimension();
-
-        BlockFluidRenderer fluidRenderer = resolveFluidRenderer(mc);
-        if (fluidRenderer == null) {
-            return;
-        }
-
         FluidViewAccess access = new FluidViewAccess(world);
 
         mc.getTextureManager().bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
-
         GlStateManager.pushMatrix();
         GlStateManager.translate(-camX, -camY, -camZ);
         GlStateManager.enableBlend();
-        GlStateManager.disableAlpha();
         GlStateManager.tryBlendFuncSeparate(
                 GlStateManager.SourceFactor.SRC_ALPHA,
                 GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA,
@@ -124,14 +76,12 @@ public final class WaterloggedFluidRenderer {
         GlStateManager.enableCull();
         GlStateManager.enableDepth();
         GlStateManager.depthMask(false);
-        GlStateManager.enablePolygonOffset();
-        GlStateManager.doPolygonOffset(-1.0F, -10.0F);
 
         Tessellator tessellator = Tessellator.getInstance();
         BufferBuilder buffer = tessellator.getBuffer();
         buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.BLOCK);
-
         boolean wrote = false;
+
         for (int cx = originChunkX - CHUNK_RADIUS; cx <= originChunkX + CHUNK_RADIUS; cx++) {
             for (int cz = originChunkZ - CHUNK_RADIUS; cz <= originChunkZ + CHUNK_RADIUS; cz++) {
                 Map<Long, FluidStateBridge> states =
@@ -140,40 +90,28 @@ public final class WaterloggedFluidRenderer {
                     continue;
                 }
                 for (Map.Entry<Long, FluidStateBridge> entry : states.entrySet()) {
-                    if (entry.getKey() == null || entry.getValue() == null) {
-                        continue;
-                    }
-                    if (entry.getValue().getKind() != FluidStateBridge.FluidKind.WATER) {
+                    FluidStateBridge fluid = entry.getValue();
+                    if (entry.getKey() == null || fluid == null
+                            || fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
                         continue;
                     }
                     BlockPos pos = BlockPos.fromLong(entry.getKey().longValue());
                     double dx = pos.getX() + 0.5D - camX;
                     double dy = pos.getY() + 0.5D - camY;
                     double dz = pos.getZ() + 0.5D - camZ;
-                    if (dx * dx + dy * dy + dz * dz > RENDER_DISTANCE_SQ) {
-                        continue;
-                    }
-                    if (!world.isBlockLoaded(pos)) {
+                    if (dx * dx + dy * dy + dz * dz > RENDER_DISTANCE_SQ
+                            || !world.isBlockLoaded(pos)) {
                         continue;
                     }
 
-                    IBlockState host = world.getBlockState(pos);
+                    IBlockState host = access.getOriginalBlockState(pos);
                     if (host.getBlock() instanceof BlockSlab
                             && ((BlockSlab) host.getBlock()).isDouble()) {
                         continue;
                     }
-
-                    IBlockState fluidState = access.getBlockState(pos);
-                    if (!(fluidState.getBlock() instanceof BlockLiquid)) {
-                        fluidState = Blocks.WATER.getDefaultState();
-                    }
-
-                    try {
-                        if (fluidRenderer.renderFluid(access, fluidState, pos, buffer)) {
-                            wrote = true;
-                        }
-                    } catch (Throwable ignored) {
-                    }
+                    int before = buffer.getVertexCount();
+                    WaterloggedChunkMesher.tessellate(access, host, pos, fluid, buffer);
+                    wrote |= buffer.getVertexCount() > before;
                 }
             }
         }
@@ -183,10 +121,7 @@ public final class WaterloggedFluidRenderer {
         } else {
             buffer.finishDrawing();
         }
-
-        GlStateManager.disablePolygonOffset();
         GlStateManager.depthMask(true);
-        GlStateManager.enableAlpha();
         GlStateManager.disableBlend();
         GlStateManager.popMatrix();
     }
@@ -197,43 +132,34 @@ public final class WaterloggedFluidRenderer {
         if (world == null) {
             return false;
         }
-        return renderIntoChunk(buffer, new FluidViewAccess(world), pos, fluid);
+        return renderIntoChunk(buffer, new FluidViewAccess(world), host, pos, fluid);
     }
 
     /**
-     * Chunk rebuild overload: use the immutable ChunkCache snapshot supplied
-     * by RenderChunk, not the live World. This keeps neighbor visibility and
-     * lighting consistent with the block mesh being compiled.
+     * Chunk rebuild overload. The original host state is kept separate from
+     * the virtual fluid view so the renderer can clip water against the
+     * actual waterloggable block shape.
      */
     public static boolean renderIntoChunk(BufferBuilder buffer, IBlockAccess access,
                                           BlockPos pos, FluidStateBridge fluid) {
-        if (buffer == null || access == null || pos == null || fluid == null
-                || fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
+        if (access == null || pos == null) {
             return false;
         }
-        try {
-            Minecraft mc = Minecraft.getMinecraft();
-            BlockRendererDispatcher dispatcher = mc.getBlockRendererDispatcher();
+        IBlockState host = access instanceof FluidViewAccess
+                ? ((FluidViewAccess) access).getOriginalBlockState(pos)
+                : access.getBlockState(pos);
+        return renderIntoChunk(buffer, access, host, pos, fluid);
+    }
 
-            IBlockState fluidState = access.getBlockState(pos);
-            if (!(fluidState.getBlock() instanceof BlockLiquid)) {
-                fluidState = Blocks.WATER.getDefaultState();
-            }
-
-            // Fluidlogged-API renders stored FluidStates via
-            // BlockRendererDispatcher.renderBlock(), not by manually
-            // tessellating a host-specific cube. This preserves Forge/OptiFine
-            // fluid render hooks and uses the ordinary BlockLiquid model path.
-            // Keep the current layer explicit while the dispatcher runs.
-            BlockRenderLayer previousLayer = MinecraftForgeClient.getRenderLayer();
-            ForgeHooksClient.setRenderLayer(BlockRenderLayer.TRANSLUCENT);
-            try {
-                return dispatcher.renderBlock(fluidState, pos, access, buffer);
-            } finally {
-                ForgeHooksClient.setRenderLayer(previousLayer);
-            }
-        } catch (Throwable error) {
+    public static boolean renderIntoChunk(BufferBuilder buffer, IBlockAccess access,
+                                          IBlockState host, BlockPos pos,
+                                          FluidStateBridge fluid) {
+        if (buffer == null || access == null || host == null || pos == null
+                || fluid == null || fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
             return false;
         }
+        int before = buffer.getVertexCount();
+        WaterloggedChunkMesher.tessellate(access, host, pos, fluid, buffer);
+        return buffer.getVertexCount() > before;
     }
 }
