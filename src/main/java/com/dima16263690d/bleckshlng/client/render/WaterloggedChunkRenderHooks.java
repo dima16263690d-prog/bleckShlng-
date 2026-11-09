@@ -5,6 +5,9 @@ import java.lang.reflect.Method;
 import java.util.Map;
 
 import net.minecraft.client.renderer.BufferBuilder;
+import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
+import net.minecraft.client.renderer.RegionRenderCacheBuilder;
+import net.minecraft.client.renderer.chunk.ChunkCompileTaskGenerator;
 import net.minecraft.client.renderer.chunk.CompiledChunk;
 import net.minecraft.client.renderer.chunk.RenderChunk;
 import net.minecraft.util.BlockRenderLayer;
@@ -34,8 +37,6 @@ public final class WaterloggedChunkRenderHooks {
     private static volatile Field chunkCacheField;
     private static volatile boolean cacheFieldResolved;
     private static volatile boolean warned;
-    private static final ThreadLocal<Boolean> WATERLOGGED_REBUILD_ACTIVE =
-            new ThreadLocal<Boolean>();
 
     private static volatile Method compiledChunkSetLayerUsed;
     private static volatile boolean compiledChunkMethodResolved;
@@ -64,28 +65,6 @@ public final class WaterloggedChunkRenderHooks {
             }
             return false;
         }
-    }
-
-    /**
-     * Marks the current chunk-compile worker while it is rebuilding a chunk
-     * with waterlogged states. Transparency resort tasks must not append the
-     * same sidecar quads a second time.
-     */
-    public static boolean beginWaterloggedRebuild(RenderChunk renderChunk) {
-        WATERLOGGED_REBUILD_ACTIVE.remove();
-        if (!hasWaterloggedFluid(renderChunk)) {
-            return false;
-        }
-        WATERLOGGED_REBUILD_ACTIVE.set(Boolean.TRUE);
-        return true;
-    }
-
-    public static boolean isWaterloggedRebuildActive() {
-        return Boolean.TRUE.equals(WATERLOGGED_REBUILD_ACTIVE.get());
-    }
-
-    public static void endWaterloggedRebuild() {
-        WATERLOGGED_REBUILD_ACTIVE.remove();
     }
 
     /**
@@ -137,6 +116,76 @@ public final class WaterloggedChunkRenderHooks {
             }
             compiledChunkMethodResolved = true;
             return compiledChunkSetLayerUsed;
+        }
+    }
+
+    /**
+     * Fallback for a waterlogged-only chunk. Vanilla never starts a render
+     * layer if no ordinary block belongs to it. At rebuild RETURN all vanilla
+     * layers are finalized, so an unused translucent builder can be opened,
+     * filled, sorted and finalized exactly once before the worker uploads it.
+     *
+     * If vanilla already started TRANSLUCENT, postRenderBlocks has handled the
+     * fluid; this method deliberately does nothing.
+     */
+    public static void renderMissingTranslucentLayer(
+            RenderChunk renderChunk,
+            ChunkCompileTaskGenerator generator,
+            float cameraX,
+            float cameraY,
+            float cameraZ) {
+        if (renderChunk == null || generator == null
+                || generator.getType() != ChunkCompileTaskGenerator.Type.REBUILD_CHUNK
+                || generator.getStatus() != ChunkCompileTaskGenerator.Status.COMPILING
+                || !hasWaterloggedFluid(renderChunk)) {
+            return;
+        }
+
+        CompiledChunk compiledChunk = generator.getCompiledChunk();
+        BlockRenderLayer layer = BlockRenderLayer.TRANSLUCENT;
+        if (compiledChunk == null || compiledChunk.isLayerStarted(layer)) {
+            return;
+        }
+
+        RegionRenderCacheBuilder cacheBuilder = generator.getRegionRenderCacheBuilder();
+        if (cacheBuilder == null) {
+            return;
+        }
+
+        BufferBuilder buffer = cacheBuilder.getWorldRendererByLayer(layer);
+        if (buffer == null) {
+            return;
+        }
+
+        BlockPos origin = renderChunk.getPosition();
+        boolean began = false;
+        try {
+            // begin() is deliberately inside the guarded block. A third-party
+            // renderer that left this builder open must not crash the client.
+            buffer.begin(7, DefaultVertexFormats.BLOCK);
+            began = true;
+            buffer.setTranslation(-origin.getX(), -origin.getY(), -origin.getZ());
+
+            if (!renderTranslucentLayer(renderChunk, layer, buffer)) {
+                return;
+            }
+
+            compiledChunk.setLayerStarted(layer);
+            markLayerUsed(compiledChunk, layer);
+            buffer.sortVertexData(cameraX, cameraY, cameraZ);
+            compiledChunk.setState(buffer.getVertexState());
+        } catch (Throwable error) {
+            LOGGER.error("Could not append waterlogged-only translucent layer for chunk {}",
+                    origin, error);
+        } finally {
+            if (began) {
+                try {
+                    buffer.finishDrawing();
+                } catch (Throwable finishError) {
+                    LOGGER.error("Could not finish waterlogged translucent layer for chunk {}",
+                            origin, finishError);
+                }
+            }
         }
     }
 
