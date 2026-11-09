@@ -524,20 +524,23 @@ public final class WaterloggedChunkMesher {
         double px;
         double pz;
         switch (face) {
+            // Match LiquidBlockRenderer 1.18.2: move each vertical face
+            // 0.001 blocks into the fluid cell to prevent z-fighting with
+            // the neighboring block's side plane.
             case NORTH:
                 px = x + u;
-                pz = z;
+                pz = z + 0.001D;
                 break;
             case SOUTH:
                 px = x + u;
-                pz = z + 1.0D;
+                pz = z + 1.0D - 0.001D;
                 break;
             case WEST:
-                px = x;
+                px = x + 0.001D;
                 pz = z + u;
                 break;
             case EAST:
-                px = x + 1.0D;
+                px = x + 1.0D - 0.001D;
                 pz = z + u;
                 break;
             default:
