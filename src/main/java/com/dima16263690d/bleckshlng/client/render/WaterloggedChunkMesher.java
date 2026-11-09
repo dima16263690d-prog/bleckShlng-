@@ -16,7 +16,6 @@ import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.init.Blocks;
 import net.minecraft.util.EnumFacing;
-import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -422,32 +421,6 @@ public final class WaterloggedChunkMesher {
                 target.add(new SideOcclusionRect(
                         rectangle.getMinU(), rectangle.getMaxU(), minV, maxV));
             }
-        }
-    }
-
-    /**
-     * The old BlockState#canOcclude adapter now consults an independent
-     * face-occlusion shape, never the block collision shape.
-     */
-    private static boolean canOccludeFluidFace(IBlockAccess access, BlockPos pos,
-                                               IBlockState state, EnumFacing face) {
-        World world = access instanceof FluidViewAccess
-                ? ((FluidViewAccess) access).getWorld()
-                : (access instanceof World ? (World) access : null);
-        return !FluidOcclusionShapeAdapter.getFaceShape(
-                access, world, pos, state, face).isEmpty();
-    }
-
-    private static boolean touchesFace(AxisAlignedBB box, BlockPos pos, EnumFacing face) {
-        final double epsilon = 1.0E-5D;
-        switch (face) {
-            case DOWN: return box.minY <= pos.getY() + epsilon;
-            case UP: return box.maxY >= pos.getY() + 1.0D - epsilon;
-            case NORTH: return box.minZ <= pos.getZ() + epsilon;
-            case SOUTH: return box.maxZ >= pos.getZ() + 1.0D - epsilon;
-            case WEST: return box.minX <= pos.getX() + epsilon;
-            case EAST: return box.maxX >= pos.getX() + 1.0D - epsilon;
-            default: return false;
         }
     }
 
