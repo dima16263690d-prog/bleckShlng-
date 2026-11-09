@@ -177,6 +177,36 @@ public final class FluidCoreHooks {
      * runs the dedicated fire-propagation routine here. Scheduled flow updates
      * continue through tryUpdateDynamicLiquid().
      */
+    /**
+     * In 1.18.2 both source and flowing lava are randomly ticking FluidStates.
+     * 1.12.2 marks only BlockStaticLiquid lava as random-ticking, so enable the
+     * same flag for the vanilla flowing-lava block. The Block#randomTick
+     * transformer then routes those ticks to LavaRandomTickHandler.
+     */
+    public static void enableFlowingLavaRandomTicks() {
+        try {
+            java.lang.reflect.Method setter = null;
+            String[] names = {"setTickRandomly", "func_149675_a"};
+            for (String name : names) {
+                try {
+                    setter = net.minecraft.block.Block.class.getDeclaredMethod(
+                            name, Boolean.TYPE);
+                    break;
+                } catch (NoSuchMethodException ignored) {
+                    // Try the MCP/SRG method name for the active runtime.
+                }
+            }
+            if (setter == null) {
+                throw new NoSuchMethodException("Block#setTickRandomly(boolean)");
+            }
+            setter.setAccessible(true);
+            setter.invoke(Blocks.FLOWING_LAVA, Boolean.TRUE);
+            LOGGER.info("Enabled 1.18.2-style random ticks for flowing lava");
+        } catch (Throwable error) {
+            LOGGER.error("Could not enable random ticks for flowing lava", error);
+        }
+    }
+
     public static boolean tryRandomTickDynamicLiquid(
             net.minecraft.block.Block block, World world, BlockPos pos,
             IBlockState state, Random random) {
