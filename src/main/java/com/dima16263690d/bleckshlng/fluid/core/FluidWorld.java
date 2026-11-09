@@ -14,6 +14,7 @@ public interface FluidWorld {
     boolean blocksMotion(FluidPos pos);
     boolean isSolidMaterial(FluidPos pos);
     boolean isAir(FluidPos pos);
+    boolean isSolidRender(FluidPos pos);
     boolean isIce(FluidPos pos);
     boolean isFaceSturdy(FluidPos pos, FluidDirection face);
 
