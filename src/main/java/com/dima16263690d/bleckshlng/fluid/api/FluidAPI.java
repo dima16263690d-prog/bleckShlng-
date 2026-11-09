@@ -80,6 +80,23 @@ public final class FluidAPI {
         return ModernFluidEngine.randomTick(world, pos, random);
     }
 
+    /** Plays the pickup cue defined by the modern fluid type. */
+    public static boolean playPickupSound(World world, BlockPos pos, Fluid fluid) {
+        if (world == null || pos == null || fluid == null
+                || !world.isBlockLoaded(pos)) {
+            return false;
+        }
+        com.dima16263690d.bleckshlng.fluid.core.FluidSound sound =
+                fluid.getPickupSound();
+        if (sound == null) {
+            return false;
+        }
+        new Minecraft112FluidWorldAdapter(world).playSound(
+                sound, pos.getX() + 0.5D, pos.getY() + 0.5D,
+                pos.getZ() + 0.5D, 1.0F, 1.0F);
+        return true;
+    }
+
     public static boolean animateTick(World world, BlockPos pos, Random random) {
         return ModernFluidEngine.animateTick(world, pos, random);
     }
