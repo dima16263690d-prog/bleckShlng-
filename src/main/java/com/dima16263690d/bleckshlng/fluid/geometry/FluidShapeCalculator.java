@@ -126,6 +126,79 @@ public final class FluidShapeCalculator {
     }
 
     /**
+     * Tests whether collision geometry completely covers a horizontal face
+     * rectangle between minHeight and maxHeight. This is used by the fluid
+     * renderer to avoid drawing water through slab/stair side faces.
+     */
+    public static boolean isFaceRectangleCovered(World world, BlockPos pos,
+                                                  IBlockState state, EnumFacing face,
+                                                  float minHeight, float maxHeight) {
+        if (world == null || pos == null || state == null
+                || face == null || face.getAxis() == EnumFacing.Axis.Y
+                || !world.isBlockLoaded(pos)) {
+            return false;
+        }
+        double low = Math.max(0.0D, Math.min(1.0D, minHeight));
+        double high = Math.max(low, Math.min(1.0D, maxHeight));
+        if (high - low <= EPSILON) {
+            return true;
+        }
+
+        List<AxisAlignedBB> boxes = getCollisionBoxes(world, pos, state);
+        TreeSet<Double> uEdges = new TreeSet<Double>();
+        TreeSet<Double> vEdges = new TreeSet<Double>();
+        uEdges.add(Double.valueOf(0.0D));
+        uEdges.add(Double.valueOf(1.0D));
+        vEdges.add(Double.valueOf(low));
+        vEdges.add(Double.valueOf(high));
+
+        for (AxisAlignedBB box : boxes) {
+            if (!touchesFace(box, pos, face)) {
+                continue;
+            }
+            double minU;
+            double maxU;
+            double minV;
+            double maxV;
+            if (face.getAxis() == EnumFacing.Axis.Z) {
+                minU = box.minX - pos.getX();
+                maxU = box.maxX - pos.getX();
+                minV = box.minY - pos.getY();
+                maxV = box.maxY - pos.getY();
+            } else {
+                minU = box.minZ - pos.getZ();
+                maxU = box.maxZ - pos.getZ();
+                minV = box.minY - pos.getY();
+                maxV = box.maxY - pos.getY();
+            }
+            addClippedEdge(uEdges, minU);
+            addClippedEdge(uEdges, maxU);
+            if (maxV > low + EPSILON && minV < high - EPSILON) {
+                vEdges.add(Double.valueOf(Math.max(low, Math.min(high, minV))));
+                vEdges.add(Double.valueOf(Math.max(low, Math.min(high, maxV))));
+            }
+        }
+
+        List<Double> us = new ArrayList<Double>(uEdges);
+        List<Double> vs = new ArrayList<Double>(vEdges);
+        for (int i = 0; i + 1 < us.size(); i++) {
+            double u0 = us.get(i).doubleValue();
+            double u1 = us.get(i + 1).doubleValue();
+            if (u1 - u0 <= EPSILON) continue;
+            for (int j = 0; j + 1 < vs.size(); j++) {
+                double v0 = vs.get(j).doubleValue();
+                double v1 = vs.get(j + 1).doubleValue();
+                if (v1 - v0 <= EPSILON) continue;
+                if (!facePointCovered(boxes, pos, face,
+                        (u0 + u1) * 0.5D, (v0 + v1) * 0.5D)) {
+                    return false;
+                }
+            }
+        }
+        return !boxes.isEmpty();
+    }
+
+    /**
      * Whether fluid can cross the shared face between pos and the neighbour.
      * Uses IBlockState.isSideSolid (1.12.2 equivalent of non-SOLID face shape).
      * Half slabs open the empty half and all horizontal sides to water.
