@@ -9,7 +9,10 @@ import java.util.TreeSet;
 
 import net.minecraft.block.BlockLiquid;
 import net.minecraft.block.BlockSlab;
+import net.minecraft.block.BlockStairs;
+import net.minecraft.block.BlockTrapDoor;
 import net.minecraft.block.material.Material;
+import net.minecraft.block.state.BlockFaceShape;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BufferBuilder;
@@ -188,15 +191,15 @@ public final class WaterloggedChunkMesher {
             World world = ((FluidViewAccess) access).getWorld();
             if (world != null && world.isBlockLoaded(abovePos)) {
                 IBlockState above = world.getBlockState(abovePos);
-                topOccluded = canOccludeFluidFace(above)
+                topOccluded = canOccludeFluidFace(world, abovePos, above, EnumFacing.DOWN)
                         && FluidShapeCalculator.isFaceFullyCovered(
                         world, abovePos, above, EnumFacing.DOWN);
             } else {
-                topOccluded = canOccludeFluidFace(aboveState)
+                topOccluded = canOccludeFluidFace(access, abovePos, aboveState, EnumFacing.DOWN)
                         && aboveState.isSideSolid(access, abovePos, EnumFacing.DOWN);
             }
         } else {
-            topOccluded = canOccludeFluidFace(aboveState)
+            topOccluded = canOccludeFluidFace(access, abovePos, aboveState, EnumFacing.DOWN)
                     && aboveState.isSideSolid(access, abovePos, EnumFacing.DOWN);
         }
         boolean sameFluidAbove = isSameFluid(access, pos.up(), fluid.getKind());
@@ -230,15 +233,15 @@ public final class WaterloggedChunkMesher {
             World world = ((FluidViewAccess) access).getWorld();
             if (world != null && world.isBlockLoaded(belowPos)) {
                 IBlockState below = world.getBlockState(belowPos);
-                bottomOccluded = canOccludeFluidFace(below)
+                bottomOccluded = canOccludeFluidFace(world, belowPos, below, EnumFacing.UP)
                         && FluidShapeCalculator.isFaceFullyCovered(
                         world, belowPos, below, EnumFacing.UP);
             } else {
-                bottomOccluded = canOccludeFluidFace(belowState)
+                bottomOccluded = canOccludeFluidFace(access, belowPos, belowState, EnumFacing.UP)
                         && belowState.isSideSolid(access, belowPos, EnumFacing.UP);
             }
         } else {
-            bottomOccluded = canOccludeFluidFace(belowState)
+            bottomOccluded = canOccludeFluidFace(access, belowPos, belowState, EnumFacing.UP)
                     && belowState.isSideSolid(access, belowPos, EnumFacing.UP);
         }
 
@@ -378,7 +381,8 @@ public final class WaterloggedChunkMesher {
             addSideOcclusions(result,
                     FluidShapeCalculator.getCollisionBoxes(world, pos, host),
                     pos, pos, face, minY);
-            if (!preserveNeighborOverlay && canOccludeFluidFace(neighborShape)) {
+            if (!preserveNeighborOverlay && canOccludeFluidFace(
+                    world, neighborPos, neighborShape, face.getOpposite())) {
                 addSideOcclusions(result,
                         FluidShapeCalculator.getCollisionBoxes(world, neighborPos, neighborShape),
                         neighborPos, pos, face.getOpposite(), minY);
@@ -391,7 +395,8 @@ public final class WaterloggedChunkMesher {
         if (host.isSideSolid(access, pos, face)) {
             result.add(new SideOcclusionRect(0.0D, 1.0D, minY, 1.0D));
         }
-        if (!preserveNeighborOverlay && canOccludeFluidFace(neighbor)
+        if (!preserveNeighborOverlay
+                && canOccludeFluidFace(access, neighborPos, neighbor, face.getOpposite())
                 && neighbor.isSideSolid(access, neighborPos, face.getOpposite())) {
             result.add(new SideOcclusionRect(0.0D, 1.0D, minY, 1.0D));
         }
@@ -433,18 +438,34 @@ public final class WaterloggedChunkMesher {
     }
 
     /**
-     * 1.18.2 BlockState#canOcclude approximation for legacy blocks.
-     * Glass, ice and leaves render as translucent/half-transparent surfaces:
-     * their collision box must not erase adjacent liquid quads.
+     * Approximation of 1.18.2 BlockState#canOcclude for the legacy 1.12.2
+     * block API. Forge's BlockFaceShape exposes full and partial face forms;
+     * the collision boxes are then used to clip the actual visible rectangle.
+     *
+     * UNDEFINED faces do not occlude. Partial legacy shapes that report
+     * UNDEFINED for a side (slabs, stairs and trapdoors) are retained because
+     * their collision boxes still describe the visible solid part. Glass,
+     * ice and leaves remain transparent to liquid faces as in
+     * LiquidBlockRenderer's HalfTransparentBlock/LeavesBlock handling.
      */
-    private static boolean canOccludeFluidFace(IBlockState state) {
-        if (state == null
+    private static boolean canOccludeFluidFace(IBlockAccess access, BlockPos pos,
+                                               IBlockState state, EnumFacing face) {
+        if (access == null || pos == null || state == null || face == null
                 || state.getBlock() instanceof net.minecraft.block.BlockLeaves
                 || state.getMaterial() == Material.GLASS
                 || state.getMaterial() == Material.ICE) {
             return false;
         }
-        return state.getMaterial().isSolid();
+
+        BlockFaceShape shape = state.getBlockFaceShape(access, pos, face);
+        if (shape != BlockFaceShape.UNDEFINED) {
+            return true;
+        }
+
+        return state.isOpaqueCube()
+                || state.getBlock() instanceof BlockSlab
+                || state.getBlock() instanceof BlockStairs
+                || state.getBlock() instanceof BlockTrapDoor;
     }
 
     private static boolean touchesFace(AxisAlignedBB box, BlockPos pos, EnumFacing face) {
