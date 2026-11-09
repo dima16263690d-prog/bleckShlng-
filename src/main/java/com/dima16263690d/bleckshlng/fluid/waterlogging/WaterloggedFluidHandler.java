@@ -47,8 +47,10 @@ public final class WaterloggedFluidHandler {
                 data.putWater(pos, stored);
             }
             FluidNetwork.syncState(world, pos, stored);
+            // Placement only records the source and schedules its first
+            // fluid tick. Immediate spreading here duplicated the scheduled
+            // update and caused waterlogged blocks to fan out too early.
             FluidTickScheduler.schedule(world, pos, 1);
-            FluidFlowEngine.spreadWaterloggedSource(world, pos);
             return true;
         }
 
@@ -65,7 +67,6 @@ public final class WaterloggedFluidHandler {
         FluidShapeCalculator.invalidate(world, pos);
         FluidNetwork.syncState(world, pos, stored);
         FluidTickScheduler.schedule(world, pos, 1);
-        FluidFlowEngine.spreadWaterloggedSource(world, pos);
         world.notifyNeighborsOfStateChange(pos, blockState.getBlock(), false);
         return true;
     }
