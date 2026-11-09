@@ -17,6 +17,7 @@ import net.minecraft.world.World;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
+import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 import com.dima16263690d.bleckshlng.fluid.network.ClientFluidStateCache;
 import com.dima16263690d.bleckshlng.fluid.state.FluidHeightCalculator;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
@@ -143,12 +144,30 @@ public final class WaterloggedChunkMesher {
         boolean flowingSurface = flowX * flowX + flowZ * flowZ > 1.0E-4F;
         TextureAtlasSprite topSprite = flowingSurface ? flow : still;
 
-        if (!topSlabHost && !isSameFluid(access, pos.up())) {
+        boolean topOccluded = false;
+        if (access instanceof FluidViewAccess) {
+            World world = ((FluidViewAccess) access).getWorld();
+            if (world != null && world.isBlockLoaded(pos.up())) {
+                IBlockState above = world.getBlockState(pos.up());
+                topOccluded = FluidShapeCalculator.isFaceFullyCovered(
+                        world, pos.up(), above, EnumFacing.DOWN);
+            }
+        }
+        if (!topSlabHost && !topOccluded && !isSameFluid(access, pos.up())) {
             topQuad(buffer, x, y, z, hNW, hNE, hSE, hSW,
                     topSprite, flowX, flowZ, flowingSurface, r, g, b, a, sky, block);
         }
 
-        if (minY <= 0.001F && !isSameFluid(access, pos.down())) {
+        boolean bottomOccluded = false;
+        if (access instanceof FluidViewAccess) {
+            World world = ((FluidViewAccess) access).getWorld();
+            if (world != null && world.isBlockLoaded(pos.down())) {
+                IBlockState below = world.getBlockState(pos.down());
+                bottomOccluded = FluidShapeCalculator.isFaceFullyCovered(
+                        world, pos.down(), below, EnumFacing.UP);
+            }
+        }
+        if (minY <= 0.001F && !bottomOccluded && !isSameFluid(access, pos.down())) {
             double yy = y + minY;
             int bottomLight = access.getCombinedLight(pos.down(), 0);
             vert(buffer, x + 0, yy, z + 1, still.getMinU(), still.getMaxV(),
@@ -165,13 +184,14 @@ public final class WaterloggedChunkMesher {
                     bottomLight >> 16 & 65535, bottomLight & 65535);
         }
 
-        side(buffer, access, pos, EnumFacing.NORTH, x, y, z, hNW, hNE, minY, flow, r, g, b, a);
-        side(buffer, access, pos, EnumFacing.SOUTH, x, y, z, hSW, hSE, minY, flow, r, g, b, a);
-        side(buffer, access, pos, EnumFacing.WEST, x, y, z, hNW, hSW, minY, flow, r, g, b, a);
-        side(buffer, access, pos, EnumFacing.EAST, x, y, z, hNE, hSE, minY, flow, r, g, b, a);
+        side(buffer, access, host, pos, EnumFacing.NORTH, x, y, z, hNW, hNE, minY, flow, r, g, b, a);
+        side(buffer, access, host, pos, EnumFacing.SOUTH, x, y, z, hSW, hSE, minY, flow, r, g, b, a);
+        side(buffer, access, host, pos, EnumFacing.WEST, x, y, z, hNW, hSW, minY, flow, r, g, b, a);
+        side(buffer, access, host, pos, EnumFacing.EAST, x, y, z, hNE, hSE, minY, flow, r, g, b, a);
     }
 
-    private static void side(BufferBuilder buffer, IBlockAccess access, BlockPos pos,
+    private static void side(BufferBuilder buffer, IBlockAccess access,
+                             IBlockState host, BlockPos pos,
                              EnumFacing face, double x, double y, double z,
                              float h0, float h1, float minY, TextureAtlasSprite sprite,
                              int r, int g, int b, int a) {
@@ -180,6 +200,25 @@ public final class WaterloggedChunkMesher {
         }
         if (h0 <= minY && h1 <= minY) {
             return;
+        }
+        if (access instanceof FluidViewAccess) {
+            World world = ((FluidViewAccess) access).getWorld();
+            if (world != null && world.isBlockLoaded(pos)) {
+                float maxHeight = Math.max(h0, h1);
+                if (FluidShapeCalculator.isFaceRectangleCovered(
+                        world, pos, host, face, minY, maxHeight)) {
+                    return;
+                }
+                BlockPos neighborPos = pos.offset(face);
+                if (world.isBlockLoaded(neighborPos)) {
+                    IBlockState neighbor = world.getBlockState(neighborPos);
+                    if (FluidShapeCalculator.isFaceRectangleCovered(
+                            world, neighborPos, neighbor, face.getOpposite(),
+                            minY, maxHeight)) {
+                        return;
+                    }
+                }
+            }
         }
         float u0 = sprite.getMinU();
         float u1 = sprite.getMaxU();
