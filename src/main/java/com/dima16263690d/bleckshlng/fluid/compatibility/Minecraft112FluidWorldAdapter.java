@@ -98,6 +98,11 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
     }
 
     @Override
+    public boolean isSolidRender(FluidPos pos) {
+        return isLoaded(pos) && world.getBlockState(toBlockPos(pos)).isOpaqueCube();
+    }
+
+    @Override
     public boolean isIce(FluidPos pos) {
         return isLoaded(pos) && world.getBlockState(toBlockPos(pos))
                 .getMaterial() == Material.ICE;
