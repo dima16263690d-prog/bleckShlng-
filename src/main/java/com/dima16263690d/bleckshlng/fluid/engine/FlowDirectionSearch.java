@@ -83,8 +83,8 @@ public final class FlowDirectionSearch {
         if (existingFluid != null && existingFluid.getKind() == expectedKind) {
             return true;
         }
-        return FluidSpreadEngine.canFlowInto(
-                world, below, state, fluidMaterial, EnumFacing.DOWN);
+        return com.dima16263690d.bleckshlng.fluid.geometry.BlockGeometryAdapter
+                .canHoldFluid(world, below, state, fluidMaterial);
     }
 
     private static boolean canRouteThrough(World world, BlockPos pos,
