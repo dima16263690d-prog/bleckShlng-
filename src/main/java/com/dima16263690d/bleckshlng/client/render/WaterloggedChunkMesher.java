@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.lang.reflect.Method;
 import java.util.TreeSet;
 
 import net.minecraft.block.BlockLiquid;
@@ -210,7 +211,7 @@ public final class WaterloggedChunkMesher {
             // Forge 1.12.2 requires setSprite() for each sprite written
             // into a chunk BufferBuilder. UVs alone are insufficient for
             // animated/multi-texture chunk tracking.
-            buffer.setSprite(topSprite);
+            setSprite(buffer, topSprite);
             topQuad(buffer, x, y, z, hNW, hNE, hSE, hSW,
                     topSprite, flowX, flowZ, flowingSurface, r, g, b, a, sky, block, false);
             if (shouldRenderBackwardTopFace(access, abovePos, fluid.getKind())) {
@@ -250,7 +251,7 @@ public final class WaterloggedChunkMesher {
             sideMinY = Math.max(sideMinY, 0.001F);
             double yy = y + sideMinY;
             int[] bottomLight = getFluidLight(access, belowPos);
-            buffer.setSprite(still);
+            setSprite(buffer, still);
             vert(buffer, x + 0, yy, z + 1, still.getMinU(), still.getMaxV(),
                     shade(r, 0.5F), shade(g, 0.5F), shade(b, 0.5F), a,
                     bottomLight[0], bottomLight[1]);
@@ -271,7 +272,35 @@ public final class WaterloggedChunkMesher {
         side(buffer, access, host, pos, EnumFacing.EAST, x, y, z, hNE, hSE, sideMinY, flow, r, g, b, a, fluid.getKind());
 
         // BlockFluidRenderer 1.12.2 clears the active sprite after each liquid.
-        buffer.setSprite((TextureAtlasSprite) null);
+        setSprite(buffer, null);
+    }
+
+
+    /**
+     * OptiFine adds BufferBuilder#setSprite for animated/multi-texture tracking.
+     * The stock Forge 1.12.2 BufferBuilder does not expose that method, so keep
+     * the renderer compatible with both environments without a hard dependency.
+     * In vanilla Forge the atlas UV coordinates are sufficient for rendering.
+     */
+    private static final Method BUFFER_SET_SPRITE = findBufferSetSprite();
+
+    private static Method findBufferSetSprite() {
+        try {
+            return BufferBuilder.class.getMethod("setSprite", TextureAtlasSprite.class);
+        } catch (NoSuchMethodException ignored) {
+            return null;
+        }
+    }
+
+    private static void setSprite(BufferBuilder buffer, TextureAtlasSprite sprite) {
+        if (BUFFER_SET_SPRITE == null) {
+            return;
+        }
+        try {
+            BUFFER_SET_SPRITE.invoke(buffer, sprite);
+        } catch (ReflectiveOperationException ignored) {
+            // Sprite tracking is an optional OptiFine optimization.
+        }
     }
 
     private static void side(BufferBuilder buffer, IBlockAccess access,
@@ -316,7 +345,7 @@ public final class WaterloggedChunkMesher {
 
         // Match vanilla BlockFluidRenderer: bind the sprite before
         // writing this face so Forge can track it in chunk buffers.
-        buffer.setSprite(sideSprite);
+        setSprite(buffer, sideSprite);
         emitClippedSide(buffer, face, x, y, z, h0, h1, minY,
                 sideSprite, occlusions, r, g, b, a, sky, block, shade, !overlay);
     }
