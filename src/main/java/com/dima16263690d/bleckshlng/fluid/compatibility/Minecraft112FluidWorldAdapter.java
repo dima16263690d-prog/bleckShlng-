@@ -19,18 +19,15 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 import com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData;
 import com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable;
-import com.dima16263690d.bleckshlng.fluid.waterlogging.WaterloggedFluidHandler;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockLiquid;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.SoundEvents;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumParticleTypes;
-import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -110,7 +107,7 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
         if (!isLoaded(pos)) {
             return true;
         }
-        LegacyBlockPos blockPos = toBlockPos(pos);
+        BlockPos blockPos = toBlockPos(pos);
         return world.getBlockState(blockPos).isSideSolid(
                 world, blockPos, toFacing(face));
     }
@@ -129,7 +126,7 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
         if (!isLoaded(target) || fluid == null) {
             return false;
         }
-        LegacyBlockPos blockPos = toBlockPos(target);
+        BlockPos blockPos = toBlockPos(target);
         IBlockState state = world.getBlockState(blockPos);
 
         // Do not take over third-party Forge fluid blocks.
@@ -138,6 +135,9 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
         }
 
         Material material = toMaterial(fluid);
+        if (state.getBlock() instanceof BlockLiquid) {
+            return true;
+        }
         if (material == Material.WATER
                 && WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
             return BlockGeometryAdapter.canHoldFluid(
@@ -153,7 +153,7 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
         if (!isLoaded(target) || incoming == null) {
             return false;
         }
-        LegacyBlockPos blockPos = toBlockPos(target);
+        BlockPos blockPos = toBlockPos(target);
         IBlockState state = world.getBlockState(blockPos);
         if (ForgeFluidCompatibility.isForgeFluidBlock(state)) {
             return false;
@@ -187,7 +187,7 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
             return;
         }
 
-        LegacyBlockPos blockPos = toBlockPos(pos);
+        BlockPos blockPos = toBlockPos(pos);
         IBlockState host = world.getBlockState(blockPos);
         if (state.getType().isSame(Fluids.WATER)
                 && WaterloggedBlockRegistry.canWaterlog(host.getBlock())
@@ -207,7 +207,7 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
             return;
         }
 
-        LegacyBlockPos blockPos = toBlockPos(pos);
+        BlockPos blockPos = toBlockPos(pos);
         IBlockState host = world.getBlockState(blockPos);
         if (world.isRemote) {
             return;
@@ -241,7 +241,7 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
             return;
         }
 
-        LegacyBlockPos blockPos = toBlockPos(target);
+        BlockPos blockPos = toBlockPos(target);
         IBlockState host = world.getBlockState(blockPos);
         Material incomingMaterial = toMaterial(incoming.getType());
 
@@ -338,7 +338,7 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
         if (!isLoaded(pos)) {
             return false;
         }
-        LegacyBlockPos blockPos = toBlockPos(pos);
+        BlockPos blockPos = toBlockPos(pos);
         IBlockState state = world.getBlockState(blockPos);
         return state.getBlock().isFlammable(
                 world, blockPos, EnumFacing.UP);
@@ -415,7 +415,7 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
         }
     }
 
-    private void storeWaterlogged(LegacyBlockPos pos, IBlockState host,
+    private void storeWaterlogged(BlockPos pos, IBlockState host,
                                   FluidState fluid) {
         if (world.isRemote) {
             return;
@@ -479,8 +479,8 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
                 ? Material.WATER : Material.LAVA;
     }
 
-    private static LegacyBlockPos toBlockPos(FluidPos pos) {
-        return new LegacyBlockPos(pos.getX(), pos.getY(), pos.getZ());
+    private static BlockPos toBlockPos(FluidPos pos) {
+        return new BlockPos(pos.getX(), pos.getY(), pos.getZ());
     }
 
     private static EnumFacing toFacing(FluidDirection direction) {
