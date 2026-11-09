@@ -12,14 +12,12 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.event.world.BlockEvent;
 import net.minecraftforge.event.world.ChunkEvent;
-import net.minecraftforge.event.world.ChunkWatchEvent;
 import net.minecraftforge.event.world.WorldEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.EventPriority;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 
-import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
 
 /**
  * Server-thread scheduler for fluid states stored inside ordinary blocks.
@@ -140,16 +138,7 @@ public final class FluidTickScheduler {
         }
     }
 
-    @SubscribeEvent
-    public static void onChunkWatch(ChunkWatchEvent.Watch event) {
-        net.minecraft.entity.player.EntityPlayerMP player = event.getPlayer();
-        net.minecraft.world.chunk.Chunk chunk = event.getChunkInstance();
-        World world = chunk == null ? null : chunk.getWorld();
-        if (chunk != null && world != null && player != null && !world.isRemote
-                && player.world.provider.getDimension() == world.provider.getDimension()) {
-            FluidNetwork.syncChunkToPlayer(world, chunk, player);
-        }
-    }
+
 
     /**
      * Fallback for player placement into an existing water block. The coremod
