@@ -20,16 +20,15 @@ public interface FluidWorld {
     /** Collision-shape face merge used by flow physics (not render occlusion). */
     boolean canPassThroughWall(FluidPos from, FluidDirection direction);
     boolean canHoldFluid(FluidPos target, Fluid fluid);
+
+    /** Platform-specific replacement gate (for Forge fluid containers, etc.). */
     boolean canReplaceFluid(FluidPos target, Fluid incoming, FluidDirection direction);
-    boolean canCreateFluidSource(FluidPos target);
+    boolean canCreateFluidSource(FluidPos target, Fluid fluid);
 
     void setFluidState(FluidPos pos, FluidState state);
     void removeFluid(FluidPos pos);
 
-    /**
-     * Places a new fluid state into a destination. The adapter handles native
-     * liquid blocks, fluid containers, block drops and water/lava reactions.
-     */
+    /** Places a state into a destination and owns legacy block/container integration. */
     void spreadFluidTo(FluidPos target, FluidState state, FluidDirection direction);
 
     void scheduleFluidTick(FluidPos pos, Fluid fluid, int delay);
