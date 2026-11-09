@@ -8,11 +8,7 @@ import java.lang.reflect.Method;
 import java.util.TreeSet;
 
 import net.minecraft.block.BlockLiquid;
-import net.minecraft.block.BlockSlab;
-import net.minecraft.block.BlockStairs;
-import net.minecraft.block.BlockTrapDoor;
 import net.minecraft.block.material.Material;
-import net.minecraft.block.state.BlockFaceShape;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BufferBuilder;
@@ -20,7 +16,6 @@ import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.init.Blocks;
 import net.minecraft.util.EnumFacing;
-import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -29,7 +24,6 @@ import net.minecraft.world.World;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
-import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 import com.dima16263690d.bleckshlng.fluid.network.ClientFluidStateCache;
 import com.dima16263690d.bleckshlng.fluid.core.FluidState;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
@@ -38,6 +32,9 @@ import com.dima16263690d.bleckshlng.fluid.core.FluidKind;
 import com.dima16263690d.bleckshlng.fluid.core.Fluids;
 import com.dima16263690d.bleckshlng.fluid.core.ModernFluidEngine;
 import com.dima16263690d.bleckshlng.fluid.core.FluidVector;
+import com.dima16263690d.bleckshlng.fluid.render.FluidOcclusionRect;
+import com.dima16263690d.bleckshlng.fluid.render.FluidOcclusionShape;
+import com.dima16263690d.bleckshlng.fluid.render.FluidOcclusionShapeAdapter;
 
 /**
  * Emits modern water/lava quads into the chunk BufferBuilder.
@@ -400,94 +397,65 @@ public final class WaterloggedChunkMesher {
             IBlockState neighborShape = access instanceof FluidViewAccess
                     ? ((FluidViewAccess) access).getOriginalBlockState(neighborPos)
                     : neighbor;
+
             addSideOcclusions(result,
-                    FluidShapeCalculator.getCollisionBoxes(world, pos, host),
-                    pos, pos, face, minY);
-            if (!preserveNeighborOverlay && canOccludeFluidFace(
-                    world, neighborPos, neighborShape, face.getOpposite())) {
+                    FluidOcclusionShapeAdapter.getFaceShape(
+                            access, world, pos, host, face), minY);
+
+            if (!preserveNeighborOverlay) {
                 addSideOcclusions(result,
-                        FluidShapeCalculator.getCollisionBoxes(world, neighborPos, neighborShape),
-                        neighborPos, pos, face.getOpposite(), minY);
+                        FluidOcclusionShapeAdapter.getFaceShape(
+                                access, world, neighborPos, neighborShape,
+                                face.getOpposite()), minY);
             }
             return result;
         }
 
-        // Safe fallback if chunk compilation has no World reference. Do not
-        // pretend a partial shape is a full cube unless the state says so.
-        if (host.isSideSolid(access, pos, face)) {
+        // No live World is available during an unusual chunk-rebuild context.
+        // Use the platform face contract only; do not substitute collision boxes.
+        if (host.getBlock().getBlockFaceShape(access, host, pos, face)
+                == BlockFaceShape.SOLID) {
             result.add(new SideOcclusionRect(0.0D, 1.0D, minY, 1.0D));
         }
         if (!preserveNeighborOverlay
-                && canOccludeFluidFace(access, neighborPos, neighbor, face.getOpposite())
-                && neighbor.isSideSolid(access, neighborPos, face.getOpposite())) {
+                && neighbor.getBlock().getBlockFaceShape(
+                        access, neighbor, neighborPos, face.getOpposite())
+                == BlockFaceShape.SOLID) {
             result.add(new SideOcclusionRect(0.0D, 1.0D, minY, 1.0D));
         }
         return result;
     }
 
     private static void addSideOcclusions(List<SideOcclusionRect> target,
-                                          List<AxisAlignedBB> boxes,
-                                          BlockPos shapePos, BlockPos fluidPos,
-                                          EnumFacing face, float minY) {
-        if (boxes == null || boxes.isEmpty()) {
+                                          FluidOcclusionShape shape,
+                                          float minY) {
+        if (shape == null || shape.isEmpty()) {
             return;
         }
-        for (AxisAlignedBB box : boxes) {
-            if (!touchesFace(box, shapePos, face)) {
-                continue;
-            }
-
-            double minU;
-            double maxU;
-            if (face.getAxis() == EnumFacing.Axis.Z) {
-                minU = box.minX - fluidPos.getX();
-                maxU = box.maxX - fluidPos.getX();
-            } else {
-                minU = box.minZ - fluidPos.getZ();
-                maxU = box.maxZ - fluidPos.getZ();
-            }
-            double minV = box.minY - fluidPos.getY();
-            double maxV = box.maxY - fluidPos.getY();
-
-            minU = Math.max(0.0D, Math.min(1.0D, minU));
-            maxU = Math.max(0.0D, Math.min(1.0D, maxU));
-            minV = Math.max((double) minY, Math.min(1.0D, minV));
-            maxV = Math.max((double) minY, Math.min(1.0D, maxV));
-            if (maxU - minU > 1.0E-5D && maxV - minV > 1.0E-5D) {
-                target.add(new SideOcclusionRect(minU, maxU, minV, maxV));
+        for (FluidOcclusionRect rectangle : shape.getRectangles()) {
+            double minV = Math.max((double) minY,
+                    Math.min(1.0D, rectangle.getMinV()));
+            double maxV = Math.max((double) minY,
+                    Math.min(1.0D, rectangle.getMaxV()));
+            if (rectangle.getMaxU() - rectangle.getMinU() > 1.0E-5D
+                    && maxV - minV > 1.0E-5D) {
+                target.add(new SideOcclusionRect(
+                        rectangle.getMinU(), rectangle.getMaxU(), minV, maxV));
             }
         }
     }
 
     /**
-     * Approximation of 1.18.2 BlockState#canOcclude for the legacy 1.12.2
-     * block API. Forge's BlockFaceShape exposes full and partial face forms;
-     * the collision boxes are then used to clip the actual visible rectangle.
-     *
-     * UNDEFINED faces do not occlude. Partial legacy shapes that report
-     * UNDEFINED for a side (slabs, stairs and trapdoors) are retained because
-     * their collision boxes still describe the visible solid part. Glass,
-     * ice and leaves remain transparent to liquid faces as in
-     * LiquidBlockRenderer's HalfTransparentBlock/LeavesBlock handling.
+     * The old BlockState#canOcclude adapter now consults an independent
+     * face-occlusion shape, never the block collision shape.
      */
     private static boolean canOccludeFluidFace(IBlockAccess access, BlockPos pos,
                                                IBlockState state, EnumFacing face) {
-        if (access == null || pos == null || state == null || face == null
-                || state.getBlock() instanceof net.minecraft.block.BlockLeaves
-                || state.getMaterial() == Material.GLASS
-                || state.getMaterial() == Material.ICE) {
-            return false;
-        }
-
-        BlockFaceShape shape = state.getBlockFaceShape(access, pos, face);
-        if (shape != BlockFaceShape.UNDEFINED) {
-            return true;
-        }
-
-        return state.isOpaqueCube()
-                || state.getBlock() instanceof BlockSlab
-                || state.getBlock() instanceof BlockStairs
-                || state.getBlock() instanceof BlockTrapDoor;
+        World world = access instanceof FluidViewAccess
+                ? ((FluidViewAccess) access).getWorld()
+                : (access instanceof World ? (World) access : null);
+        return !FluidOcclusionShapeAdapter.getFaceShape(
+                access, world, pos, state, face).isEmpty();
     }
 
     private static boolean touchesFace(AxisAlignedBB box, BlockPos pos, EnumFacing face) {
