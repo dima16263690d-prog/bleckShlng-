@@ -65,6 +65,11 @@ public final class BlockGeometryAdapter {
         // column at least 4/9 high. The rule is not limited to downward
         // flow; downward contact is converted to stone by spreadTo().
         if (fluidMaterial == Material.LAVA && targetMaterial == Material.WATER) {
+            // WaterFluid#canBeReplacedWith in 1.18.2 only permits lava
+            // to replace water while flowing downward.
+            if (direction != EnumFacing.DOWN) {
+                return false;
+            }
             FluidStateBridge water = FluidStateMapper.fromBlockState(state);
             return targetBlock instanceof BlockLiquid && water != null
                     && FluidHeightCalculator.getHeight(world, pos, water) >= 4.0F / 9.0F;
