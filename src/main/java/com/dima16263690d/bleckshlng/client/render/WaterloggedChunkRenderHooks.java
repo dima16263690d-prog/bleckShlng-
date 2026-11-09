@@ -238,8 +238,18 @@ public final class WaterloggedChunkRenderHooks {
                     || !WaterloggedBlockRegistry.canWaterlog(host.getBlock())) {
                 return;
             }
-            WaterloggedChunkMesher.tessellate(
-                    fluidAccess, host, pos, fluid, buffer);
+            if (host.getBlock() instanceof net.minecraft.block.BlockSlab
+                    && !((net.minecraft.block.BlockSlab) host.getBlock()).isDouble()) {
+                // Slabs need a clipped vertical interval. Keep the explicit
+                // cavity mesher for lower/upper slab halves.
+                WaterloggedChunkMesher.tessellate(
+                        fluidAccess, host, pos, fluid, buffer);
+            } else {
+                // Reuse the 1.12.2 vanilla fluid renderer for every other
+                // supported host shape: flow UVs, sprites, tint and light.
+                WaterloggedFluidRenderer.renderIntoChunk(
+                        buffer, fluidAccess, pos, fluid);
+            }
         }
     }
 }
