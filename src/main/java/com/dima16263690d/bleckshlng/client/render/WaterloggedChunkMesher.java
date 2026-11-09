@@ -220,19 +220,19 @@ public final class WaterloggedChunkMesher {
             // and starts adjoining side walls at the same height.
             sideMinY = Math.max(sideMinY, 0.001F);
             double yy = y + sideMinY;
-            int bottomLight = access.getCombinedLight(belowPos, 0);
+            int[] bottomLight = getFluidLight(access, belowPos);
             vert(buffer, x + 0, yy, z + 1, still.getMinU(), still.getMaxV(),
                     shade(r, 0.5F), shade(g, 0.5F), shade(b, 0.5F), a,
-                    bottomLight >> 16 & 65535, bottomLight & 65535);
+                    bottomLight[0], bottomLight[1]);
             vert(buffer, x + 0, yy, z + 0, still.getMinU(), still.getMinV(),
                     shade(r, 0.5F), shade(g, 0.5F), shade(b, 0.5F), a,
-                    bottomLight >> 16 & 65535, bottomLight & 65535);
+                    bottomLight[0], bottomLight[1]);
             vert(buffer, x + 1, yy, z + 0, still.getMaxU(), still.getMinV(),
                     shade(r, 0.5F), shade(g, 0.5F), shade(b, 0.5F), a,
-                    bottomLight >> 16 & 65535, bottomLight & 65535);
+                    bottomLight[0], bottomLight[1]);
             vert(buffer, x + 1, yy, z + 1, still.getMaxU(), still.getMaxV(),
                     shade(r, 0.5F), shade(g, 0.5F), shade(b, 0.5F), a,
-                    bottomLight >> 16 & 65535, bottomLight & 65535);
+                    bottomLight[0], bottomLight[1]);
         }
 
         side(buffer, access, host, pos, EnumFacing.NORTH, x, y, z, hNW, hNE, sideMinY, flow, r, g, b, a, fluid.getKind());
