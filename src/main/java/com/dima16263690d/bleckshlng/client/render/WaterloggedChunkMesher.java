@@ -218,13 +218,13 @@ public final class WaterloggedChunkMesher {
     }
 
     private static float fluidHeight(IBlockAccess access, BlockPos pos) {
+        if (access instanceof FluidViewAccess) {
+            return ((FluidViewAccess) access).getFluidSurfaceHeight(pos);
+        }
         IBlockState state = access.getBlockState(pos);
         if (state.getMaterial() == Material.WATER && state.getBlock() instanceof BlockLiquid) {
             int level = state.getValue(BlockLiquid.LEVEL).intValue();
             return level >= 8 ? 1.0F : (float) (8 - level) / 9.0F;
-        }
-        if (access instanceof FluidViewAccess) {
-            return ((FluidViewAccess) access).getFluidSurfaceHeight(pos);
         }
         if (access instanceof World) {
             FluidStateBridge fluid = FluidStateMapper.fromWorld((World) access, pos, state);
