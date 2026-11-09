@@ -61,9 +61,13 @@ public final class BlockGeometryAdapter {
             return false;
         }
 
-        // Lava displaces water only while flowing down; the lava handler turns it to stone.
+        // LavaFluid.canBeReplacedWith (1.18.2) requires a water
+        // column at least 4/9 high. The rule is not limited to downward
+        // flow; downward contact is converted to stone by spreadTo().
         if (fluidMaterial == Material.LAVA && targetMaterial == Material.WATER) {
-            return direction == EnumFacing.DOWN && targetBlock instanceof BlockLiquid;
+            FluidStateBridge water = FluidStateMapper.fromBlockState(state);
+            return targetBlock instanceof BlockLiquid && water != null
+                    && FluidHeightCalculator.getHeight(world, pos, water) >= 4.0F / 9.0F;
         }
 
         if (targetMaterial == Material.AIR) return true;
