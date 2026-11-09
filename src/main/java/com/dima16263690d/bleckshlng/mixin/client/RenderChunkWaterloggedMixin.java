@@ -16,25 +16,25 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Ensures waterlogged fluid can contribute to a chunk even if vanilla did not
- * start the TRANSLUCENT layer for any ordinary block.
- *
- * The injection is placed immediately before RenderChunk's loop that finalizes
- * the render layers, after vanilla has traversed all 16x16x16 block positions.
+ * Adds the translucent layer before vanilla iterates the chunk's finished
+ * layers, then emits waterlogged quads in postRenderBlocks before sorting and
+ * upload. No ordinal-sensitive bytecode target is used.
  */
 @Mixin(value = RenderChunk.class, remap = false)
 public abstract class RenderChunkWaterloggedMixin {
+
+    /**
+     * Start the translucent buffer at the beginning of a rebuild whenever
+     * this chunk has sidecar water. Vanilla will then naturally call
+     * postRenderBlocks for this layer after its ordinary block traversal.
+     */
     @Inject(
             method = {"rebuildChunk", "func_178581_b"},
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/util/BlockRenderLayer;values()[Lnet/minecraft/util/BlockRenderLayer;",
-                    ordinal = 1
-            ),
+            at = @At("HEAD"),
             require = 1,
             remap = false
     )
-    private void bleckshlng$renderWaterloggedFluid(
+    private void bleckshlng$startWaterloggedLayer(
             float x,
             float y,
             float z,
@@ -52,19 +52,48 @@ public abstract class RenderChunkWaterloggedMixin {
         }
 
         BlockRenderLayer layer = BlockRenderLayer.TRANSLUCENT;
-        BufferBuilder buffer = generator.getRegionRenderCacheBuilder()
-                .getWorldRendererByLayer(layer);
-
-        if (!compiledChunk.isLayerStarted(layer)) {
-            compiledChunk.setLayerStarted(layer);
-            BlockPos origin = renderChunk.getPosition();
-            buffer.begin(7, DefaultVertexFormats.BLOCK);
-            buffer.setTranslation(
-                    -origin.getX(), -origin.getY(), -origin.getZ());
+        if (compiledChunk.isLayerStarted(layer)) {
+            return;
         }
 
+        BufferBuilder buffer = generator.getRegionRenderCacheBuilder()
+                .getWorldRendererByLayer(layer);
+        compiledChunk.setLayerStarted(layer);
+        BlockPos origin = renderChunk.getPosition();
+        buffer.begin(7, DefaultVertexFormats.BLOCK);
+        buffer.setTranslation(
+                -origin.getX(), -origin.getY(), -origin.getZ());
+    }
+
+    /**
+     * This method is called by vanilla for every started layer. Starting the
+     * translucent layer above makes this hook independent of whether ordinary
+     * translucent blocks happen to exist in the chunk.
+     */
+    @Inject(
+            method = {"postRenderBlocks", "func_178584_a"},
+            at = @At("HEAD"),
+            require = 1,
+            remap = false
+    )
+    private void bleckshlng$renderWaterloggedFluid(
+            BlockRenderLayer layer,
+            float x,
+            float y,
+            float z,
+            BufferBuilder buffer,
+            CompiledChunk compiledChunk,
+            CallbackInfo callbackInfo) {
+        if (layer != BlockRenderLayer.TRANSLUCENT
+                || compiledChunk == null || buffer == null) {
+            return;
+        }
+
+        RenderChunk renderChunk = (RenderChunk) (Object) this;
         if (WaterloggedChunkRenderHooks.renderTranslucentLayer(
                 renderChunk, layer, buffer)) {
+            // setLayerUsed is protected in 1.12.2; use the cached MCP/SRG
+            // reflective bridge, then vanilla sorts and records vertex state.
             WaterloggedChunkRenderHooks.markLayerUsed(compiledChunk, layer);
         }
     }
