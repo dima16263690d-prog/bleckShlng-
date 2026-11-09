@@ -113,26 +113,11 @@ public final class FluidViewAccess implements IBlockAccess {
 
     @Override
     public IBlockState getBlockState(BlockPos pos) {
-        IBlockState real = delegate.getBlockState(pos);
-        if (real.getMaterial().isLiquid()) {
-            return real;
-        }
-        FluidStateBridge fluid = ClientFluidStateCache.get(dimension, pos.toLong());
-        if (fluid != null && fluid.getKind() == FluidStateBridge.FluidKind.WATER) {
-            if (fluid.isSource()) {
-                return Blocks.WATER.getDefaultState();
-            }
-
-            // Preserve metadata bit 3 for falling fluid. Its geometric
-            // surface height is resolved separately: 1.0 only when the same
-            // fluid is present above, otherwise amount / 9 (1.18.2 behavior).
-            int level = fluid.isFalling()
-                    ? 8
-                    : Math.max(1, Math.min(7, 8 - fluid.getAmount()));
-            return Blocks.WATER.getDefaultState()
-                    .withProperty(net.minecraft.block.BlockLiquid.LEVEL, Integer.valueOf(level));
-        }
-        return real;
+        // Host BlockState is never replaced by a fabricated liquid block.
+        // FluidState is queried independently through getFluidStateAt()/the
+        // fluid adapter. This keeps slabs, stairs and other hosts intact for
+        // both collision and render-occlusion calculations.
+        return delegate.getBlockState(pos);
     }
 
     @Override
