@@ -232,20 +232,19 @@ public final class FluidSpreadEngine {
             tryFlowInto(world, belowPos, belowState, material,
                     downwardLevel, EnumFacing.DOWN);
 
+            // Match FlowingFluid: a successful downward spread does not
+            // trigger an independent waterlogged-only horizontal pass.
+            // A source may spread sideways only when it has at least three
+            // adjacent source fluids.
             if (level == FluidLevelMapper.SOURCE_METADATA
                     && sourceNeighborCount(world, pos, material) >= 3) {
                 spreadHorizontally(world, pos, material, level);
-            } else if (material == Material.WATER) {
-                spreadHorizontallyWaterlogOnly(world, pos, material, level);
             }
             return;
         }
 
         if (level < 0 || (level != FluidLevelMapper.SOURCE_METADATA
                 && !isBlocked(world, belowPos, belowState, material))) {
-            if (material == Material.WATER) {
-                spreadHorizontallyWaterlogOnly(world, pos, material, level);
-            }
             return;
         }
 
@@ -263,39 +262,6 @@ public final class FluidSpreadEngine {
             }
         }
         return count;
-    }
-
-    private static void spreadHorizontallyWaterlogOnly(World world, BlockPos pos,
-                                                       Material material, int level) {
-        if (material != Material.WATER) {
-            return;
-        }
-
-        int spreadAmount = level >= 8 ? 7
-                : FluidProperties.nextHorizontalAmount(world, material,
-                FluidLevelMapper.amountFromMetadata(level));
-        if (spreadAmount <= 0 && level != FluidLevelMapper.SOURCE_METADATA) {
-            return;
-        }
-
-        for (EnumFacing direction : EnumFacing.Plane.HORIZONTAL) {
-            BlockPos targetPos = pos.offset(direction);
-            if (!world.isBlockLoaded(targetPos)
-                    || !canSpreadThrough(world, pos, direction, material)) {
-                continue;
-            }
-
-            IBlockState targetState = world.getBlockState(targetPos);
-            if (!WaterloggedBlockRegistry.canWaterlog(targetState.getBlock())) {
-                continue;
-            }
-            if (!canFlowInto(world, targetPos, targetState, material, direction)) {
-                continue;
-            }
-
-            tryFlowInto(world, targetPos, targetState, material,
-                    FluidLevelMapper.SOURCE_METADATA, direction);
-        }
     }
 
     private static void spreadHorizontally(World world, BlockPos pos,
@@ -320,15 +286,17 @@ public final class FluidSpreadEngine {
 
             IBlockState targetState = world.getBlockState(targetPos);
 
+            // Every destination, including waterloggable hosts, must
+            // first pass the same shortest-slope direction selection.
+            if (!directions.contains(direction)) {
+                continue;
+            }
+
             if (material == Material.WATER
                     && WaterloggedBlockRegistry.canWaterlog(targetState.getBlock())
                     && canFlowInto(world, targetPos, targetState, material, direction)) {
                 tryFlowInto(world, targetPos, targetState, material,
                         FluidLevelMapper.SOURCE_METADATA, direction);
-                continue;
-            }
-
-            if (!directions.contains(direction)) {
                 continue;
             }
 
