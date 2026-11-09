@@ -17,6 +17,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
 import com.dima16263690d.bleckshlng.BleckShlng;
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
@@ -33,6 +34,7 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
  * This avoids updating every waterlogged block every tick and keeps particle
  * density independent of the rendered frame rate.
  */
+@SideOnly(Side.CLIENT)
 @Mod.EventBusSubscriber(modid = BleckShlng.MODID, value = Side.CLIENT)
 public final class WaterloggedFluidAnimateHandler {
     private static final int SAMPLES_PER_RADIUS = 667;
