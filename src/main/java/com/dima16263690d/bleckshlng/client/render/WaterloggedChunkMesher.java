@@ -31,7 +31,8 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 import com.dima16263690d.bleckshlng.fluid.network.ClientFluidStateCache;
-import com.dima16263690d.bleckshlng.fluid.state.FluidState;
+import com.dima16263690d.bleckshlng.fluid.core.FluidState;
+import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 import com.dima16263690d.bleckshlng.fluid.core.FluidKind;
 import com.dima16263690d.bleckshlng.fluid.core.Fluids;
@@ -58,6 +59,22 @@ public final class WaterloggedChunkMesher {
         int before = buffer.getVertexCount();
         tessellate(access, state, pos, fluid, buffer);
         return buffer.getVertexCount() > before;
+    }
+
+    /** Compatibility overload: legacy persistence is converted at the render boundary. */
+    public static void tessellate(IBlockAccess access, BlockPos pos,
+                                  FluidStateBridge fluid, BufferBuilder buffer) {
+        if (access == null || pos == null) {
+            return;
+        }
+        tessellate(access, access.getBlockState(pos), pos, fromLegacy(fluid), buffer);
+    }
+
+    /** Compatibility overload retaining the original host state. */
+    public static void tessellate(IBlockAccess access, IBlockState host,
+                                  BlockPos pos, FluidStateBridge fluid,
+                                  BufferBuilder buffer) {
+        tessellate(access, host, pos, fromLegacy(fluid), buffer);
     }
 
     public static void tessellate(IBlockAccess access, BlockPos pos,
