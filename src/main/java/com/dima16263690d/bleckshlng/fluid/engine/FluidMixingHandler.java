@@ -10,9 +10,7 @@ import net.minecraft.init.SoundEvents;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.SoundCategory;
-import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
-import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import net.minecraft.world.World;
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
@@ -67,7 +65,7 @@ public final class FluidMixingHandler {
         }
 
         if (!touchingWater) {
-            return reactBasalt(world, pos);
+            return false;
         }
 
         int level = state.getBlock() instanceof BlockLiquid
@@ -128,67 +126,6 @@ public final class FluidMixingHandler {
 
         playExtinguishEffects(world, pos);
         return true;
-    }
-
-    /**
-     * Modern lava turns into basalt above soul soil when blue ice is adjacent.
-     * 1.12.2 has none of these vanilla blocks, so this is an optional registry
-     * bridge: it activates only when a backport/mod provides all three blocks.
-     */
-    private static boolean reactBasalt(World world, BlockPos lavaPos) {
-        BlockPos belowPos = lavaPos.down();
-        if (!world.isBlockLoaded(belowPos)) {
-            return false;
-        }
-        Block below = world.getBlockState(belowPos).getBlock();
-        ResourceLocation soulSoilKey = below.getRegistryName();
-        if (soulSoilKey == null
-                || !"soul_soil".equals(soulSoilKey.getResourcePath())) {
-            return false;
-        }
-
-        String namespace = soulSoilKey.getResourceDomain();
-        boolean blueIceNearby = false;
-        for (EnumFacing side : EnumFacing.values()) {
-            if (side == EnumFacing.DOWN) {
-                continue;
-            }
-            BlockPos neighborPos = lavaPos.offset(side);
-            if (world.isBlockLoaded(neighborPos)
-                    && hasRegistryPath(world.getBlockState(neighborPos).getBlock(),
-                    namespace, "blue_ice")) {
-                blueIceNearby = true;
-                break;
-            }
-        }
-        if (!blueIceNearby) {
-            return false;
-        }
-
-        Block basalt = findRegisteredBlock(namespace, "basalt");
-        if (basalt == null) {
-            return false;
-        }
-
-        world.setBlockState(lavaPos, basalt.getDefaultState(), 3);
-        FluidShapeCalculator.invalidate(world, lavaPos);
-        playExtinguishEffects(world, lavaPos);
-        return true;
-    }
-
-    private static boolean hasRegistryPath(Block block, String namespace, String path) {
-        ResourceLocation key = block == null ? null : block.getRegistryName();
-        return key != null && namespace.equals(key.getResourceDomain())
-                && path.equals(key.getResourcePath());
-    }
-
-    private static Block findRegisteredBlock(String namespace, String path) {
-        for (Block block : ForgeRegistries.BLOCKS.getValuesCollection()) {
-            if (hasRegistryPath(block, namespace, path)) {
-                return block;
-            }
-        }
-        return null;
     }
 
     public static void playExtinguishEffects(World world, BlockPos pos) {
