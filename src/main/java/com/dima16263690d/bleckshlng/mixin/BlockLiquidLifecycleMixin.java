@@ -18,9 +18,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * version-independent fluid engine. Only native vanilla liquids are handled
  * by ModernFluidEngine; modded fluid blocks keep their own lifecycle.
  */
-@Mixin(BlockLiquid.class)
+@Mixin(value = BlockLiquid.class, remap = false)
 public abstract class BlockLiquidLifecycleMixin {
-    @Inject(method = "onBlockAdded", at = @At("HEAD"), require = 0)
+    @Inject(method = {"onBlockAdded", "func_176213_c"}, at = @At("HEAD"), require = 0, remap = false)
     private void bleckshlng$onFluidBlockAdded(
             World world, BlockPos pos, IBlockState state,
             CallbackInfo callback) {
@@ -32,7 +32,7 @@ public abstract class BlockLiquidLifecycleMixin {
         ModernFluidEngine.onBlockAdded(world, pos);
     }
 
-    @Inject(method = "neighborChanged", at = @At("HEAD"), require = 0)
+    @Inject(method = {"neighborChanged", "func_189540_a"}, at = @At("HEAD"), require = 0, remap = false)
     private void bleckshlng$onFluidNeighborChanged(
             IBlockState state, World world, BlockPos pos,
             Block neighborBlock, BlockPos neighborPos,
