@@ -80,6 +80,38 @@ public final class BlockGeometryAdapter {
         return targetBlock.isReplaceable(world, pos);
     }
 
+    /**
+     * FlowingFluid#canHoldFluid from 1.18.2.
+     *
+     * This is intentionally separate from canFluidEnter(): water-hole and
+     * slope-route checks ask whether the destination can contain a fluid,
+     * not whether the current fluid state may be replaced by this direction.
+     */
+    public static boolean canHoldFluid(World world, BlockPos pos,
+                                       IBlockState state, Material fluidMaterial) {
+        if (world == null || pos == null || state == null || fluidMaterial == null
+                || !world.isBlockLoaded(pos)) {
+            return false;
+        }
+
+        Block targetBlock = state.getBlock();
+        Material targetMaterial = state.getMaterial();
+
+        if (fluidMaterial == Material.WATER
+                && WaterloggedBlockRegistry.canWaterlog(targetBlock)) {
+            return canFluidEnter(world, pos, state, fluidMaterial, EnumFacing.DOWN);
+        }
+
+        if (isNeverFluidContainer(targetBlock, targetMaterial)) {
+            return false;
+        }
+
+        // Match FlowingFluid.canHoldFluid: generic non-container blocks are
+        // accepted only when their material does not block motion. Do not use
+        // Block#isReplaceable here; replaceability belongs to canSpreadTo.
+        return !targetMaterial.blocksMovement();
+    }
+
     private static boolean isNeverFluidContainer(Block block, Material material) {
         // FlowingFluid excludes doors, signs, ladders, sugar cane, portals
         // and structure void from its generic replaceable-block path. Signs
