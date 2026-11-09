@@ -561,7 +561,7 @@ public final class FluidCoreHooks {
 
         try {
             FluidVector flow = ModernFluidEngine.getFlow(world, pos);
-            return originalMotion.add(flow.getX(), flow.getY(), flow.getZ());
+            return originalMotion.addVector(flow.getX(), flow.getY(), flow.getZ());
         } catch (Throwable error) {
             LOGGER.error("Fluid acceleration calculation failed at {}; using vanilla current",
                     pos, error);
