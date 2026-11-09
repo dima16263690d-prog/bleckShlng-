@@ -19,7 +19,7 @@ public final class WaterFluid extends FlowingFluid {
     }
 
     @Override
-    protected int getSlopeFindDistance(FluidWorld world) {
+    public int getSlopeFindDistance(FluidWorld world) {
         return 4;
     }
 
