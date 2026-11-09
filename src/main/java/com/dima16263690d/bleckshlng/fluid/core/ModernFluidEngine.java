@@ -3,7 +3,6 @@ package com.dima16263690d.bleckshlng.fluid.core;
 import java.util.Random;
 
 import com.dima16263690d.bleckshlng.fluid.compatibility.Minecraft112FluidWorldAdapter;
-import com.dima16263690d.bleckshlng.fluid.engine.FluidMixingHandler;
 import com.dima16263690d.bleckshlng.fluid.waterlogging.FluidTickScheduler;
 
 import net.minecraft.util.math.BlockPos;
@@ -15,41 +14,6 @@ import net.minecraft.world.World;
 /** Entry points that execute the portable fluid domain through the 1.12.2 adapter. */
 public final class ModernFluidEngine {
     private ModernFluidEngine() { }
-
-    /**
-     * Mirrors LiquidBlock#onPlace for native source cells. Flowing liquid
-     * blocks keep their normal scheduled-update path, which is intercepted
-     * by the coremod; static source blocks use the portable scheduler.
-     */
-    public static void onBlockAdded(World world, BlockPos blockPos) {
-        if (!reactLavaAt(world, blockPos)) {
-            scheduleStaticSourceTick(world, blockPos);
-        }
-    }
-
-    /**
-     * Mirrors LiquidBlock#neighborChanged: lava reacts immediately to water
-     * and source blocks are re-ticked when their neighborhood changes.
-     */
-    public static void onNeighborChanged(World world, BlockPos blockPos) {
-        if (reactLavaAt(world, blockPos)) {
-            return;
-        }
-        scheduleStaticSourceTick(world, blockPos);
-    }
-
-    private static boolean reactLavaAt(World world, BlockPos blockPos) {
-        if (world == null || world.isRemote || blockPos == null
-                || !world.isBlockLoaded(blockPos)) {
-            return false;
-        }
-        IBlockState state = world.getBlockState(blockPos);
-        if (!(state.getBlock() instanceof BlockLiquid)
-                || state.getMaterial() != net.minecraft.block.material.Material.LAVA) {
-            return false;
-        }
-        return FluidMixingHandler.reactAt(world, blockPos, state);
-    }
 
     public static void scheduleStaticSourceTick(World world, BlockPos blockPos) {
         if (world == null || world.isRemote || blockPos == null
