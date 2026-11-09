@@ -23,7 +23,7 @@ public final class ModernFluidEngine {
      */
     public static void onBlockAdded(World world, BlockPos blockPos) {
         if (!reactLavaAt(world, blockPos)) {
-            scheduleStaticSource(world, blockPos);
+            scheduleStaticSourceTick(world, blockPos);
         }
     }
 
@@ -51,7 +51,7 @@ public final class ModernFluidEngine {
         return FluidMixingHandler.reactAt(world, blockPos, state);
     }
 
-    private static void scheduleStaticSource(World world, BlockPos blockPos) {
+    public static void scheduleStaticSourceTick(World world, BlockPos blockPos) {
         if (world == null || world.isRemote || blockPos == null
                 || !world.isBlockLoaded(blockPos)) {
             return;
