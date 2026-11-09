@@ -167,11 +167,9 @@ public final class FluidSpreadEngine {
             BlockPos belowPos = pos.down();
             if (world.isBlockLoaded(belowPos)) {
                 IBlockState belowState = world.getBlockState(belowPos);
-                // FlowingFluid requires a sturdy support face, not
-                // merely a solid material (e.g. a fence is solid-ish but
-                // does not provide a full top support surface).
-                boolean solidSupport = belowState.isSideSolid(
-                        world, belowPos, EnumFacing.UP);
+                // FlowingFluid#getNewLiquid checks Material.isSolid(),
+                // not whether the block has a full sturdy UP face.
+                boolean solidSupport = belowState.getMaterial().isSolid();
                 boolean waterSourceBelow = getDepth(
                         world, belowPos, Material.WATER)
                         == FluidLevelMapper.SOURCE_METADATA;
