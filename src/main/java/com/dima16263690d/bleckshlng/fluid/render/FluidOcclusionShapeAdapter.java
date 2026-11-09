@@ -61,10 +61,22 @@ public final class FluidOcclusionShapeAdapter {
             return FluidOcclusionShape.FULL;
         }
 
-        // 1.12.2 has no BlockState#getOcclusionShape. The common partial
-        // vanilla shapes are adapted here at the boundary. This fallback is
-        // deliberately isolated from the renderer and can be replaced by
-        // a provider without changing liquid mesh generation.
+        // Slabs and trapdoors expose their own state-dependent block
+        // bounds. Read those visual bounds directly instead of consulting
+        // entity collision geometry.
+        if (state.getBlock() instanceof BlockSlab
+                || state.getBlock() instanceof BlockTrapDoor) {
+            AxisAlignedBB visualBounds =
+                    state.getBlock().getBoundingBox(state, access, pos);
+            FluidOcclusionShape shape = fromLocalBounds(visualBounds, face);
+            if (!shape.isEmpty()) {
+                return shape;
+            }
+        }
+
+        // Stairs have a composite shape in 1.12.2 but no public occlusion
+        // shape. Their geometry is isolated in the platform fallback below;
+        // mods can provide exact face geometry through IFluidOcclusionShapeProvider.
         boolean hasPartialVanillaShape =
                 state.getBlock() instanceof BlockSlab
                 || state.getBlock() instanceof BlockStairs
@@ -120,6 +132,45 @@ public final class FluidOcclusionShapeAdapter {
     public static boolean canOcclude(
             IBlockAccess access, BlockPos pos, IBlockState state, EnumFacing face) {
         return !getFaceShape(access, pos, state, face).isEmpty();
+    }
+
+    private static FluidOcclusionShape fromLocalBounds(
+            AxisAlignedBB bounds, EnumFacing face) {
+        if (bounds == null || face == null || !touchesLocalFace(bounds, face)) {
+            return FluidOcclusionShape.EMPTY;
+        }
+        double minU;
+        double maxU;
+        if (face.getAxis() == EnumFacing.Axis.Z) {
+            minU = bounds.minX;
+            maxU = bounds.maxX;
+        } else {
+            minU = bounds.minZ;
+            maxU = bounds.maxZ;
+        }
+        double minV = bounds.minY;
+        double maxV = bounds.maxY;
+        minU = clamp(minU);
+        maxU = clamp(maxU);
+        minV = clamp(minV);
+        maxV = clamp(maxV);
+        if (maxU - minU <= EPSILON || maxV - minV <= EPSILON) {
+            return FluidOcclusionShape.EMPTY;
+        }
+        return FluidOcclusionShape.of(
+                new FluidOcclusionRect(minU, maxU, minV, maxV));
+    }
+
+    private static boolean touchesLocalFace(AxisAlignedBB box, EnumFacing face) {
+        switch (face) {
+            case DOWN: return box.minY <= EPSILON;
+            case UP: return box.maxY >= 1.0D - EPSILON;
+            case NORTH: return box.minZ <= EPSILON;
+            case SOUTH: return box.maxZ >= 1.0D - EPSILON;
+            case WEST: return box.minX <= EPSILON;
+            case EAST: return box.maxX >= 1.0D - EPSILON;
+            default: return false;
+        }
     }
 
     private static boolean isTransparentFluidOverlayBlock(IBlockState state) {
