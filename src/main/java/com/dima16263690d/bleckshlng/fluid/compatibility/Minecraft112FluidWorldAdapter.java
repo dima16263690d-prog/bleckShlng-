@@ -359,7 +359,7 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
         IBlockState state = world.getBlockState(blockPos);
         // LavaFluid#isFlammable in 1.18.2 queries Material.isFlammable(),
         // not Block#isFlammable(face), so keep the same material-level rule.
-        return state.getMaterial().isFlammable();
+        return state.getMaterial().getCanBurn();
     }
 
     @Override
