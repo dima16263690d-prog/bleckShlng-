@@ -73,6 +73,33 @@ public final class ClientFluidStateCache {
         return result;
     }
 
+    /**
+     * Fast presence check used by client fluid animation. It avoids the
+     * 1.18.2 random display sampling loop entirely when no sidecar fluid is
+     * cached in the chunks around the viewer.
+     */
+    public static synchronized boolean hasAnyInChunkRange(
+            int dimension, int centerChunkX, int centerChunkZ, int radius) {
+        Map<Long, Set<Long>> chunks = CHUNKS.get(Integer.valueOf(dimension));
+        if (chunks == null || chunks.isEmpty()) {
+            return false;
+        }
+
+        int safeRadius = Math.max(0, Math.min(8, radius));
+        for (int chunkX = centerChunkX - safeRadius;
+             chunkX <= centerChunkX + safeRadius; chunkX++) {
+            for (int chunkZ = centerChunkZ - safeRadius;
+                 chunkZ <= centerChunkZ + safeRadius; chunkZ++) {
+                Set<Long> positions =
+                        chunks.get(Long.valueOf(chunkKey(chunkX, chunkZ)));
+                if (positions != null && !positions.isEmpty()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public static synchronized void clearDimension(int dimension) {
         Integer key = Integer.valueOf(dimension);
         STATES.remove(key);
