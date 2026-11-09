@@ -34,7 +34,8 @@ public abstract class RenderChunkWaterloggedMixin {
             CompiledChunk compiledChunk,
             CallbackInfo callbackInfo) {
         if (layer != BlockRenderLayer.TRANSLUCENT
-                || compiledChunk == null || buffer == null) {
+                || compiledChunk == null || buffer == null
+                || !WaterloggedChunkRenderHooks.isWaterloggedRebuildActive()) {
             return;
         }
 
@@ -44,4 +45,19 @@ public abstract class RenderChunkWaterloggedMixin {
             WaterloggedChunkRenderHooks.markLayerUsed(compiledChunk, layer);
         }
     }
+    @Inject(
+            method = {"rebuildChunk", "func_178581_b"},
+            at = @At("RETURN"),
+            require = 1,
+            remap = false
+    )
+    private void bleckshlng$endWaterloggedRebuild(
+            float x,
+            float y,
+            float z,
+            net.minecraft.client.renderer.chunk.ChunkCompileTaskGenerator generator,
+            CallbackInfo callbackInfo) {
+        WaterloggedChunkRenderHooks.endWaterloggedRebuild();
+    }
+
 }
