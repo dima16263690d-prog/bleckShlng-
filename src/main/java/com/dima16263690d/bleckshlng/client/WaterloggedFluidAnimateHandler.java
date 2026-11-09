@@ -21,7 +21,6 @@ import net.minecraftforge.fml.relauncher.Side;
 import com.dima16263690d.bleckshlng.BleckShlng;
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
-import com.dima16263690d.bleckshlng.fluid.network.ClientFluidStateCache;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 
@@ -77,19 +76,21 @@ public final class WaterloggedFluidAnimateHandler {
             int y = centerY + world.rand.nextInt(radius) - world.rand.nextInt(radius);
             int z = centerZ + world.rand.nextInt(radius) - world.rand.nextInt(radius);
             BlockPos pos = new BlockPos(x, y, z);
-            long packedPos = pos.toLong();
-
-            FluidStateBridge fluid =
-                    ClientFluidStateCache.get(dimension, packedPos);
-            if (fluid == null
-                    || fluid.getKind() != FluidStateBridge.FluidKind.WATER
-                    || !world.isBlockLoaded(pos)) {
+            if (!world.isBlockLoaded(pos)) {
                 continue;
             }
 
             IBlockState host = world.getBlockState(pos);
             if (host == null || host.getMaterial().isLiquid()
                     || !WaterloggedBlockRegistry.canWaterlog(host.getBlock())) {
+                continue;
+            }
+
+            // FluidStateMapper reads both the synchronized sidecar and native
+            // IFluidWaterloggable adapters, matching Level#getFluidState.
+            FluidStateBridge fluid = FluidStateMapper.fromWorld(world, pos, host);
+            if (fluid == null
+                    || fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
                 continue;
             }
 
