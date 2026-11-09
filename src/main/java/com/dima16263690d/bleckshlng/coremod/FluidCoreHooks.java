@@ -238,16 +238,26 @@ public final class FluidCoreHooks {
     public static boolean tryReactStaticLava(World world, BlockPos pos,
                                              IBlockState state) {
         if (world == null || world.isRemote || pos == null || state == null
-                || (state.getBlock() != Blocks.LAVA
-                && state.getBlock() != Blocks.FLOWING_LAVA)
                 || !world.isBlockLoaded(pos)) {
             return false;
         }
         try {
-            return com.dima16263690d.bleckshlng.fluid.engine.FluidMixingHandler
-                    .reactAt(world, pos, state);
+            boolean reacted = false;
+            if (state.getBlock() == Blocks.LAVA
+                    || state.getBlock() == Blocks.FLOWING_LAVA) {
+                reacted = com.dima16263690d.bleckshlng.fluid.engine.FluidMixingHandler
+                        .reactAt(world, pos, state);
+            }
+
+            // LiquidBlock#onPlace schedules a first fluid tick for a source.
+            // Flowing BlockDynamicLiquid is already scheduled by its own
+            // update lifecycle; only static source blocks enter this scheduler.
+            if (!reacted) {
+                ModernFluidEngine.scheduleStaticSourceTick(world, pos);
+            }
+            return reacted;
         } catch (Throwable error) {
-            LOGGER.error("Static lava reaction failed at {}; retaining vanilla handling",
+            LOGGER.error("Fluid lifecycle hook failed at {}; retaining vanilla handling",
                     pos, error);
             return false;
         }
