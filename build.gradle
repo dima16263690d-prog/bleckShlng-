@@ -14,6 +14,9 @@ apply plugin: 'maven-publish'
 
 repositories {
     mavenCentral()
+    maven {
+        url = 'https://maven.cleanroommc.com'
+    }
 }
 
 version = '1.0.0'
@@ -41,6 +44,15 @@ minecraft {
 
 dependencies {
     minecraft 'net.minecraftforge:forge:1.12.2-14.23.5.2864'
+
+    // MixinBooter supplies the shared Mixin runtime for Forge 1.12.2.
+    // It is a required runtime mod; do not shade it into BleckShlng.
+    def mixinBooter = 'zone.rong:mixinbooter:12.3'
+    implementation(mixinBooter) {
+        transitive = false
+    }
+    annotationProcessor(mixinBooter)
+
     testImplementation 'junit:junit:4.13.2'
 }
 
@@ -56,7 +68,8 @@ jar {
                 "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
                 "FMLCorePlugin": "com.dima16263690d.bleckshlng.coremod.FluidCorePlugin",
                 "FMLCorePluginContainsFMLMod": "true",
-                "ForceLoadAsMod": "true"
+                "ForceLoadAsMod": "true",
+                "MixinConfigs": "mixins.bleckshlng.json"
         ])
     }
 }
