@@ -185,16 +185,8 @@ public final class FluidMixingHandler {
     }
 
     public static void playExtinguishEffects(World world, BlockPos pos) {
-        world.playSound((EntityPlayer) null, pos, SoundEvents.BLOCK_LAVA_EXTINGUISH,
-                SoundCategory.BLOCKS, 0.5F,
-                2.6F + (world.rand.nextFloat() - world.rand.nextFloat()) * 0.8F);
-
-        for (int i = 0; i < 8; i++) {
-            world.spawnParticle(EnumParticleTypes.SMOKE_LARGE,
-                    pos.getX() + world.rand.nextDouble(),
-                    pos.getY() + 1.2D,
-                    pos.getZ() + world.rand.nextDouble(),
-                    0.0D, 0.0D, 0.0D);
-        }
-    }
-}
+        if (world != null && !world.isRemote && pos != null
+                && world.isBlockLoaded(pos)) {
+            // 1.18.2 LavaFluid/LiquidBlock use the common fizz level event.
+            world.playEvent(1501, pos, 0);
+        }}
