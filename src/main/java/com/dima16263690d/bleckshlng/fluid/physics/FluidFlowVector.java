@@ -38,9 +38,7 @@ public final class FluidFlowVector {
 
         for (EnumFacing direction : EnumFacing.Plane.HORIZONTAL) {
             BlockPos neighborPos = pos.offset(direction);
-            if (!world.isBlockLoaded(neighborPos)
-                    || !FluidShapeCalculator.canPassThroughWall(
-                    world, pos, direction)) {
+            if (!world.isBlockLoaded(neighborPos)) {
                 continue;
             }
 
