@@ -199,7 +199,7 @@ public abstract class FlowingFluid extends Fluid {
     }
 
     protected abstract boolean canConvertToSource();
-    protected abstract int getSlopeFindDistance(FluidWorld world);
+    public abstract int getSlopeFindDistance(FluidWorld world);
     protected abstract int getDropOff(FluidWorld world);
 
     protected int getSpreadDelay(FluidWorld world, FluidPos pos,
