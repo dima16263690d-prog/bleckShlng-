@@ -837,18 +837,23 @@ public final class WaterloggedChunkMesher {
         IBlockState state = access.getBlockState(pos);
         FluidStateBridge fluid = getFluidState(access, pos, state);
         if (fluid != null && fluid.getKind() == kind) {
-            if (isSameFluid(access, pos.up(), kind)) {
-                return 1.0F;
-            }
+            // FluidViewAccess applies host-specific clipping (for example,
+            // water stored below a top slab). Do not return 1.0 here before
+            // that geometry-aware height has been resolved.
             if (access instanceof FluidViewAccess) {
                 return ((FluidViewAccess) access).getFluidSurfaceHeight(pos);
+            }
+            if (isSameFluid(access, pos.up(), kind)) {
+                return 1.0F;
             }
             if (access instanceof World) {
                 return FluidHeightCalculator.getHeight((World) access, pos, fluid);
             }
             return fluid.getOwnHeight();
         }
-        return state.getMaterial().blocksMovement() ? -1.0F : 0.0F;
+        // LiquidBlockRenderer#getHeight 1.18.2 distinguishes solid material
+        // from merely movement-blocking material: solid -> -1, non-solid -> 0.
+        return state.getMaterial().isSolid() ? -1.0F : 0.0F;
     }
 
     private static boolean isSameFluid(IBlockAccess access, BlockPos pos,
