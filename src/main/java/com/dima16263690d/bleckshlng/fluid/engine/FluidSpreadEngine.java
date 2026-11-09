@@ -117,27 +117,12 @@ public final class FluidSpreadEngine {
         if (world == null || from == null || direction == null || material == null) {
             return false;
         }
-        // Primary rule: open faces on both sides of the shared plane.
-        if (FluidShapeCalculator.canPassThroughWall(world, from, direction)) {
-            return true;
-        }
-        // Waterloggable hosts still accept water even if a partial solid face
-        // reports SOLID on an unrelated edge case (modded slabs, etc.).
-        if (material != Material.WATER) {
-            return false;
-        }
-        BlockPos to = from.offset(direction);
-        if (!world.isBlockLoaded(to)) {
-            return false;
-        }
-        IBlockState toState = world.getBlockState(to);
-        if (WaterloggedBlockRegistry.canWaterlog(toState.getBlock())
-                && FluidShapeCalculator.isFaceOpenToFluid(
-                        world, to, toState, direction.getOpposite())
-                && canFlowInto(world, to, toState, material, direction)) {
-            return true;
-        }
-        return false;
+
+        // FlowingFluid.canSpreadTo checks the merged collision face before
+        // canHoldFluid/canPlaceLiquid. Never bypass this test for stairs,
+        // slabs or other waterloggable hosts: the two shapes may seal the
+        // shared plane even when the destination can store water.
+        return FluidShapeCalculator.canPassThroughWall(world, from, direction);
     }
 
     public static int getNewLegacyLevel(World world, BlockPos pos, Material material) {
