@@ -111,12 +111,14 @@ public final class WaterloggedChunkMesher {
         float hNE = sampleCorner(access, pos, ownHeight, 1, -1, fluid.getKind());
         float hSE = sampleCorner(access, pos, ownHeight, 1, 1, fluid.getKind());
         float hSW = sampleCorner(access, pos, ownHeight, -1, 1, fluid.getKind());
-        float maxCornerHeight = host.getBlock() instanceof BlockSlab
-                && !((BlockSlab) host.getBlock()).isDouble() ? ownHeight : 1.0F;
-        hNW = Math.min(maxCornerHeight, Math.max(hNW, minY));
-        hNE = Math.min(maxCornerHeight, Math.max(hNE, minY));
-        hSE = Math.min(maxCornerHeight, Math.max(hSE, minY));
-        hSW = Math.min(maxCornerHeight, Math.max(hSW, minY));
+        // Keep the averaged corner heights exactly as LiquidBlockRenderer
+        // 1.18.2 does. Do not cap them to a slab's own height: a neighboring
+        // full/falling fluid column can legitimately raise one corner to 1.0.
+        // The slab's collision boxes clip the hidden portion of the side mesh.
+        hNW = Math.max(hNW, minY);
+        hNE = Math.max(hNE, minY);
+        hSE = Math.max(hSE, minY);
+        hSW = Math.max(hSW, minY);
 
         Minecraft mc = Minecraft.getMinecraft();
         boolean lava = fluid.getKind() == FluidStateBridge.FluidKind.LAVA;
