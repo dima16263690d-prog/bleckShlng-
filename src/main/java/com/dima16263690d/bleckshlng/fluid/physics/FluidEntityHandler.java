@@ -16,7 +16,6 @@ import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 import com.dima16263690d.bleckshlng.fluid.api.FluidAPI;
 import com.dima16263690d.bleckshlng.fluid.core.FluidVector;
 import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
-import com.dima16263690d.bleckshlng.fluid.state.FluidHeightCalculator;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 
@@ -204,7 +203,7 @@ public final class FluidEntityHandler {
             return false;
         }
 
-        float height = FluidHeightCalculator.getHeight(entity.world, pos, fluid);
+        float height = FluidAPI.getFluidHeight(entity.world, pos);
         return FluidShapeCalculator.containsFluidPoint(entity.world, pos,
                 state, entity.posX, eyeY, entity.posZ, height);
     }
