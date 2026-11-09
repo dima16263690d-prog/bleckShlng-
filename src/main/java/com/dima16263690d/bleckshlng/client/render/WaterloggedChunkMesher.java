@@ -207,6 +207,10 @@ public final class WaterloggedChunkMesher {
             hNE = Math.max(minY, hNE - 0.001F);
             hSE = Math.max(minY, hSE - 0.001F);
             hSW = Math.max(minY, hSW - 0.001F);
+            // Forge 1.12.2 requires setSprite() for each sprite written
+            // into a chunk BufferBuilder. UVs alone are insufficient for
+            // animated/multi-texture chunk tracking.
+            buffer.setSprite(topSprite);
             topQuad(buffer, x, y, z, hNW, hNE, hSE, hSW,
                     topSprite, flowX, flowZ, flowingSurface, r, g, b, a, sky, block, false);
             if (shouldRenderBackwardTopFace(access, abovePos, fluid.getKind())) {
@@ -246,6 +250,7 @@ public final class WaterloggedChunkMesher {
             sideMinY = Math.max(sideMinY, 0.001F);
             double yy = y + sideMinY;
             int[] bottomLight = getFluidLight(access, belowPos);
+            buffer.setSprite(still);
             vert(buffer, x + 0, yy, z + 1, still.getMinU(), still.getMaxV(),
                     shade(r, 0.5F), shade(g, 0.5F), shade(b, 0.5F), a,
                     bottomLight[0], bottomLight[1]);
@@ -306,6 +311,9 @@ public final class WaterloggedChunkMesher {
         int sky = sideLight[0];
         int block = sideLight[1];
 
+        // Match vanilla BlockFluidRenderer: bind the sprite before
+        // writing this face so Forge can track it in chunk buffers.
+        buffer.setSprite(sideSprite);
         emitClippedSide(buffer, face, x, y, z, h0, h1, minY,
                 sideSprite, occlusions, r, g, b, a, sky, block, shade, !overlay);
     }
