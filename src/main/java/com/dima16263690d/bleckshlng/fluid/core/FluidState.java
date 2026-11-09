@@ -39,6 +39,20 @@ public final class FluidState {
     }
 
     public Fluid getType() { return fluid; }
+
+    public FluidKind getKind() {
+        if (isEmpty()) return null;
+        return fluid.isSame(Fluids.WATER) ? FluidKind.WATER : FluidKind.LAVA;
+    }
+
+    public boolean isSameKind(FluidKind kind) {
+        return kind != null && getKind() == kind;
+    }
+
+    public boolean isSameKind(FluidState other) {
+        return other != null && !isEmpty() && !other.isEmpty()
+                && fluid.isSame(other.fluid);
+    }
     public int getAmount() { return amount; }
     public boolean isFalling() { return falling; }
     public boolean isSource() { return source; }
