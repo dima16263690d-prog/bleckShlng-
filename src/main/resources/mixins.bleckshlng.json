@@ -6,6 +6,7 @@
   "refmap": "mixins.bleckshlng.refmap.json",
   "client": [
     "client.RenderChunkWaterloggedMixin",
-    "client.BlockFluidRendererMixin"
+    "client.BlockFluidRendererMixin",
+    "client.BlockLiquidAnimateMixin"
   ]
 }
