@@ -22,6 +22,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 import com.dima16263690d.bleckshlng.BleckShlng;
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
+import com.dima16263690d.bleckshlng.fluid.network.ClientFluidStateCache;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 
@@ -59,6 +60,11 @@ public final class WaterloggedFluidAnimateHandler {
         int centerX = floor(viewer.posX);
         int centerY = floor(viewer.posY);
         int centerZ = floor(viewer.posZ);
+        int dimension = world.provider.getDimension();
+        if (!ClientFluidStateCache.hasAnyInChunkRange(
+                dimension, centerX >> 4, centerZ >> 4, 2)) {
+            return;
+        }
         Random fluidRandom = new Random();
 
         // ClientLevel.animateTick(1.18.2) samples both radii on each tick.
