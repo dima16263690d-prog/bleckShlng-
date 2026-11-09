@@ -22,8 +22,9 @@ public final class ModernFluidEngine {
      * by the coremod; static source blocks use the portable scheduler.
      */
     public static void onBlockAdded(World world, BlockPos blockPos) {
-        scheduleStaticSource(world, blockPos);
-        reactLavaAt(world, blockPos);
+        if (!reactLavaAt(world, blockPos)) {
+            scheduleStaticSource(world, blockPos);
+        }
     }
 
     /**
