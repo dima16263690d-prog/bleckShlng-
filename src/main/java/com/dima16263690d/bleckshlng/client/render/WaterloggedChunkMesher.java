@@ -142,7 +142,7 @@ public final class WaterloggedChunkMesher {
         boolean flowingSurface = flowX * flowX + flowZ * flowZ > 1.0E-4F;
         TextureAtlasSprite topSprite = flowingSurface ? flow : still;
 
-        if (!topSlabHost && (!isSameFluid(access, pos.up()) || ownHeight < 1.0F)) {
+        if (!topSlabHost && !isSameFluid(access, pos.up())) {
             topQuad(buffer, x, y, z, hNW, hNE, hSE, hSW,
                     topSprite, flowX, flowZ, flowingSurface, r, g, b, a, sky, block);
         }
