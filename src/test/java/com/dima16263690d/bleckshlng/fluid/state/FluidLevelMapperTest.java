@@ -69,6 +69,24 @@ public class FluidLevelMapperTest {
     }
 
     @Test
+    public void fallingFluidHeightMatchesModernFluidState() {
+        FluidStateBridge falling = FluidStateBridge.fromLegacyMetadata(
+                FluidStateBridge.FluidKind.WATER, 8);
+
+        assertEquals(8.0F / 9.0F, falling.getHeight(false), 0.000001F);
+        assertEquals(1.0F, falling.getHeight(true), 0.000001F);
+    }
+
+    @Test
+    public void sourceFluidHeightOnlyReachesCellTopWhenSameFluidIsAbove() {
+        FluidStateBridge source = FluidStateBridge.source(
+                FluidStateBridge.FluidKind.LAVA);
+
+        assertEquals(8.0F / 9.0F, source.getHeight(false), 0.000001F);
+        assertEquals(1.0F, source.getHeight(true), 0.000001F);
+    }
+
+    @Test
     public void metadataAndAmountsAreClampedToSupportedRanges() {
         assertEquals(8, FluidLevelMapper.amountFromMetadata(-20));
         assertEquals(8, FluidLevelMapper.amountFromMetadata(50));
