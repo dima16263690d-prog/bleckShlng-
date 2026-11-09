@@ -22,7 +22,7 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 
 /**
  * Emits water quads into the chunk BufferBuilder (same pass as vanilla fluids).
- * Called from FluidCoreHooks.afterRenderBlock during chunk rebuild.
+ * Called from WaterloggedChunkRenderHooks during the TRANSLUCENT chunk pass.
  */
 @SideOnly(Side.CLIENT)
 public final class WaterloggedChunkMesher {
@@ -128,7 +128,10 @@ public final class WaterloggedChunkMesher {
         double y = pos.getY();
         double z = pos.getZ();
 
-        if (!isSameFluid(access, pos.up()) || ownHeight < 1.0F) {
+        boolean topSlabHost = host.getBlock() instanceof BlockSlab
+                && !((BlockSlab) host.getBlock()).isDouble()
+                && host.getValue(BlockSlab.HALF) == BlockSlab.EnumBlockHalf.TOP;
+        if (!topSlabHost && (!isSameFluid(access, pos.up()) || ownHeight < 1.0F)) {
             vert(buffer, x + 0, y + hNW, z + 0, still.getMinU(), still.getMinV(), r, g, b, a, sky, block);
             vert(buffer, x + 0, y + hSW, z + 1, still.getMinU(), still.getMaxV(), r, g, b, a, sky, block);
             vert(buffer, x + 1, y + hSE, z + 1, still.getMaxU(), still.getMaxV(), r, g, b, a, sky, block);
