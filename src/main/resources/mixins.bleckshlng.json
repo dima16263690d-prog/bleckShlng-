@@ -8,5 +8,8 @@
     "client.RenderChunkWaterloggedMixin",
     "client.BlockFluidRendererMixin",
     "client.BlockLiquidAnimateMixin"
+  ],
+  "mixins": [
+    "BlockLiquidLifecycleMixin"
   ]
 }
