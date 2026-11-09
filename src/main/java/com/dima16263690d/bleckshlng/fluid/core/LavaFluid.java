@@ -70,9 +70,9 @@ public final class LavaFluid extends FlowingFluid {
             FluidPos target = pos;
             for (int i = 0; i < attempts; i++) {
                 target = new FluidPos(
-                        pos.getX() + random.nextInt(3) - 1,
+                        target.getX() + random.nextInt(3) - 1,
                         target.getY() + 1,
-                        pos.getZ() + random.nextInt(3) - 1);
+                        target.getZ() + random.nextInt(3) - 1);
                 if (!world.isLoaded(target)) {
                     return;
                 }
