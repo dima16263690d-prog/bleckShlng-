@@ -111,7 +111,7 @@ public final class LavaFluid extends FlowingFluid {
 
         FluidPos above = pos.above();
         if (world.isLoaded(above) && world.isAir(above)
-                && !world.blocksMotion(above)) {
+                && !world.isSolidRender(above)) {
             if (random.nextInt(100) == 0) {
                 double x = pos.getX() + random.nextDouble();
                 double y = pos.getY() + 1.0D;
