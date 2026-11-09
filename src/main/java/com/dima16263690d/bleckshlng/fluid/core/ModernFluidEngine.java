@@ -35,7 +35,7 @@ public final class ModernFluidEngine {
         if (reactLavaAt(world, blockPos)) {
             return;
         }
-        scheduleStaticSource(world, blockPos);
+        scheduleStaticSourceTick(world, blockPos);
     }
 
     private static boolean reactLavaAt(World world, BlockPos blockPos) {
