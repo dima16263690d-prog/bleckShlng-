@@ -210,18 +210,21 @@ public final class FluidCoreHooks {
     public static boolean tryRandomTickDynamicLiquid(
             net.minecraft.block.Block block, World world, BlockPos pos,
             IBlockState state, Random random) {
-        if (block != Blocks.FLOWING_WATER && block != Blocks.FLOWING_LAVA) {
+        if (block != Blocks.FLOWING_WATER
+                && block != Blocks.LAVA && block != Blocks.FLOWING_LAVA) {
             return false;
         }
 
-        if (block == Blocks.FLOWING_LAVA && world != null && !world.isRemote
+        if ((block == Blocks.LAVA || block == Blocks.FLOWING_LAVA)
+                && world != null && !world.isRemote
                 && pos != null && state != null && state.getBlock() == block
                 && random != null && world.isBlockLoaded(pos)
                 && world.getBlockState(pos).getBlock() == block) {
             try {
+                // Both source and flowing lava use LavaFluid#randomTick.
                 ModernFluidEngine.randomTick(world, pos, random);
             } catch (Throwable error) {
-                LOGGER.error("Flowing lava random tick failed at {}", pos, error);
+                LOGGER.error("Lava random tick failed at {}", pos, error);
             }
         }
 
