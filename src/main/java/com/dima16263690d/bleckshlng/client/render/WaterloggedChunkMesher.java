@@ -183,7 +183,15 @@ public final class WaterloggedChunkMesher {
         } else {
             topOccluded = aboveState.isSideSolid(access, abovePos, EnumFacing.DOWN);
         }
-        if (!topSlabHost && !topOccluded && !isSameFluid(access, pos.up(), fluid.getKind())) {
+        boolean sameFluidAbove = isSameFluid(access, pos.up(), fluid.getKind());
+        boolean renderTop = !topSlabHost && !topOccluded && !sameFluidAbove;
+        if (renderTop) {
+            // LiquidBlockRenderer 1.18.2 lowers the top vertices by 0.001
+            // before emitting both the top quad and its adjoining side walls.
+            hNW = Math.max(minY, hNW - 0.001F);
+            hNE = Math.max(minY, hNE - 0.001F);
+            hSE = Math.max(minY, hSE - 0.001F);
+            hSW = Math.max(minY, hSW - 0.001F);
             topQuad(buffer, x, y, z, hNW, hNE, hSE, hSW,
                     topSprite, flowX, flowZ, flowingSurface, r, g, b, a, sky, block);
         }
@@ -203,9 +211,16 @@ public final class WaterloggedChunkMesher {
         } else {
             bottomOccluded = belowState.isSideSolid(access, belowPos, EnumFacing.UP);
         }
-        if (minY <= 0.001F && !bottomOccluded && !isSameFluid(access, pos.down(), fluid.getKind())) {
-            double yy = y + minY;
-            int bottomLight = access.getCombinedLight(pos.down(), 0);
+
+        boolean renderBottom = minY <= 0.001F && !bottomOccluded
+                && !isSameFluid(access, belowPos, fluid.getKind());
+        float sideMinY = minY;
+        if (renderBottom) {
+            // The 1.18.2 renderer leaves a 0.001 inset on the bottom face
+            // and starts adjoining side walls at the same height.
+            sideMinY = Math.max(sideMinY, 0.001F);
+            double yy = y + sideMinY;
+            int bottomLight = access.getCombinedLight(belowPos, 0);
             vert(buffer, x + 0, yy, z + 1, still.getMinU(), still.getMaxV(),
                     shade(r, 0.5F), shade(g, 0.5F), shade(b, 0.5F), a,
                     bottomLight >> 16 & 65535, bottomLight & 65535);
@@ -220,10 +235,10 @@ public final class WaterloggedChunkMesher {
                     bottomLight >> 16 & 65535, bottomLight & 65535);
         }
 
-        side(buffer, access, host, pos, EnumFacing.NORTH, x, y, z, hNW, hNE, minY, flow, r, g, b, a, fluid.getKind());
-        side(buffer, access, host, pos, EnumFacing.SOUTH, x, y, z, hSW, hSE, minY, flow, r, g, b, a, fluid.getKind());
-        side(buffer, access, host, pos, EnumFacing.WEST, x, y, z, hNW, hSW, minY, flow, r, g, b, a, fluid.getKind());
-        side(buffer, access, host, pos, EnumFacing.EAST, x, y, z, hNE, hSE, minY, flow, r, g, b, a, fluid.getKind());
+        side(buffer, access, host, pos, EnumFacing.NORTH, x, y, z, hNW, hNE, sideMinY, flow, r, g, b, a, fluid.getKind());
+        side(buffer, access, host, pos, EnumFacing.SOUTH, x, y, z, hSW, hSE, sideMinY, flow, r, g, b, a, fluid.getKind());
+        side(buffer, access, host, pos, EnumFacing.WEST, x, y, z, hNW, hSW, sideMinY, flow, r, g, b, a, fluid.getKind());
+        side(buffer, access, host, pos, EnumFacing.EAST, x, y, z, hNE, hSE, sideMinY, flow, r, g, b, a, fluid.getKind());
     }
 
     private static void side(BufferBuilder buffer, IBlockAccess access,
