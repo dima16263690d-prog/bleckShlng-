@@ -33,6 +33,13 @@ public final class FluidOcclusionShapeAdapter {
 
     public static FluidOcclusionShape getFaceShape(
             IBlockAccess access, BlockPos pos, IBlockState state, EnumFacing face) {
+        World world = access instanceof World ? (World) access : null;
+        return getFaceShape(access, world, pos, state, face);
+    }
+
+    public static FluidOcclusionShape getFaceShape(
+            IBlockAccess access, World world, BlockPos pos,
+            IBlockState state, EnumFacing face) {
         if (access == null || pos == null || state == null || face == null) {
             return FluidOcclusionShape.EMPTY;
         }
@@ -68,7 +75,6 @@ public final class FluidOcclusionShapeAdapter {
             return FluidOcclusionShape.EMPTY;
         }
 
-        World world = access instanceof World ? (World) access : null;
         if (world == null || !world.isBlockLoaded(pos)) {
             return faceShape == BlockFaceShape.SOLID
                     ? FluidOcclusionShape.FULL : FluidOcclusionShape.EMPTY;
