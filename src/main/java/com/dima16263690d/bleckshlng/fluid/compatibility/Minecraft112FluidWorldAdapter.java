@@ -287,8 +287,8 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
                 && host.getMaterial() != Material.WATER
                 && host.getMaterial() != Material.LAVA) {
             if (incomingMaterial == Material.LAVA) {
-                com.dima16263690d.bleckshlng.fluid.engine.FluidMixingHandler
-                        .playExtinguishEffects(world, blockPos);
+                // LavaFluid#beforeDestroyingBlock emits the vanilla fizz event.
+                world.playEvent(1501, blockPos, 0);
             } else {
                 host.getBlock().dropBlockAsItem(world, blockPos, host, 0);
             }
@@ -357,8 +357,9 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
         }
         BlockPos blockPos = toBlockPos(pos);
         IBlockState state = world.getBlockState(blockPos);
-        return state.getBlock().isFlammable(
-                world, blockPos, EnumFacing.UP);
+        // LavaFluid#isFlammable in 1.18.2 queries Material.isFlammable(),
+        // not Block#isFlammable(face), so keep the same material-level rule.
+        return state.getMaterial().isFlammable();
     }
 
     @Override
