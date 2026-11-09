@@ -33,6 +33,21 @@ public final class WaterloggedChunkMesher {
     private WaterloggedChunkMesher() {
     }
 
+    public static boolean tessellateFluid(IBlockAccess access, IBlockState state,
+                                          BlockPos pos, BufferBuilder buffer) {
+        if (access == null || state == null || pos == null || buffer == null
+                || !(state.getBlock() instanceof BlockLiquid)) {
+            return false;
+        }
+        FluidStateBridge fluid = FluidStateMapper.fromBlockState(state);
+        if (fluid == null) {
+            return false;
+        }
+        int before = buffer.getVertexCount();
+        tessellate(access, state, pos, fluid, buffer);
+        return buffer.getVertexCount() > before;
+    }
+
     public static void tessellate(IBlockAccess access, BlockPos pos,
                                   FluidStateBridge fluid, BufferBuilder buffer) {
         if (access == null || pos == null) {
@@ -49,8 +64,7 @@ public final class WaterloggedChunkMesher {
                                   BlockPos pos, FluidStateBridge fluid,
                                   BufferBuilder buffer) {
         if (access == null || host == null || pos == null
-                || fluid == null || buffer == null
-                || fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
+                || fluid == null || buffer == null) {
             return;
         }
 
@@ -97,12 +111,14 @@ public final class WaterloggedChunkMesher {
         hSW = Math.min(ownHeight, Math.max(hSW, minY));
 
         Minecraft mc = Minecraft.getMinecraft();
+        boolean lava = fluid.getKind() == FluidStateBridge.FluidKind.LAVA;
+        IBlockState fluidBlockState = (lava ? Blocks.LAVA : Blocks.WATER).getDefaultState();
         TextureAtlasSprite still = mc.getBlockRendererDispatcher()
-                .getBlockModelShapes().getTexture(Blocks.WATER.getDefaultState());
+                .getBlockModelShapes().getTexture(fluidBlockState);
         TextureAtlasSprite flow = still;
         try {
-            TextureAtlasSprite f = mc.getTextureMapBlocks()
-                    .getAtlasSprite("minecraft:blocks/water_flow");
+            TextureAtlasSprite f = mc.getTextureMapBlocks().getAtlasSprite(
+                    lava ? "minecraft:blocks/lava_flow" : "minecraft:blocks/water_flow");
             if (f != null && !"missingno".equals(f.getIconName())) {
                 flow = f;
             }
@@ -112,15 +128,16 @@ public final class WaterloggedChunkMesher {
             return;
         }
 
-        int color = 0x3F76E4;
-        try {
-            int tint = mc.getBlockColors().colorMultiplier(
-                    Blocks.WATER.getDefaultState(),
-                    access, pos, 0);
-            if (tint != -1) {
-                color = tint;
+        int color = lava ? 0xFFFFFF : 0x3F76E4;
+        if (!lava) {
+            try {
+                int tint = mc.getBlockColors().colorMultiplier(
+                        fluidBlockState, access, pos, 0);
+                if (tint != -1) {
+                    color = tint;
+                }
+            } catch (Throwable ignored) {
             }
-        } catch (Throwable ignored) {
         }
         int r = color >> 16 & 255;
         int g = color >> 8 & 255;
@@ -153,7 +170,7 @@ public final class WaterloggedChunkMesher {
                         world, pos.up(), above, EnumFacing.DOWN);
             }
         }
-        if (!topSlabHost && !topOccluded && !isSameFluid(access, pos.up())) {
+        if (!topSlabHost && !topOccluded && !isSameFluid(access, pos.up(), fluid.getKind())) {
             topQuad(buffer, x, y, z, hNW, hNE, hSE, hSW,
                     topSprite, flowX, flowZ, flowingSurface, r, g, b, a, sky, block);
         }
@@ -167,7 +184,7 @@ public final class WaterloggedChunkMesher {
                         world, pos.down(), below, EnumFacing.UP);
             }
         }
-        if (minY <= 0.001F && !bottomOccluded && !isSameFluid(access, pos.down())) {
+        if (minY <= 0.001F && !bottomOccluded && !isSameFluid(access, pos.down(), fluid.getKind())) {
             double yy = y + minY;
             int bottomLight = access.getCombinedLight(pos.down(), 0);
             vert(buffer, x + 0, yy, z + 1, still.getMinU(), still.getMaxV(),
@@ -184,18 +201,19 @@ public final class WaterloggedChunkMesher {
                     bottomLight >> 16 & 65535, bottomLight & 65535);
         }
 
-        side(buffer, access, host, pos, EnumFacing.NORTH, x, y, z, hNW, hNE, minY, flow, r, g, b, a);
-        side(buffer, access, host, pos, EnumFacing.SOUTH, x, y, z, hSW, hSE, minY, flow, r, g, b, a);
-        side(buffer, access, host, pos, EnumFacing.WEST, x, y, z, hNW, hSW, minY, flow, r, g, b, a);
-        side(buffer, access, host, pos, EnumFacing.EAST, x, y, z, hNE, hSE, minY, flow, r, g, b, a);
+        side(buffer, access, host, pos, EnumFacing.NORTH, x, y, z, hNW, hNE, minY, flow, r, g, b, a, fluid.getKind());
+        side(buffer, access, host, pos, EnumFacing.SOUTH, x, y, z, hSW, hSE, minY, flow, r, g, b, a, fluid.getKind());
+        side(buffer, access, host, pos, EnumFacing.WEST, x, y, z, hNW, hSW, minY, flow, r, g, b, a, fluid.getKind());
+        side(buffer, access, host, pos, EnumFacing.EAST, x, y, z, hNE, hSE, minY, flow, r, g, b, a, fluid.getKind());
     }
 
     private static void side(BufferBuilder buffer, IBlockAccess access,
                              IBlockState host, BlockPos pos,
                              EnumFacing face, double x, double y, double z,
                              float h0, float h1, float minY, TextureAtlasSprite sprite,
-                             int r, int g, int b, int a) {
-        if (isSameFluid(access, pos.offset(face))) {
+                             int r, int g, int b, int a,
+                             FluidStateBridge.FluidKind kind) {
+        if (isSameFluid(access, pos.offset(face), kind)) {
             return;
         }
         if (h0 <= minY && h1 <= minY) {
@@ -222,8 +240,9 @@ public final class WaterloggedChunkMesher {
         }
         IBlockState neighborState = access.getBlockState(pos.offset(face));
         TextureAtlasSprite sideSprite = sprite;
-        boolean overlay = neighborState.getBlock() instanceof net.minecraft.block.BlockLeaves
-                || neighborState.getMaterial() == Material.GLASS;
+        boolean overlay = kind == FluidStateBridge.FluidKind.WATER
+                && (neighborState.getBlock() instanceof net.minecraft.block.BlockLeaves
+                || neighborState.getMaterial() == Material.GLASS);
         if (overlay) {
             TextureAtlasSprite waterOverlay = Minecraft.getMinecraft().getTextureMapBlocks()
                     .getAtlasSprite("minecraft:blocks/water_overlay");
@@ -489,18 +508,12 @@ public final class WaterloggedChunkMesher {
         }
     }
 
-    private static float fluidHeight(IBlockAccess access, BlockPos pos) {
+    private static float fluidHeight(IBlockAccess access, BlockPos pos,
+                                      FluidStateBridge.FluidKind kind) {
         IBlockState state = access.getBlockState(pos);
-        FluidStateBridge fluid = null;
-        if (access instanceof FluidViewAccess) {
-            fluid = ((FluidViewAccess) access).getFluidState(pos);
-        }
-        if (fluid == null && state.getMaterial() == Material.WATER
-                && state.getBlock() instanceof BlockLiquid) {
-            fluid = FluidStateMapper.fromBlockState(state);
-        }
-        if (fluid != null && fluid.getKind() == FluidStateBridge.FluidKind.WATER) {
-            if (isSameFluid(access, pos.up())) {
+        FluidStateBridge fluid = getFluidState(access, pos, state);
+        if (fluid != null && fluid.getKind() == kind) {
+            if (isSameFluid(access, pos.up(), kind)) {
                 return 1.0F;
             }
             if (access instanceof FluidViewAccess) {
@@ -511,16 +524,11 @@ public final class WaterloggedChunkMesher {
         return state.getMaterial().blocksMovement() ? -1.0F : 0.0F;
     }
 
-    private static boolean isSameFluid(IBlockAccess access, BlockPos pos) {
+    private static boolean isSameFluid(IBlockAccess access, BlockPos pos,
+                                       FluidStateBridge.FluidKind kind) {
         IBlockState state = access.getBlockState(pos);
-        if (state.getMaterial() == Material.WATER) {
-            return true;
-        }
-        if (access instanceof World) {
-            FluidStateBridge fluid = FluidStateMapper.fromWorld((World) access, pos, state);
-            return fluid != null && fluid.getKind() == FluidStateBridge.FluidKind.WATER;
-        }
-        return false;
+        FluidStateBridge fluid = getFluidState(access, pos, state);
+        return fluid != null && fluid.getKind() == kind;
     }
 
     private static void vert(BufferBuilder buffer,
