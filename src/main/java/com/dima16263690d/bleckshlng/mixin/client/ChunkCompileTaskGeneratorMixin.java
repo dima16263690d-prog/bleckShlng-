@@ -39,13 +39,22 @@ public abstract class ChunkCompileTaskGeneratorMixin {
         }
 
         RenderChunk renderChunk = generator.getRenderChunk();
-        if (!WaterloggedChunkRenderHooks.hasWaterloggedFluid(renderChunk)) {
-            return;
-        }
+        if (compiledChunk.isLayerStarted(BlockRenderLayer.TRANSLUCENT)) {
+            if (!WaterloggedChunkRenderHooks.beginWaterloggedRebuild(renderChunk)) {
+                return;
+            }
+        } else {
+            if (!WaterloggedChunkRenderHooks.hasWaterloggedFluid(renderChunk)) {
+                return;
+            }
 
-        if (!compiledChunk.isLayerStarted(BlockRenderLayer.TRANSLUCENT)) {
-            BufferBuilder buffer = generator.getRegionRenderCacheBuilder()
-                    .getWorldRendererByLayer(BlockRenderLayer.TRANSLUCENT);
+            net.minecraft.client.renderer.RegionRenderCacheBuilder cacheBuilder =
+                    generator.getRegionRenderCacheBuilder();
+            if (cacheBuilder == null) {
+                return;
+            }
+            BufferBuilder buffer = cacheBuilder.getWorldRendererByLayer(
+                    BlockRenderLayer.TRANSLUCENT);
             if (buffer == null) {
                 return;
             }
@@ -55,8 +64,9 @@ public abstract class ChunkCompileTaskGeneratorMixin {
             buffer.begin(7, DefaultVertexFormats.BLOCK);
             buffer.setTranslation(
                     -origin.getX(), -origin.getY(), -origin.getZ());
+            if (!WaterloggedChunkRenderHooks.beginWaterloggedRebuild(renderChunk)) {
+                return;
+            }
         }
-
-        WaterloggedChunkRenderHooks.beginWaterloggedRebuild(renderChunk);
     }
 }
