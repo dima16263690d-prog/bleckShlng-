@@ -263,8 +263,10 @@ public final class FluidSpreadEngine {
         int count = 0;
         for (EnumFacing direction : EnumFacing.Plane.HORIZONTAL) {
             BlockPos neighborPos = pos.offset(direction);
+            // FlowingFluid.sourceNeighborCount in 1.18.2 counts
+            // adjacent source states directly; unlike getNewLiquid(), it
+            // does not test whether the shared face is passable.
             if (world.isBlockLoaded(neighborPos)
-                    && canSpreadThrough(world, pos, direction, material)
                     && getDepth(world, neighborPos, material)
                     == FluidLevelMapper.SOURCE_METADATA) {
                 count++;
