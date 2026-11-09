@@ -1,5 +1,11 @@
 package com.dima16263690d.bleckshlng.client.render;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.TreeSet;
+
 import net.minecraft.block.BlockLiquid;
 import net.minecraft.block.BlockSlab;
 import net.minecraft.block.material.Material;
@@ -9,6 +15,7 @@ import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.init.Blocks;
 import net.minecraft.util.EnumFacing;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -231,32 +238,12 @@ public final class WaterloggedChunkMesher {
         if (h0 <= minY && h1 <= minY) {
             return;
         }
+
         BlockPos neighborPos = pos.offset(face);
         IBlockState neighborState = access.getBlockState(neighborPos);
-        if (access instanceof FluidViewAccess) {
-            World world = ((FluidViewAccess) access).getWorld();
-            if (world != null && world.isBlockLoaded(pos)) {
-                float maxHeight = Math.max(h0, h1);
-                if (FluidShapeCalculator.isFaceRectangleCovered(
-                        world, pos, host, face, minY, maxHeight)) {
-                    return;
-                }
-                if (world.isBlockLoaded(neighborPos)) {
-                    IBlockState neighbor = world.getBlockState(neighborPos);
-                    if (FluidShapeCalculator.isFaceRectangleCovered(
-                            world, neighborPos, neighbor, face.getOpposite(),
-                            minY, maxHeight)) {
-                        return;
-                    }
-                }
-            } else if (host.isSideSolid(access, pos, face)
-                    || neighborState.isSideSolid(access, neighborPos, face.getOpposite())) {
-                return;
-            }
-        } else if (host.isSideSolid(access, pos, face)
-                || neighborState.isSideSolid(access, neighborPos, face.getOpposite())) {
-            return;
-        }
+        List<SideOcclusionRect> occlusions =
+                collectSideOcclusions(access, host, pos, neighborState, neighborPos, face, minY);
+
         TextureAtlasSprite sideSprite = sprite;
         boolean overlay = kind == FluidStateBridge.FluidKind.WATER
                 && (neighborState.getBlock() instanceof net.minecraft.block.BlockLeaves
@@ -271,83 +258,312 @@ public final class WaterloggedChunkMesher {
             }
         }
 
-        float u0 = sideSprite.getInterpolatedU(0.0D);
-        float u1 = sideSprite.getInterpolatedU(8.0D);
-        float vTop0 = sideSprite.getInterpolatedV(
-                (1.0F - MathHelper.clamp(h0, 0.0F, 1.0F)) * 8.0F);
-        float vTop1 = sideSprite.getInterpolatedV(
-                (1.0F - MathHelper.clamp(h1, 0.0F, 1.0F)) * 8.0F);
-        float vBot = sideSprite.getInterpolatedV(8.0D);
-
         float shade = face == EnumFacing.NORTH || face == EnumFacing.SOUTH
                 ? 0.8F : 0.6F;
         int[] sideLight = getFluidLight(access, pos);
         int sky = sideLight[0];
         int block = sideLight[1];
+
+        emitClippedSide(buffer, face, x, y, z, h0, h1, minY,
+                sideSprite, occlusions, r, g, b, a, sky, block, shade, !overlay);
+    }
+
+    /**
+     * Returns the actual collision rectangles touching this shared face.
+     * The old implementation only checked whether the whole face was covered.
+     * A slab covers only half of its side, so that boolean test left the entire
+     * water quad visible and produced a blue square around submerged slabs.
+     */
+    private static List<SideOcclusionRect> collectSideOcclusions(
+            IBlockAccess access, IBlockState host, BlockPos pos,
+            IBlockState neighbor, BlockPos neighborPos,
+            EnumFacing face, float minY) {
+        List<SideOcclusionRect> result = new ArrayList<SideOcclusionRect>();
+        World world = null;
+        if (access instanceof FluidViewAccess) {
+            world = ((FluidViewAccess) access).getWorld();
+        } else if (access instanceof World) {
+            world = (World) access;
+        } else {
+            world = Minecraft.getMinecraft().world;
+        }
+
+        if (world != null && world.isBlockLoaded(pos) && world.isBlockLoaded(neighborPos)) {
+            IBlockState neighborShape = access instanceof FluidViewAccess
+                    ? ((FluidViewAccess) access).getOriginalBlockState(neighborPos)
+                    : neighbor;
+            addSideOcclusions(result,
+                    FluidShapeCalculator.getCollisionBoxes(world, pos, host),
+                    pos, pos, face, minY);
+            addSideOcclusions(result,
+                    FluidShapeCalculator.getCollisionBoxes(world, neighborPos, neighborShape),
+                    neighborPos, pos, face.getOpposite(), minY);
+            return result;
+        }
+
+        // Safe fallback if chunk compilation has no World reference. Do not
+        // pretend a partial shape is a full cube unless the state says so.
+        if (host.isSideSolid(access, pos, face)) {
+            result.add(new SideOcclusionRect(0.0D, 1.0D, minY, 1.0D));
+        }
+        if (neighbor.isSideSolid(access, neighborPos, face.getOpposite())) {
+            result.add(new SideOcclusionRect(0.0D, 1.0D, minY, 1.0D));
+        }
+        return result;
+    }
+
+    private static void addSideOcclusions(List<SideOcclusionRect> target,
+                                          List<AxisAlignedBB> boxes,
+                                          BlockPos shapePos, BlockPos fluidPos,
+                                          EnumFacing face, float minY) {
+        if (boxes == null || boxes.isEmpty()) {
+            return;
+        }
+        for (AxisAlignedBB box : boxes) {
+            if (!touchesFace(box, shapePos, face)) {
+                continue;
+            }
+
+            double minU;
+            double maxU;
+            if (face.getAxis() == EnumFacing.Axis.Z) {
+                minU = box.minX - fluidPos.getX();
+                maxU = box.maxX - fluidPos.getX();
+            } else {
+                minU = box.minZ - fluidPos.getZ();
+                maxU = box.maxZ - fluidPos.getZ();
+            }
+            double minV = box.minY - fluidPos.getY();
+            double maxV = box.maxY - fluidPos.getY();
+
+            minU = Math.max(0.0D, Math.min(1.0D, minU));
+            maxU = Math.max(0.0D, Math.min(1.0D, maxU));
+            minV = Math.max((double) minY, Math.min(1.0D, minV));
+            maxV = Math.max((double) minY, Math.min(1.0D, maxV));
+            if (maxU - minU > 1.0E-5D && maxV - minV > 1.0E-5D) {
+                target.add(new SideOcclusionRect(minU, maxU, minV, maxV));
+            }
+        }
+    }
+
+    private static boolean touchesFace(AxisAlignedBB box, BlockPos pos, EnumFacing face) {
+        final double epsilon = 1.0E-5D;
+        switch (face) {
+            case DOWN: return box.minY <= pos.getY() + epsilon;
+            case UP: return box.maxY >= pos.getY() + 1.0D - epsilon;
+            case NORTH: return box.minZ <= pos.getZ() + epsilon;
+            case SOUTH: return box.maxZ >= pos.getZ() + 1.0D - epsilon;
+            case WEST: return box.minX <= pos.getX() + epsilon;
+            case EAST: return box.maxX >= pos.getX() + 1.0D - epsilon;
+            default: return false;
+        }
+    }
+
+    private static void emitClippedSide(BufferBuilder buffer, EnumFacing face,
+                                        double x, double y, double z,
+                                        float h0, float h1, float minY,
+                                        TextureAtlasSprite sprite,
+                                        List<SideOcclusionRect> occlusions,
+                                        int r, int g, int b, int a,
+                                        int sky, int block, float shade,
+                                        boolean doubleSided) {
+        TreeSet<Double> uEdges = new TreeSet<Double>();
+        uEdges.add(Double.valueOf(0.0D));
+        uEdges.add(Double.valueOf(1.0D));
+        for (SideOcclusionRect rect : occlusions) {
+            uEdges.add(Double.valueOf(rect.minU));
+            uEdges.add(Double.valueOf(rect.maxU));
+            addSurfaceCrossing(uEdges, rect.minY, h0, h1, rect.minU, rect.maxU);
+            addSurfaceCrossing(uEdges, rect.maxY, h0, h1, rect.minU, rect.maxU);
+        }
+
+        List<Double> edges = new ArrayList<Double>(uEdges);
         int sr = shade(r, shade);
         int sg = shade(g, shade);
         int sb = shade(b, shade);
-        switch (face) {
-            case NORTH:
-                vert(buffer, x + 0, y + h0, z + 0, u0, vTop0, sr, sg, sb, a, sky, block);
-                vert(buffer, x + 1, y + h1, z + 0, u1, vTop1, sr, sg, sb, a, sky, block);
-                vert(buffer, x + 1, y + minY, z + 0, u1, vBot, sr, sg, sb, a, sky, block);
-                vert(buffer, x + 0, y + minY, z + 0, u0, vBot, sr, sg, sb, a, sky, block);
-                break;
-            case SOUTH:
-                vert(buffer, x + 1, y + h1, z + 1, u0, vTop1, sr, sg, sb, a, sky, block);
-                vert(buffer, x + 0, y + h0, z + 1, u1, vTop0, sr, sg, sb, a, sky, block);
-                vert(buffer, x + 0, y + minY, z + 1, u1, vBot, sr, sg, sb, a, sky, block);
-                vert(buffer, x + 1, y + minY, z + 1, u0, vBot, sr, sg, sb, a, sky, block);
-                break;
-            case WEST:
-                vert(buffer, x + 0, y + h0, z + 1, u0, vTop0, sr, sg, sb, a, sky, block);
-                vert(buffer, x + 0, y + h1, z + 0, u1, vTop1, sr, sg, sb, a, sky, block);
-                vert(buffer, x + 0, y + minY, z + 0, u1, vBot, sr, sg, sb, a, sky, block);
-                vert(buffer, x + 0, y + minY, z + 1, u0, vBot, sr, sg, sb, a, sky, block);
-                break;
-            case EAST:
-                vert(buffer, x + 1, y + h0, z + 0, u0, vTop0, sr, sg, sb, a, sky, block);
-                vert(buffer, x + 1, y + h1, z + 1, u1, vTop1, sr, sg, sb, a, sky, block);
-                vert(buffer, x + 1, y + minY, z + 1, u1, vBot, sr, sg, sb, a, sky, block);
-                vert(buffer, x + 1, y + minY, z + 0, u0, vBot, sr, sg, sb, a, sky, block);
-                break;
-            default:
-                break;
+
+        for (int i = 0; i + 1 < edges.size(); i++) {
+            double u0 = edges.get(i).doubleValue();
+            double u1 = edges.get(i + 1).doubleValue();
+            if (u1 - u0 <= 1.0E-5D) {
+                continue;
+            }
+            double middleU = (u0 + u1) * 0.5D;
+            double middleHeight = interpolateHeight(h0, h1, middleU);
+            if (middleHeight <= minY + 1.0E-5D) {
+                continue;
+            }
+
+            List<VerticalInterval> blocked = new ArrayList<VerticalInterval>();
+            for (SideOcclusionRect rect : occlusions) {
+                if (middleU > rect.minU - 1.0E-5D
+                        && middleU < rect.maxU + 1.0E-5D) {
+                    double low = Math.max((double) minY, rect.minY);
+                    double high = Math.min(middleHeight, rect.maxY);
+                    if (high - low > 1.0E-5D) {
+                        blocked.add(new VerticalInterval(low, high));
+                    }
+                }
+            }
+            Collections.sort(blocked, new Comparator<VerticalInterval>() {
+                @Override
+                public int compare(VerticalInterval first, VerticalInterval second) {
+                    return Double.compare(first.minY, second.minY);
+                }
+            });
+
+            List<VerticalInterval> merged = new ArrayList<VerticalInterval>();
+            for (VerticalInterval interval : blocked) {
+                if (merged.isEmpty()) {
+                    merged.add(new VerticalInterval(interval.minY, interval.maxY));
+                } else {
+                    VerticalInterval previous = merged.get(merged.size() - 1);
+                    if (interval.minY > previous.maxY + 1.0E-5D) {
+                        merged.add(new VerticalInterval(interval.minY, interval.maxY));
+                    } else if (interval.maxY > previous.maxY) {
+                        previous.maxY = interval.maxY;
+                    }
+                }
+            }
+
+            double cursor = minY;
+            for (VerticalInterval interval : merged) {
+                if (interval.minY > cursor + 1.0E-5D) {
+                    emitVisibleSideStrip(buffer, face, x, y, z, u0, u1,
+                            h0, h1, cursor, interval.minY, sprite,
+                            sr, sg, sb, a, sky, block, doubleSided);
+                }
+                cursor = Math.max(cursor, interval.maxY);
+            }
+            emitVisibleSideStrip(buffer, face, x, y, z, u0, u1,
+                    h0, h1, cursor, Double.POSITIVE_INFINITY, sprite,
+                    sr, sg, sb, a, sky, block, doubleSided);
+        }
+    }
+
+    private static void addSurfaceCrossing(TreeSet<Double> edges, double height,
+                                           float h0, float h1,
+                                           double minU, double maxU) {
+        double delta = (double) h1 - (double) h0;
+        if (Math.abs(delta) <= 1.0E-7D) {
+            return;
+        }
+        double u = (height - (double) h0) / delta;
+        if (u > minU + 1.0E-5D && u < maxU - 1.0E-5D
+                && u > 1.0E-5D && u < 1.0D - 1.0E-5D) {
+            edges.add(Double.valueOf(u));
+        }
+    }
+
+    private static double interpolateHeight(float h0, float h1, double u) {
+        return (double) h0 + ((double) h1 - (double) h0) * u;
+    }
+
+    private static void emitVisibleSideStrip(BufferBuilder buffer, EnumFacing face,
+                                             double x, double y, double z,
+                                             double u0, double u1,
+                                             float h0, float h1,
+                                             double bottom, double topLimit,
+                                             TextureAtlasSprite sprite,
+                                             int r, int g, int b, int a,
+                                             int sky, int block,
+                                             boolean doubleSided) {
+        double top0 = Math.min(interpolateHeight(h0, h1, u0), topLimit);
+        double top1 = Math.min(interpolateHeight(h0, h1, u1), topLimit);
+        if (top0 < bottom) top0 = bottom;
+        if (top1 < bottom) top1 = bottom;
+        if (top0 - bottom <= 1.0E-5D && top1 - bottom <= 1.0E-5D) {
+            return;
         }
 
-        // The 1.18.2 renderer emits the reverse side for ordinary fluid
-        // walls so translucent water remains visible from both directions.
-        // Overlay faces intentionally stay single-sided.
-        if (!overlay) {
-            switch (face) {
-                case NORTH:
-                    vert(buffer, x + 0, y + minY, z + 0, u0, vBot, sr, sg, sb, a, sky, block);
-                    vert(buffer, x + 1, y + minY, z + 0, u1, vBot, sr, sg, sb, a, sky, block);
-                    vert(buffer, x + 1, y + h1, z + 0, u1, vTop1, sr, sg, sb, a, sky, block);
-                    vert(buffer, x + 0, y + h0, z + 0, u0, vTop0, sr, sg, sb, a, sky, block);
-                    break;
-                case SOUTH:
-                    vert(buffer, x + 1, y + minY, z + 1, u0, vBot, sr, sg, sb, a, sky, block);
-                    vert(buffer, x + 0, y + minY, z + 1, u1, vBot, sr, sg, sb, a, sky, block);
-                    vert(buffer, x + 0, y + h0, z + 1, u1, vTop0, sr, sg, sb, a, sky, block);
-                    vert(buffer, x + 1, y + h1, z + 1, u0, vTop1, sr, sg, sb, a, sky, block);
-                    break;
-                case WEST:
-                    vert(buffer, x + 0, y + minY, z + 1, u0, vBot, sr, sg, sb, a, sky, block);
-                    vert(buffer, x + 0, y + minY, z + 0, u1, vBot, sr, sg, sb, a, sky, block);
-                    vert(buffer, x + 0, y + h1, z + 0, u1, vTop1, sr, sg, sb, a, sky, block);
-                    vert(buffer, x + 0, y + h0, z + 1, u0, vTop0, sr, sg, sb, a, sky, block);
-                    break;
-                case EAST:
-                    vert(buffer, x + 1, y + minY, z + 0, u0, vBot, sr, sg, sb, a, sky, block);
-                    vert(buffer, x + 1, y + minY, z + 1, u1, vBot, sr, sg, sb, a, sky, block);
-                    vert(buffer, x + 1, y + h1, z + 1, u1, vTop1, sr, sg, sb, a, sky, block);
-                    vert(buffer, x + 1, y + h0, z + 0, u0, vTop0, sr, sg, sb, a, sky, block);
-                    break;
-                default:
-                    break;
+        boolean reverseU = face == EnumFacing.SOUTH || face == EnumFacing.WEST;
+        float texU0 = sprite.getInterpolatedU((float) ((reverseU ? 1.0D - u0 : u0) * 8.0D));
+        float texU1 = sprite.getInterpolatedU((float) ((reverseU ? 1.0D - u1 : u1) * 8.0D));
+        float texVTop0 = sprite.getInterpolatedV((float) ((1.0D - top0) * 8.0D));
+        float texVTop1 = sprite.getInterpolatedV((float) ((1.0D - top1) * 8.0D));
+        float texVBottom = sprite.getInterpolatedV((float) ((1.0D - bottom) * 8.0D));
+
+        boolean reverseOrder = face == EnumFacing.SOUTH || face == EnumFacing.WEST;
+        if (!reverseOrder) {
+            sideVertex(buffer, face, x, y, z, u0, top0, texU0, texVTop0, r, g, b, a, sky, block);
+            sideVertex(buffer, face, x, y, z, u1, top1, texU1, texVTop1, r, g, b, a, sky, block);
+            sideVertex(buffer, face, x, y, z, u1, bottom, texU1, texVBottom, r, g, b, a, sky, block);
+            sideVertex(buffer, face, x, y, z, u0, bottom, texU0, texVBottom, r, g, b, a, sky, block);
+        } else {
+            sideVertex(buffer, face, x, y, z, u1, top1, texU1, texVTop1, r, g, b, a, sky, block);
+            sideVertex(buffer, face, x, y, z, u0, top0, texU0, texVTop0, r, g, b, a, sky, block);
+            sideVertex(buffer, face, x, y, z, u0, bottom, texU0, texVBottom, r, g, b, a, sky, block);
+            sideVertex(buffer, face, x, y, z, u1, bottom, texU1, texVBottom, r, g, b, a, sky, block);
+        }
+
+        if (doubleSided) {
+            if (!reverseOrder) {
+                sideVertex(buffer, face, x, y, z, u0, bottom, texU0, texVBottom, r, g, b, a, sky, block);
+                sideVertex(buffer, face, x, y, z, u1, bottom, texU1, texVBottom, r, g, b, a, sky, block);
+                sideVertex(buffer, face, x, y, z, u1, top1, texU1, texVTop1, r, g, b, a, sky, block);
+                sideVertex(buffer, face, x, y, z, u0, top0, texU0, texVTop0, r, g, b, a, sky, block);
+            } else {
+                sideVertex(buffer, face, x, y, z, u1, bottom, texU1, texVBottom, r, g, b, a, sky, block);
+                sideVertex(buffer, face, x, y, z, u0, bottom, texU0, texVBottom, r, g, b, a, sky, block);
+                sideVertex(buffer, face, x, y, z, u0, top0, texU0, texVTop0, r, g, b, a, sky, block);
+                sideVertex(buffer, face, x, y, z, u1, top1, texU1, texVTop1, r, g, b, a, sky, block);
             }
+        }
+    }
+
+    private static void sideVertex(BufferBuilder buffer, EnumFacing face,
+                                  double x, double y, double z,
+                                  double u, double height,
+                                  float texU, float texV,
+                                  int r, int g, int b, int a,
+                                  int sky, int block) {
+        double px;
+        double pz;
+        switch (face) {
+            case NORTH:
+                px = x + u;
+                pz = z;
+                break;
+            case SOUTH:
+                px = x + u;
+                pz = z + 1.0D;
+                break;
+            case WEST:
+                px = x;
+                pz = z + u;
+                break;
+            case EAST:
+                px = x + 1.0D;
+                pz = z + u;
+                break;
+            default:
+                return;
+        }
+        vert(buffer, px, y + height, pz, texU, texV,
+                r, g, b, a, sky, block);
+    }
+
+    private static final class SideOcclusionRect {
+        private final double minU;
+        private final double maxU;
+        private final double minY;
+        private final double maxY;
+
+        private SideOcclusionRect(double minU, double maxU, double minY, double maxY) {
+            this.minU = minU;
+            this.maxU = maxU;
+            this.minY = minY;
+            this.maxY = maxY;
+        }
+    }
+
+    private static final class VerticalInterval {
+        private final double minY;
+        private double maxY;
+
+        private VerticalInterval(double minY, double maxY) {
+            this.minY = minY;
+            this.maxY = maxY;
         }
     }
 
