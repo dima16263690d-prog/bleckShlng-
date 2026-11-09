@@ -159,6 +159,15 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
             return false;
         }
 
+        // A dry waterloggable host is not a replaceable block in 1.12.2,
+        // but the modern fluid API may store water inside it without replacing
+        // the host state. canHoldFluid() separately rejects already-filled hosts.
+        if (incoming.isSame(Fluids.WATER)
+                && state.getMaterial() != Material.WATER
+                && WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
+            return true;
+        }
+
         FluidState existing = getFluidState(target);
         if (!existing.isEmpty()) {
             return existing.getType().canBeReplacedWith(
