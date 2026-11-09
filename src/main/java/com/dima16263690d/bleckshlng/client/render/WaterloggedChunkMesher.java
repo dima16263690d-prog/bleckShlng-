@@ -348,6 +348,10 @@ public final class WaterloggedChunkMesher {
                 ? FluidStateMapper.fromBlockState(state) : null;
     }
 
+    private static int shade(int channel, float factor) {
+        return Math.min(255, Math.max(0, Math.round((float) channel * factor)));
+    }
+
     private static float sampleCorner(IBlockAccess access, BlockPos pos,
                                       float own, int ox, int oz) {
         BlockPos north = pos.add(0, 0, -1);
