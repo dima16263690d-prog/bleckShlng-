@@ -321,7 +321,8 @@ public final class WaterloggedChunkMesher {
         boolean overlay = kind == FluidStateBridge.FluidKind.WATER
                 && (neighborState.getBlock() instanceof net.minecraft.block.BlockLeaves
                 || neighborState.getMaterial() == Material.GLASS
-                || neighborState.getMaterial() == Material.ICE);
+                || neighborState.getMaterial() == Material.ICE
+                || neighborState.getBlock() == Blocks.SLIME_BLOCK);
         List<SideOcclusionRect> occlusions =
                 collectSideOcclusions(access, host, pos, neighborState,
                         neighborPos, face, minY, overlay);
