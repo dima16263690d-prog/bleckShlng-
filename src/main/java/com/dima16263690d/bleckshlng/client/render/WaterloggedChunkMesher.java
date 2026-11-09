@@ -201,24 +201,15 @@ public final class WaterloggedChunkMesher {
         boolean flowingSurface = flowX != 0.0F || flowZ != 0.0F;
         TextureAtlasSprite topSprite = flowingSurface ? flow : still;
 
-        boolean topOccluded = false;
         BlockPos abovePos = pos.up();
         IBlockState aboveState = access.getBlockState(abovePos);
-        if (access instanceof FluidViewAccess) {
-            World world = ((FluidViewAccess) access).getWorld();
-            if (world != null && world.isBlockLoaded(abovePos)) {
-                IBlockState above = world.getBlockState(abovePos);
-                topOccluded = canOccludeFluidFace(world, abovePos, above, EnumFacing.DOWN)
-                        && FluidShapeCalculator.isFaceFullyCovered(
-                        world, abovePos, above, EnumFacing.DOWN);
-            } else {
-                topOccluded = canOccludeFluidFace(access, abovePos, aboveState, EnumFacing.DOWN)
-                        && aboveState.isSideSolid(access, abovePos, EnumFacing.DOWN);
-            }
-        } else {
-            topOccluded = canOccludeFluidFace(access, abovePos, aboveState, EnumFacing.DOWN)
-                    && aboveState.isSideSolid(access, abovePos, EnumFacing.DOWN);
-        }
+        World shapeWorld = access instanceof FluidViewAccess
+                ? ((FluidViewAccess) access).getWorld()
+                : (access instanceof World ? (World) access : Minecraft.getMinecraft().world);
+        FluidOcclusionShape aboveShape = FluidOcclusionShapeAdapter.getFaceShape(
+                access, shapeWorld, abovePos, aboveState, EnumFacing.DOWN);
+        boolean topOccluded =
+                FluidOcclusionShapeAdapter.isFaceFullyCovered(aboveShape);
         boolean sameFluidAbove = isSameFluid(access, pos.up(), fluid.getKind());
         boolean renderTop = !topSlabHost && !topOccluded && !sameFluidAbove;
         if (renderTop) {
@@ -243,24 +234,12 @@ public final class WaterloggedChunkMesher {
             }
         }
 
-        boolean bottomOccluded = false;
         BlockPos belowPos = pos.down();
         IBlockState belowState = access.getBlockState(belowPos);
-        if (access instanceof FluidViewAccess) {
-            World world = ((FluidViewAccess) access).getWorld();
-            if (world != null && world.isBlockLoaded(belowPos)) {
-                IBlockState below = world.getBlockState(belowPos);
-                bottomOccluded = canOccludeFluidFace(world, belowPos, below, EnumFacing.UP)
-                        && FluidShapeCalculator.isFaceFullyCovered(
-                        world, belowPos, below, EnumFacing.UP);
-            } else {
-                bottomOccluded = canOccludeFluidFace(access, belowPos, belowState, EnumFacing.UP)
-                        && belowState.isSideSolid(access, belowPos, EnumFacing.UP);
-            }
-        } else {
-            bottomOccluded = canOccludeFluidFace(access, belowPos, belowState, EnumFacing.UP)
-                    && belowState.isSideSolid(access, belowPos, EnumFacing.UP);
-        }
+        FluidOcclusionShape belowShape = FluidOcclusionShapeAdapter.getFaceShape(
+                access, shapeWorld, belowPos, belowState, EnumFacing.UP);
+        boolean bottomOccluded =
+                FluidOcclusionShapeAdapter.isFaceFullyCovered(belowShape);
 
         boolean renderBottom = minY <= 0.001F && !bottomOccluded
                 && !isSameFluid(access, belowPos, fluid.getKind());
