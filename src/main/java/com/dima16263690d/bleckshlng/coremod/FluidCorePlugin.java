@@ -5,8 +5,7 @@ import java.util.Map;
 import net.minecraftforge.fml.relauncher.IFMLLoadingPlugin;
 
 /**
- * Loads before normal mod initialization and registers the guarded fluid
- * transformers (liquid ticks + waterlogged chunk meshing).
+ * Loads the fluid tick and chunk-render transformers before normal mod init.
  */
 @IFMLLoadingPlugin.MCVersion("1.12.2")
 @IFMLLoadingPlugin.TransformerExclusions({
@@ -17,7 +16,8 @@ public final class FluidCorePlugin implements IFMLLoadingPlugin {
     public String[] getASMTransformerClass() {
         return new String[] {
                 "com.dima16263690d.bleckshlng.coremod.FluidTickTransformer",
-                "com.dima16263690d.bleckshlng.coremod.FluidRenderTransformer"
+                "com.dima16263690d.bleckshlng.coremod.FluidRenderTransformer",
+                "com.dima16263690d.bleckshlng.coremod.FluidChunkRenderTransformer"
         };
     }
 
