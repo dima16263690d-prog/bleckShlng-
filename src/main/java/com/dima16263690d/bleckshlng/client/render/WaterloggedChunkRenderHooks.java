@@ -21,11 +21,9 @@ import com.dima16263690d.bleckshlng.fluid.network.ClientFluidStateCache;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 
 /**
- * Client hook called from RenderChunk.postRenderBlocks.
- *
- * The chunk's translucent BufferBuilder is still open at this point. We add
- * waterlogged quads there so they share chunk culling, sorting and upload with
- * ordinary translucent geometry instead of drawing a camera-relative overlay.
+ * Client hook called from RenderChunk.rebuildChunk before vanilla finalizes
+ * render layers. MixinBooter starts the translucent layer when necessary,
+ * even when the chunk contains no ordinary translucent blocks.
  */
 @SideOnly(Side.CLIENT)
 public final class WaterloggedChunkRenderHooks {
@@ -38,19 +36,43 @@ public final class WaterloggedChunkRenderHooks {
     private WaterloggedChunkRenderHooks() {
     }
 
-    public static void renderTranslucentLayer(RenderChunk renderChunk,
-                                              BlockRenderLayer layer,
-                                              BufferBuilder buffer) {
-        if (renderChunk == null || buffer == null
-                || layer != BlockRenderLayer.TRANSLUCENT) {
-            return;
+    public static boolean hasWaterloggedFluid(RenderChunk renderChunk) {
+        if (renderChunk == null) {
+            return false;
         }
-
         try {
             World world = renderChunk.getWorld();
             BlockPos origin = renderChunk.getPosition();
             if (world == null || origin == null) {
-                return;
+                return false;
+            }
+            int dimension = world.provider.getDimension();
+            int chunkX = origin.getX() >> 4;
+            int chunkZ = origin.getZ() >> 4;
+            return !ClientFluidStateCache.copyChunk(dimension, chunkX, chunkZ).isEmpty();
+        } catch (Throwable error) {
+            if (!warned) {
+                warned = true;
+                LOGGER.error("Could not inspect waterlogged states before chunk rebuild", error);
+            }
+            return false;
+        }
+    }
+
+    public static boolean renderTranslucentLayer(RenderChunk renderChunk,
+                                                 BlockRenderLayer layer,
+                                                 BufferBuilder buffer) {
+        if (renderChunk == null || buffer == null
+                || layer != BlockRenderLayer.TRANSLUCENT) {
+            return false;
+        }
+
+        int verticesBefore = buffer.getVertexCount();
+        try {
+            World world = renderChunk.getWorld();
+            BlockPos origin = renderChunk.getPosition();
+            if (world == null || origin == null) {
+                return false;
             }
 
             int dimension = world.provider.getDimension();
@@ -59,14 +81,12 @@ public final class WaterloggedChunkRenderHooks {
             Map<Long, FluidStateBridge> states =
                     ClientFluidStateCache.copyChunk(dimension, chunkX, chunkZ);
             if (states.isEmpty()) {
-                return;
+                return false;
             }
 
             IBlockAccess chunkAccess = getChunkAccess(renderChunk);
             if (chunkAccess == null) {
-                // Defensive fallback. Normal 1.12.2 chunk compilation exposes
-                // its ChunkCache on RenderChunk; the fallback keeps rendering
-                // functional if another transformer changes that field.
+                // Defensive fallback for environments that replace RenderChunk's cache field.
                 chunkAccess = world;
             }
 
@@ -97,12 +117,14 @@ public final class WaterloggedChunkRenderHooks {
 
                 IBlockStateAccess.render(fluidAccess, chunkAccess, pos, fluid, buffer);
             }
+            return buffer.getVertexCount() > verticesBefore;
         } catch (Throwable error) {
             if (!warned) {
                 warned = true;
                 LOGGER.error("Waterlogged chunk meshing failed; check the first RenderChunk hook error",
                         error);
             }
+            return false;
         }
     }
 
@@ -147,11 +169,6 @@ public final class WaterloggedChunkRenderHooks {
         }
     }
 
-    /**
-     * Small indirection keeps the hook free of client-world mutation logic.
-     * The mesher reads the host shape from the rebuild cache and virtual fluid
-     * states from FluidViewAccess.
-     */
     private static final class IBlockStateAccess {
         private static void render(FluidViewAccess fluidAccess,
                                   IBlockAccess rawAccess,
