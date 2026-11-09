@@ -241,13 +241,14 @@ public final class WaterloggedChunkMesher {
 
         BlockPos neighborPos = pos.offset(face);
         IBlockState neighborState = access.getBlockState(neighborPos);
-        List<SideOcclusionRect> occlusions =
-                collectSideOcclusions(access, host, pos, neighborState, neighborPos, face, minY);
-
-        TextureAtlasSprite sideSprite = sprite;
         boolean overlay = kind == FluidStateBridge.FluidKind.WATER
                 && (neighborState.getBlock() instanceof net.minecraft.block.BlockLeaves
                 || neighborState.getMaterial() == Material.GLASS);
+        List<SideOcclusionRect> occlusions =
+                collectSideOcclusions(access, host, pos, neighborState,
+                        neighborPos, face, minY, overlay);
+
+        TextureAtlasSprite sideSprite = sprite;
         if (overlay) {
             TextureAtlasSprite waterOverlay = Minecraft.getMinecraft().getTextureMapBlocks()
                     .getAtlasSprite("minecraft:blocks/water_overlay");
@@ -277,7 +278,7 @@ public final class WaterloggedChunkMesher {
     private static List<SideOcclusionRect> collectSideOcclusions(
             IBlockAccess access, IBlockState host, BlockPos pos,
             IBlockState neighbor, BlockPos neighborPos,
-            EnumFacing face, float minY) {
+            EnumFacing face, float minY, boolean preserveNeighborOverlay) {
         List<SideOcclusionRect> result = new ArrayList<SideOcclusionRect>();
         World world = null;
         if (access instanceof FluidViewAccess) {
@@ -295,9 +296,11 @@ public final class WaterloggedChunkMesher {
             addSideOcclusions(result,
                     FluidShapeCalculator.getCollisionBoxes(world, pos, host),
                     pos, pos, face, minY);
-            addSideOcclusions(result,
-                    FluidShapeCalculator.getCollisionBoxes(world, neighborPos, neighborShape),
-                    neighborPos, pos, face.getOpposite(), minY);
+            if (!preserveNeighborOverlay) {
+                addSideOcclusions(result,
+                        FluidShapeCalculator.getCollisionBoxes(world, neighborPos, neighborShape),
+                        neighborPos, pos, face.getOpposite(), minY);
+            }
             return result;
         }
 
@@ -306,7 +309,8 @@ public final class WaterloggedChunkMesher {
         if (host.isSideSolid(access, pos, face)) {
             result.add(new SideOcclusionRect(0.0D, 1.0D, minY, 1.0D));
         }
-        if (neighbor.isSideSolid(access, neighborPos, face.getOpposite())) {
+        if (!preserveNeighborOverlay
+                && neighbor.isSideSolid(access, neighborPos, face.getOpposite())) {
             result.add(new SideOcclusionRect(0.0D, 1.0D, minY, 1.0D));
         }
         return result;
