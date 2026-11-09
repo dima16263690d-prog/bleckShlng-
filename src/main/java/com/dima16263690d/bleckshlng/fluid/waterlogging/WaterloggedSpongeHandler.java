@@ -21,7 +21,7 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
  */
 public final class WaterloggedSpongeHandler {
     private static final int MAX_DEPTH = 6;
-    private static final int MAX_WATER_BLOCKS = 65;
+    private static final int MAX_WATER_BLOCKS = 64;
     private static final ThreadLocal<Set<AbsorbKey>> ACTIVE =
             new ThreadLocal<Set<AbsorbKey>>() {
                 @Override
