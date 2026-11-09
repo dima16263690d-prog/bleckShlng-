@@ -31,42 +31,63 @@ public final class WaterloggedChunkMesher {
 
     public static void tessellate(IBlockAccess access, BlockPos pos,
                                   FluidStateBridge fluid, BufferBuilder buffer) {
-        if (access == null || pos == null || fluid == null || buffer == null) {
+        if (access == null || pos == null) {
             return;
         }
-        if (fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
+        tessellate(access, access.getBlockState(pos), pos, fluid, buffer);
+    }
+
+    /**
+     * Host state is supplied separately because the fluid view intentionally
+     * exposes a virtual water state at waterlogged neighbor positions.
+     */
+    public static void tessellate(IBlockAccess access, IBlockState host,
+                                  BlockPos pos, FluidStateBridge fluid,
+                                  BufferBuilder buffer) {
+        if (access == null || host == null || pos == null
+                || fluid == null || buffer == null
+                || fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
             return;
         }
 
-        IBlockState host = access.getBlockState(pos);
         float ownHeight = fluid.getOwnHeight();
-        if (access instanceof World) {
+        if (access instanceof FluidViewAccess) {
+            ownHeight = ((FluidViewAccess) access).getFluidSurfaceHeight(pos);
+        } else if (access instanceof World) {
             ownHeight = FluidHeightCalculator.getHeight((World) access, pos, fluid);
         }
         if (ownHeight <= 0.001F) {
             ownHeight = 0.8888889F;
         }
 
+        // A bottom slab occupies y=0..0.5, leaving the upper half for water.
+        // A top slab occupies y=0.5..1, leaving only the lower half. The
+        // previous implementation applied the bottom-slab geometry to both,
+        // which placed water above top slabs instead of beneath them.
         float minY = 0.0F;
         if (host.getBlock() instanceof BlockSlab
                 && !((BlockSlab) host.getBlock()).isDouble()) {
-            minY = 0.5F;
-            boolean top = host.getValue(BlockSlab.HALF) == BlockSlab.EnumBlockHalf.TOP;
+            boolean top = host.getValue(BlockSlab.HALF)
+                    == BlockSlab.EnumBlockHalf.TOP;
             if (top) {
-                ownHeight = 1.0F;
+                ownHeight = Math.min(ownHeight, 0.5F);
             } else {
+                minY = 0.5F;
                 ownHeight = Math.max(ownHeight, 0.8888889F);
             }
+        }
+        if (ownHeight <= minY + 0.001F) {
+            return;
         }
 
         float hNW = sampleCorner(access, pos, ownHeight, -1, -1);
         float hNE = sampleCorner(access, pos, ownHeight, 1, -1);
         float hSE = sampleCorner(access, pos, ownHeight, 1, 1);
         float hSW = sampleCorner(access, pos, ownHeight, -1, 1);
-        hNW = Math.max(hNW, minY);
-        hNE = Math.max(hNE, minY);
-        hSE = Math.max(hSE, minY);
-        hSW = Math.max(hSW, minY);
+        hNW = Math.min(ownHeight, Math.max(hNW, minY));
+        hNE = Math.min(ownHeight, Math.max(hNE, minY));
+        hSE = Math.min(ownHeight, Math.max(hSE, minY));
+        hSW = Math.min(ownHeight, Math.max(hSW, minY));
 
         Minecraft mc = Minecraft.getMinecraft();
         TextureAtlasSprite still = mc.getBlockRendererDispatcher()
@@ -88,7 +109,7 @@ public final class WaterloggedChunkMesher {
         try {
             int tint = mc.getBlockColors().colorMultiplier(
                     Blocks.WATER.getDefaultState(),
-                    access instanceof World ? (World) access : null, pos, 0);
+                    access, pos, 0);
             if (tint != -1) {
                 color = tint;
             }
@@ -99,9 +120,7 @@ public final class WaterloggedChunkMesher {
         int b = color & 255;
         int a = 255;
 
-        int packed = access instanceof World
-                ? ((World) access).getCombinedLight(pos, 0)
-                : 0xF000F0;
+        int packed = access.getCombinedLight(pos, 0);
         int sky = packed >> 16 & 65535;
         int block = packed & 65535;
 
@@ -203,6 +222,9 @@ public final class WaterloggedChunkMesher {
         if (state.getMaterial() == Material.WATER && state.getBlock() instanceof BlockLiquid) {
             int level = state.getValue(BlockLiquid.LEVEL).intValue();
             return level >= 8 ? 1.0F : (float) (8 - level) / 9.0F;
+        }
+        if (access instanceof FluidViewAccess) {
+            return ((FluidViewAccess) access).getFluidSurfaceHeight(pos);
         }
         if (access instanceof World) {
             FluidStateBridge fluid = FluidStateMapper.fromWorld((World) access, pos, state);
