@@ -10,7 +10,6 @@ import net.minecraft.world.World;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidHeightCalculator;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
-import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 
 /**
  * Flow vector for the 1.13.2 waterlogged-source compatibility layer.
@@ -106,6 +105,8 @@ public final class FluidFlowVector {
         if (current.isSameKind(neighbor)) return false;
         if (face == EnumFacing.UP) return true;
         if (state.getMaterial() == Material.ICE) return false;
-        return FluidShapeCalculator.isFaceFullyCovered(world, pos, state, face);
+        // FlowingFluid#isSolidFace uses isFaceSturdy(), not collision-face
+        // coverage. IBlockState#isSideSolid is the closest 1.12.2 equivalent.
+        return state.isSideSolid(world, pos, face);
     }
 }
