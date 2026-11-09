@@ -2,6 +2,7 @@ package com.dima16263690d.bleckshlng.fluid.render;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeSet;
 
 import com.dima16263690d.bleckshlng.fluid.api.IFluidOcclusionShapeProvider;
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
@@ -127,6 +128,48 @@ public final class FluidOcclusionShapeAdapter {
         }
         return rectangles.isEmpty()
                 ? FluidOcclusionShape.EMPTY : new FluidOcclusionShape(rectangles);
+    }
+
+    /** Returns true only when the union of face rectangles covers the full face. */
+    public static boolean isFaceFullyCovered(FluidOcclusionShape shape) {
+        if (shape == null || shape.isEmpty()) {
+            return false;
+        }
+        TreeSet<Double> uEdges = new TreeSet<Double>();
+        TreeSet<Double> vEdges = new TreeSet<Double>();
+        uEdges.add(Double.valueOf(0.0D));
+        uEdges.add(Double.valueOf(1.0D));
+        vEdges.add(Double.valueOf(0.0D));
+        vEdges.add(Double.valueOf(1.0D));
+        for (FluidOcclusionRect rectangle : shape.getRectangles()) {
+            uEdges.add(Double.valueOf(rectangle.getMinU()));
+            uEdges.add(Double.valueOf(rectangle.getMaxU()));
+            vEdges.add(Double.valueOf(rectangle.getMinV()));
+            vEdges.add(Double.valueOf(rectangle.getMaxV()));
+        }
+
+        Double[] us = uEdges.toArray(new Double[uEdges.size()]);
+        Double[] vs = vEdges.toArray(new Double[vEdges.size()]);
+        for (int u = 0; u + 1 < us.length; u++) {
+            double middleU = (us[u].doubleValue() + us[u + 1].doubleValue()) * 0.5D;
+            for (int v = 0; v + 1 < vs.length; v++) {
+                double middleV = (vs[v].doubleValue() + vs[v + 1].doubleValue()) * 0.5D;
+                boolean covered = false;
+                for (FluidOcclusionRect rectangle : shape.getRectangles()) {
+                    if (middleU > rectangle.getMinU() - EPSILON
+                            && middleU < rectangle.getMaxU() + EPSILON
+                            && middleV > rectangle.getMinV() - EPSILON
+                            && middleV < rectangle.getMaxV() + EPSILON) {
+                        covered = true;
+                        break;
+                    }
+                }
+                if (!covered) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     public static boolean canOcclude(
