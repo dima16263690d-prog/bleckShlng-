@@ -13,6 +13,8 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
+import com.dima16263690d.bleckshlng.fluid.api.FluidAPI;
+import com.dima16263690d.bleckshlng.fluid.core.FluidVector;
 import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
 import com.dima16263690d.bleckshlng.fluid.state.FluidHeightCalculator;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
@@ -85,8 +87,7 @@ public final class FluidEntityHandler {
                         continue;
                     }
 
-                    float nominalHeight = FluidHeightCalculator.getHeight(
-                            entity.world, pos, fluid);
+                    float nominalHeight = FluidAPI.getFluidHeight(entity.world, pos);
                     float height = FluidShapeCalculator.getMaxFluidColumnHeight(
                             entity.world, pos, blockState, bounds, nominalHeight);
                     double surfaceY = pos.getY() + (double) height;
@@ -98,8 +99,9 @@ public final class FluidEntityHandler {
                     maxFluidDepth = Math.max(maxFluidDepth, surfaceY - bounds.minY);
 
                     double localFluidDepth = surfaceY - bounds.minY;
-                    Vec3d localFlow = FluidFlowVector.calculate(
-                            entity.world, pos, blockState);
+                    FluidVector modernFlow = FluidAPI.getFlow(entity.world, pos);
+                    Vec3d localFlow = new Vec3d(
+                            modernFlow.getX(), modernFlow.getY(), modernFlow.getZ());
                     if (localFluidDepth < 0.4D) {
                         localFlow = localFlow.scale(localFluidDepth);
                     }
@@ -170,8 +172,7 @@ public final class FluidEntityHandler {
                             || fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
                         continue;
                     }
-                    float height = FluidHeightCalculator.getHeight(
-                            entity.world, pos, fluid);
+                    float height = FluidAPI.getFluidHeight(entity.world, pos);
                     if (FluidShapeCalculator.intersectsFluidSpace(
                             entity.world, pos, blockState, bounds, height)) {
                         return true;
