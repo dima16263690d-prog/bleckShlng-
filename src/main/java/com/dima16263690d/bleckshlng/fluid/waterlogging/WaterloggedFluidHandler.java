@@ -6,7 +6,7 @@ import net.minecraft.init.Blocks;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
-import com.dima16263690d.bleckshlng.fluid.engine.FluidFlowEngine;
+import com.dima16263690d.bleckshlng.fluid.core.ModernFluidEngine;
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
 import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
@@ -140,7 +140,7 @@ public final class WaterloggedFluidHandler {
                     data.putWater(pos, stored);
                     FluidNetwork.syncState(world, pos, stored);
                 }
-                FluidFlowEngine.spreadWaterloggedSource(world, pos);
+                ModernFluidEngine.tick(world, pos);
             } else {
                 ChunkFluidData data = ChunkFluidData.get(world);
                 if (data != null && data.remove(pos)) {
@@ -169,6 +169,6 @@ public final class WaterloggedFluidHandler {
             return;
         }
 
-        FluidFlowEngine.spreadWaterloggedSource(world, pos);
+        ModernFluidEngine.tick(world, pos);
     }
 }
