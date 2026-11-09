@@ -121,6 +121,15 @@ public final class WaterloggedFluidHandler {
         }
 
         IBlockState state = world.getBlockState(pos);
+
+        // The same scheduler also handles native static source blocks.
+        // Flowing BlockDynamicLiquid ticks are intercepted by FluidCoreHooks.
+        if (state.getBlock() instanceof net.minecraft.block.BlockLiquid) {
+            com.dima16263690d.bleckshlng.fluid.core.ModernFluidEngine
+                    .tick(world, pos);
+            return;
+        }
+
         if (state.getBlock() instanceof IFluidWaterloggable) {
             IFluidWaterloggable adapter = (IFluidWaterloggable) state.getBlock();
             if (adapter.isWaterlogged(state)) {
