@@ -68,11 +68,9 @@ public final class WaterloggedChunkMesher {
             return;
         }
 
-        float ownHeight = fluid.getOwnHeight();
-        if (access instanceof FluidViewAccess) {
-            ownHeight = ((FluidViewAccess) access).getFluidSurfaceHeight(pos);
-        } else if (access instanceof World) {
-            ownHeight = FluidHeightCalculator.getHeight((World) access, pos, fluid);
+        float ownHeight = fluidHeight(access, pos, fluid.getKind());
+        if (ownHeight <= 0.0F) {
+            ownHeight = fluid.getOwnHeight();
         }
         if (ownHeight <= 0.001F) {
             ownHeight = 0.8888889F;
@@ -105,10 +103,12 @@ public final class WaterloggedChunkMesher {
         float hNE = sampleCorner(access, pos, ownHeight, 1, -1, fluid.getKind());
         float hSE = sampleCorner(access, pos, ownHeight, 1, 1, fluid.getKind());
         float hSW = sampleCorner(access, pos, ownHeight, -1, 1, fluid.getKind());
-        hNW = Math.min(ownHeight, Math.max(hNW, minY));
-        hNE = Math.min(ownHeight, Math.max(hNE, minY));
-        hSE = Math.min(ownHeight, Math.max(hSE, minY));
-        hSW = Math.min(ownHeight, Math.max(hSW, minY));
+        float maxCornerHeight = host.getBlock() instanceof BlockSlab
+                && !((BlockSlab) host.getBlock()).isDouble() ? ownHeight : 1.0F;
+        hNW = Math.min(maxCornerHeight, Math.max(hNW, minY));
+        hNE = Math.min(maxCornerHeight, Math.max(hNE, minY));
+        hSE = Math.min(maxCornerHeight, Math.max(hSE, minY));
+        hSW = Math.min(maxCornerHeight, Math.max(hSW, minY));
 
         Minecraft mc = Minecraft.getMinecraft();
         boolean lava = fluid.getKind() == FluidStateBridge.FluidKind.LAVA;
@@ -476,6 +476,9 @@ public final class WaterloggedChunkMesher {
                 return cached;
             }
         }
+        if (access instanceof World) {
+            return FluidStateMapper.fromWorld((World) access, pos, state);
+        }
         return state.getMaterial() == Material.WATER
                 || state.getMaterial() == Material.LAVA
                 ? FluidStateMapper.fromBlockState(state) : null;
@@ -538,6 +541,9 @@ public final class WaterloggedChunkMesher {
             }
             if (access instanceof FluidViewAccess) {
                 return ((FluidViewAccess) access).getFluidSurfaceHeight(pos);
+            }
+            if (access instanceof World) {
+                return FluidHeightCalculator.getHeight((World) access, pos, fluid);
             }
             return fluid.getOwnHeight();
         }
