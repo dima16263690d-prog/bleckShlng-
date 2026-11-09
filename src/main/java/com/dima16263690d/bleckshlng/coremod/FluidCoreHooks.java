@@ -18,9 +18,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.dima16263690d.bleckshlng.fluid.engine.FluidFlowEngine;
 import com.dima16263690d.bleckshlng.fluid.core.ModernFluidEngine;
+import com.dima16263690d.bleckshlng.fluid.core.FluidVector;
 import com.dima16263690d.bleckshlng.fluid.state.FluidProperties;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
-import com.dima16263690d.bleckshlng.fluid.physics.FluidFlowVector;
 import com.dima16263690d.bleckshlng.fluid.physics.FluidEntityHandler;
 
 /**
@@ -547,7 +547,8 @@ public final class FluidCoreHooks {
         }
 
         try {
-            return originalMotion.add(FluidFlowVector.calculate(world, pos, state));
+            FluidVector flow = ModernFluidEngine.getFlow(world, pos);
+            return originalMotion.add(flow.getX(), flow.getY(), flow.getZ());
         } catch (Throwable error) {
             LOGGER.error("Fluid acceleration calculation failed at {}; using vanilla current",
                     pos, error);
