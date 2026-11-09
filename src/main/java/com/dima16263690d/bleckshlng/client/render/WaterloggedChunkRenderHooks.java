@@ -71,11 +71,13 @@ public final class WaterloggedChunkRenderHooks {
      * with waterlogged states. Transparency resort tasks must not append the
      * same sidecar quads a second time.
      */
-    public static void beginWaterloggedRebuild(RenderChunk renderChunk) {
+    public static boolean beginWaterloggedRebuild(RenderChunk renderChunk) {
         WATERLOGGED_REBUILD_ACTIVE.remove();
-        if (hasWaterloggedFluid(renderChunk)) {
-            WATERLOGGED_REBUILD_ACTIVE.set(Boolean.TRUE);
+        if (!hasWaterloggedFluid(renderChunk)) {
+            return false;
         }
+        WATERLOGGED_REBUILD_ACTIVE.set(Boolean.TRUE);
+        return true;
     }
 
     public static boolean isWaterloggedRebuildActive() {
