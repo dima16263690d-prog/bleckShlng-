@@ -76,10 +76,16 @@ public final class FluidViewAccess implements IBlockAccess {
         }
         FluidStateBridge fluid = ClientFluidStateCache.get(dimension, pos.toLong());
         if (fluid != null && fluid.getKind() == FluidStateBridge.FluidKind.WATER) {
-            if (fluid.isSource() || fluid.getAmount() >= 8) {
+            if (fluid.isSource()) {
                 return Blocks.WATER.getDefaultState();
             }
-            int level = Math.max(1, Math.min(7, 8 - fluid.getAmount()));
+
+            // Falling fluid has full column height but is not a source.
+            // Preserve metadata bit 3 so BlockFluidRenderer does not flatten
+            // a falling waterlogged column into a source block.
+            int level = fluid.isFalling()
+                    ? 8
+                    : Math.max(1, Math.min(7, 8 - fluid.getAmount()));
             return Blocks.WATER.getDefaultState()
                     .withProperty(net.minecraft.block.BlockLiquid.LEVEL, Integer.valueOf(level));
         }
