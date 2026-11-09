@@ -5,6 +5,7 @@
   "package": "com.dima16263690d.bleckshlng.mixin",
   "refmap": "mixins.bleckshlng.refmap.json",
   "client": [
+    "client.ChunkCompileTaskGeneratorMixin",
     "client.RenderChunkWaterloggedMixin"
   ]
 }
