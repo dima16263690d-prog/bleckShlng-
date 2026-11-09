@@ -25,7 +25,7 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 
 
 /**
- * Emits water quads into the chunk BufferBuilder (same pass as vanilla fluids).
+ * Emits modern water/lava quads into the chunk BufferBuilder.
  * Called from WaterloggedChunkRenderHooks during the TRANSLUCENT chunk pass.
  */
 @SideOnly(Side.CLIENT)
@@ -298,7 +298,7 @@ public final class WaterloggedChunkMesher {
                 break;
         }
 
-        // The 1.18.2 renderer emits the reverse side for ordinary water
+        // The 1.18.2 renderer emits the reverse side for ordinary fluid
         // walls so translucent water remains visible from both directions.
         // Overlay faces intentionally stay single-sided.
         if (!overlay) {
