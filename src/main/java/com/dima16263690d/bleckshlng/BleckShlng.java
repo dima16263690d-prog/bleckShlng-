@@ -5,6 +5,7 @@ import net.minecraftforge.fml.common.SidedProxy;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.Mod.EventHandler;
 import com.dima16263690d.bleckshlng.fluid.network.FluidNetwork;
+import com.dima16263690d.bleckshlng.coremod.FluidCoreHooks;
 import org.apache.logging.log4j.Logger;
 
 @Mod(
@@ -28,6 +29,7 @@ public final class BleckShlng {
     @EventHandler
     public void preInit(FMLPreInitializationEvent event) {
         LOGGER = event.getModLog();
+        FluidCoreHooks.enableFlowingLavaRandomTicks();
         FluidNetwork.init();
         if (PROXY != null) {
             PROXY.preInit(event);
