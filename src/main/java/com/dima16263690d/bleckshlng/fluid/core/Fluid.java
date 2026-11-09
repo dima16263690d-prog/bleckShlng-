@@ -41,6 +41,9 @@ public abstract class Fluid {
                 ? 1.0F : getOwnHeight(state);
     }
 
+    /** Sound emitted when a full source is collected by a bucket. */
+    public FluidSound getPickupSound() { return null; }
+
     public boolean isRandomlyTicking() { return false; }
 
     public void randomTick(FluidWorld world, FluidPos pos,
