@@ -39,21 +39,24 @@ public abstract class ChunkCompileTaskGeneratorMixin {
         }
 
         RenderChunk renderChunk = generator.getRenderChunk();
-        if (!WaterloggedChunkRenderHooks.hasWaterloggedFluid(renderChunk)
-                || compiledChunk.isLayerStarted(BlockRenderLayer.TRANSLUCENT)) {
+        if (!WaterloggedChunkRenderHooks.hasWaterloggedFluid(renderChunk)) {
             return;
         }
 
-        BufferBuilder buffer = generator.getRegionRenderCacheBuilder()
-                .getWorldRendererByLayer(BlockRenderLayer.TRANSLUCENT);
-        if (buffer == null) {
-            return;
+        if (!compiledChunk.isLayerStarted(BlockRenderLayer.TRANSLUCENT)) {
+            BufferBuilder buffer = generator.getRegionRenderCacheBuilder()
+                    .getWorldRendererByLayer(BlockRenderLayer.TRANSLUCENT);
+            if (buffer == null) {
+                return;
+            }
+
+            compiledChunk.setLayerStarted(BlockRenderLayer.TRANSLUCENT);
+            BlockPos origin = renderChunk.getPosition();
+            buffer.begin(7, DefaultVertexFormats.BLOCK);
+            buffer.setTranslation(
+                    -origin.getX(), -origin.getY(), -origin.getZ());
         }
 
-        compiledChunk.setLayerStarted(BlockRenderLayer.TRANSLUCENT);
-        BlockPos origin = renderChunk.getPosition();
-        buffer.begin(7, DefaultVertexFormats.BLOCK);
-        buffer.setTranslation(
-                -origin.getX(), -origin.getY(), -origin.getZ());
+        WaterloggedChunkRenderHooks.beginWaterloggedRebuild(renderChunk);
     }
 }
