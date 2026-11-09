@@ -131,31 +131,44 @@ public final class WaterloggedChunkMesher {
         boolean topSlabHost = host.getBlock() instanceof BlockSlab
                 && !((BlockSlab) host.getBlock()).isDouble()
                 && host.getValue(BlockSlab.HALF) == BlockSlab.EnumBlockHalf.TOP;
+        float flowX = sampleFlowX(access, pos);
+        float flowZ = sampleFlowZ(access, pos);
+        float flowAngle = (float) Math.atan2(flowZ, flowX);
+        boolean flowingSurface = flowX * flowX + flowZ * flowZ > 1.0E-4F;
+        TextureAtlasSprite topSprite = flowingSurface ? flow : still;
+
         if (!topSlabHost && (!isSameFluid(access, pos.up()) || ownHeight < 1.0F)) {
-            vert(buffer, x + 0, y + hNW, z + 0, still.getMinU(), still.getMinV(), r, g, b, a, sky, block);
-            vert(buffer, x + 0, y + hSW, z + 1, still.getMinU(), still.getMaxV(), r, g, b, a, sky, block);
-            vert(buffer, x + 1, y + hSE, z + 1, still.getMaxU(), still.getMaxV(), r, g, b, a, sky, block);
-            vert(buffer, x + 1, y + hNE, z + 0, still.getMaxU(), still.getMinV(), r, g, b, a, sky, block);
+            topQuad(buffer, x, y, z, hNW, hNE, hSE, hSW,
+                    topSprite, flowAngle, flowingSurface, r, g, b, a, sky, block);
         }
 
         if (minY <= 0.001F && !isSameFluid(access, pos.down())) {
             double yy = y + minY;
-            vert(buffer, x + 0, yy, z + 1, still.getMinU(), still.getMaxV(), r, g, b, a, sky, block);
-            vert(buffer, x + 0, yy, z + 0, still.getMinU(), still.getMinV(), r, g, b, a, sky, block);
-            vert(buffer, x + 1, yy, z + 0, still.getMaxU(), still.getMinV(), r, g, b, a, sky, block);
-            vert(buffer, x + 1, yy, z + 1, still.getMaxU(), still.getMaxV(), r, g, b, a, sky, block);
+            int bottomLight = access.getCombinedLight(pos.down(), 0);
+            vert(buffer, x + 0, yy, z + 1, still.getMinU(), still.getMaxV(),
+                    shade(r, 0.5F), shade(g, 0.5F), shade(b, 0.5F), a,
+                    bottomLight >> 16 & 65535, bottomLight & 65535);
+            vert(buffer, x + 0, yy, z + 0, still.getMinU(), still.getMinV(),
+                    shade(r, 0.5F), shade(g, 0.5F), shade(b, 0.5F), a,
+                    bottomLight >> 16 & 65535, bottomLight & 65535);
+            vert(buffer, x + 1, yy, z + 0, still.getMaxU(), still.getMinV(),
+                    shade(r, 0.5F), shade(g, 0.5F), shade(b, 0.5F), a,
+                    bottomLight >> 16 & 65535, bottomLight & 65535);
+            vert(buffer, x + 1, yy, z + 1, still.getMaxU(), still.getMaxV(),
+                    shade(r, 0.5F), shade(g, 0.5F), shade(b, 0.5F), a,
+                    bottomLight >> 16 & 65535, bottomLight & 65535);
         }
 
-        side(buffer, access, pos, EnumFacing.NORTH, x, y, z, hNW, hNE, minY, flow, r, g, b, a, sky, block);
-        side(buffer, access, pos, EnumFacing.SOUTH, x, y, z, hSW, hSE, minY, flow, r, g, b, a, sky, block);
-        side(buffer, access, pos, EnumFacing.WEST, x, y, z, hNW, hSW, minY, flow, r, g, b, a, sky, block);
-        side(buffer, access, pos, EnumFacing.EAST, x, y, z, hNE, hSE, minY, flow, r, g, b, a, sky, block);
+        side(buffer, access, pos, EnumFacing.NORTH, x, y, z, hNW, hNE, minY, flow, r, g, b, a);
+        side(buffer, access, pos, EnumFacing.SOUTH, x, y, z, hSW, hSE, minY, flow, r, g, b, a);
+        side(buffer, access, pos, EnumFacing.WEST, x, y, z, hNW, hSW, minY, flow, r, g, b, a);
+        side(buffer, access, pos, EnumFacing.EAST, x, y, z, hNE, hSE, minY, flow, r, g, b, a);
     }
 
     private static void side(BufferBuilder buffer, IBlockAccess access, BlockPos pos,
                              EnumFacing face, double x, double y, double z,
                              float h0, float h1, float minY, TextureAtlasSprite sprite,
-                             int r, int g, int b, int a, int sky, int block) {
+                             int r, int g, int b, int a) {
         if (isSameFluid(access, pos.offset(face))) {
             return;
         }
@@ -170,34 +183,83 @@ public final class WaterloggedChunkMesher {
         float vTop1 = v0 + (v1 - v0) * (1.0F - MathHelper.clamp(h1, 0.0F, 1.0F));
         float vBot = v0 + (v1 - v0) * (1.0F - MathHelper.clamp(minY, 0.0F, 1.0F));
 
+        float shade = face == EnumFacing.NORTH || face == EnumFacing.SOUTH
+                ? 0.8F : 0.6F;
+        int packed = access.getCombinedLight(pos.offset(face), 0);
+        int sky = packed >> 16 & 65535;
+        int block = packed & 65535;
+        int sr = shade(r, shade);
+        int sg = shade(g, shade);
+        int sb = shade(b, shade);
         switch (face) {
             case NORTH:
-                vert(buffer, x + 0, y + h0, z + 0, u0, vTop0, r, g, b, a, sky, block);
-                vert(buffer, x + 1, y + h1, z + 0, u1, vTop1, r, g, b, a, sky, block);
-                vert(buffer, x + 1, y + minY, z + 0, u1, vBot, r, g, b, a, sky, block);
-                vert(buffer, x + 0, y + minY, z + 0, u0, vBot, r, g, b, a, sky, block);
+                vert(buffer, x + 0, y + h0, z + 0, u0, vTop0, sr, sg, sb, a, sky, block);
+                vert(buffer, x + 1, y + h1, z + 0, u1, vTop1, sr, sg, sb, a, sky, block);
+                vert(buffer, x + 1, y + minY, z + 0, u1, vBot, sr, sg, sb, a, sky, block);
+                vert(buffer, x + 0, y + minY, z + 0, u0, vBot, sr, sg, sb, a, sky, block);
                 break;
             case SOUTH:
-                vert(buffer, x + 1, y + h1, z + 1, u0, vTop1, r, g, b, a, sky, block);
-                vert(buffer, x + 0, y + h0, z + 1, u1, vTop0, r, g, b, a, sky, block);
-                vert(buffer, x + 0, y + minY, z + 1, u1, vBot, r, g, b, a, sky, block);
-                vert(buffer, x + 1, y + minY, z + 1, u0, vBot, r, g, b, a, sky, block);
+                vert(buffer, x + 1, y + h1, z + 1, u0, vTop1, sr, sg, sb, a, sky, block);
+                vert(buffer, x + 0, y + h0, z + 1, u1, vTop0, sr, sg, sb, a, sky, block);
+                vert(buffer, x + 0, y + minY, z + 1, u1, vBot, sr, sg, sb, a, sky, block);
+                vert(buffer, x + 1, y + minY, z + 1, u0, vBot, sr, sg, sb, a, sky, block);
                 break;
             case WEST:
-                vert(buffer, x + 0, y + h0, z + 1, u0, vTop0, r, g, b, a, sky, block);
-                vert(buffer, x + 0, y + h1, z + 0, u1, vTop1, r, g, b, a, sky, block);
-                vert(buffer, x + 0, y + minY, z + 0, u1, vBot, r, g, b, a, sky, block);
-                vert(buffer, x + 0, y + minY, z + 1, u0, vBot, r, g, b, a, sky, block);
+                vert(buffer, x + 0, y + h0, z + 1, u0, vTop0, sr, sg, sb, a, sky, block);
+                vert(buffer, x + 0, y + h1, z + 0, u1, vTop1, sr, sg, sb, a, sky, block);
+                vert(buffer, x + 0, y + minY, z + 0, u1, vBot, sr, sg, sb, a, sky, block);
+                vert(buffer, x + 0, y + minY, z + 1, u0, vBot, sr, sg, sb, a, sky, block);
                 break;
             case EAST:
-                vert(buffer, x + 1, y + h0, z + 0, u0, vTop0, r, g, b, a, sky, block);
-                vert(buffer, x + 1, y + h1, z + 1, u1, vTop1, r, g, b, a, sky, block);
-                vert(buffer, x + 1, y + minY, z + 1, u1, vBot, r, g, b, a, sky, block);
-                vert(buffer, x + 1, y + minY, z + 0, u0, vBot, r, g, b, a, sky, block);
+                vert(buffer, x + 1, y + h0, z + 0, u0, vTop0, sr, sg, sb, a, sky, block);
+                vert(buffer, x + 1, y + h1, z + 1, u1, vTop1, sr, sg, sb, a, sky, block);
+                vert(buffer, x + 1, y + minY, z + 1, u1, vBot, sr, sg, sb, a, sky, block);
+                vert(buffer, x + 1, y + minY, z + 0, u0, vBot, sr, sg, sb, a, sky, block);
                 break;
             default:
                 break;
         }
+    }
+
+    private static void topQuad(BufferBuilder buffer, double x, double y, double z,
+                                 float hNW, float hNE, float hSE, float hSW,
+                                 TextureAtlasSprite sprite, float angle,
+                                 boolean rotate, int r, int g, int b, int a,
+                                 int sky, int block) {
+        float[][] uv = new float[][] {
+                {sprite.getMinU(), sprite.getMinV()},
+                {sprite.getMinU(), sprite.getMaxV()},
+                {sprite.getMaxU(), sprite.getMaxV()},
+                {sprite.getMaxU(), sprite.getMinV()}
+        };
+        if (rotate) {
+            float cos = (float) Math.cos(angle);
+            float sin = (float) Math.sin(angle);
+            float centerU = (sprite.getMinU() + sprite.getMaxU()) * 0.5F;
+            float centerV = (sprite.getMinV() + sprite.getMaxV()) * 0.5F;
+            for (int i = 0; i < uv.length; i++) {
+                float du = uv[i][0] - centerU;
+                float dv = uv[i][1] - centerV;
+                uv[i][0] = centerU + du * cos - dv * sin;
+                uv[i][1] = centerV + du * sin + dv * cos;
+            }
+        }
+        vert(buffer, x, y + hNW, z, uv[0][0], uv[0][1], r, g, b, a, sky, block);
+        vert(buffer, x, y + hSW, z + 1, uv[1][0], uv[1][1], r, g, b, a, sky, block);
+        vert(buffer, x + 1, y + hSE, z + 1, uv[2][0], uv[2][1], r, g, b, a, sky, block);
+        vert(buffer, x + 1, y + hNE, z, uv[3][0], uv[3][1], r, g, b, a, sky, block);
+    }
+
+    private static float sampleFlowX(IBlockAccess access, BlockPos pos) {
+        return fluidHeight(access, pos.west()) - fluidHeight(access, pos.east());
+    }
+
+    private static float sampleFlowZ(IBlockAccess access, BlockPos pos) {
+        return fluidHeight(access, pos.north()) - fluidHeight(access, pos.south());
+    }
+
+    private static int shade(int channel, float factor) {
+        return Math.min(255, Math.max(0, Math.round((float) channel * factor)));
     }
 
     private static float sampleCorner(IBlockAccess access, BlockPos pos,
