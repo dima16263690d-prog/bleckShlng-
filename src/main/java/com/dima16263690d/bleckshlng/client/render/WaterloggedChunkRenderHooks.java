@@ -1,9 +1,11 @@
 package com.dima16263690d.bleckshlng.client.render;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.Map;
 
 import net.minecraft.client.renderer.BufferBuilder;
+import net.minecraft.client.renderer.chunk.CompiledChunk;
 import net.minecraft.client.renderer.chunk.RenderChunk;
 import net.minecraft.util.BlockRenderLayer;
 import net.minecraft.util.math.BlockPos;
@@ -33,6 +35,9 @@ public final class WaterloggedChunkRenderHooks {
     private static volatile boolean cacheFieldResolved;
     private static volatile boolean warned;
 
+    private static volatile Method compiledChunkSetLayerUsed;
+    private static volatile boolean compiledChunkMethodResolved;
+
     private WaterloggedChunkRenderHooks() {
     }
 
@@ -56,6 +61,58 @@ public final class WaterloggedChunkRenderHooks {
                 LOGGER.error("Could not inspect waterlogged states before chunk rebuild", error);
             }
             return false;
+        }
+    }
+
+    /**
+     * CompiledChunk#setLayerUsed is protected in Forge 1.12.2. Resolve the
+     * mapped method once instead of widening vanilla visibility with an AT.
+     */
+    public static void markLayerUsed(CompiledChunk compiledChunk,
+                                     BlockRenderLayer layer) {
+        if (compiledChunk == null || layer == null) {
+            return;
+        }
+        try {
+            Method method = getCompiledChunkSetLayerUsed();
+            if (method == null) {
+                throw new NoSuchMethodException(
+                        "CompiledChunk#setLayerUsed(BlockRenderLayer)");
+            }
+            method.invoke(compiledChunk, layer);
+        } catch (Throwable error) {
+            if (!warned) {
+                warned = true;
+                LOGGER.error("Could not mark the translucent fluid layer as used", error);
+            }
+        }
+    }
+
+    private static Method getCompiledChunkSetLayerUsed() {
+        if (compiledChunkMethodResolved) {
+            return compiledChunkSetLayerUsed;
+        }
+        synchronized (WaterloggedChunkRenderHooks.class) {
+            if (compiledChunkMethodResolved) {
+                return compiledChunkSetLayerUsed;
+            }
+            String[] names = {"setLayerUsed", "func_178486_a"};
+            for (String name : names) {
+                try {
+                    Method method = CompiledChunk.class.getDeclaredMethod(
+                            name, BlockRenderLayer.class);
+                    method.setAccessible(true);
+                    compiledChunkSetLayerUsed = method;
+                    break;
+                } catch (NoSuchMethodException ignored) {
+                    // Try the other MCP/SRG name.
+                } catch (Throwable error) {
+                    LOGGER.warn("Could not resolve CompiledChunk#setLayerUsed", error);
+                    break;
+                }
+            }
+            compiledChunkMethodResolved = true;
+            return compiledChunkSetLayerUsed;
         }
     }
 
