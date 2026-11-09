@@ -65,7 +65,7 @@ public final class WaterloggedFluidAnimateHandler {
                 dimension, centerX >> 4, centerZ >> 4, 2)) {
             return;
         }
-        Random fluidRandom = new Random();
+        Random fluidRandom = world.rand;
 
         // ClientLevel.animateTick(1.18.2) samples both radii on each tick.
         sampleRadius(world, centerX, centerY, centerZ, 16, fluidRandom);
@@ -76,9 +76,9 @@ public final class WaterloggedFluidAnimateHandler {
                                      int centerZ, int radius, Random fluidRandom) {
         for (int i = 0; i < SAMPLES_PER_RADIUS; i++) {
             // Match Level/ClientLevel's triangular random coordinate spread.
-            int x = centerX + world.rand.nextInt(radius) - world.rand.nextInt(radius);
-            int y = centerY + world.rand.nextInt(radius) - world.rand.nextInt(radius);
-            int z = centerZ + world.rand.nextInt(radius) - world.rand.nextInt(radius);
+            int x = centerX + fluidRandom.nextInt(radius) - fluidRandom.nextInt(radius);
+            int y = centerY + fluidRandom.nextInt(radius) - fluidRandom.nextInt(radius);
+            int z = centerZ + fluidRandom.nextInt(radius) - fluidRandom.nextInt(radius);
             BlockPos pos = new BlockPos(x, y, z);
             if (!world.isBlockLoaded(pos)) {
                 continue;
@@ -102,7 +102,7 @@ public final class WaterloggedFluidAnimateHandler {
 
             // ClientLevel.doAnimateTick also asks FluidState#getDripParticle
             // once per selected position, independently of animateTick().
-            if (world.rand.nextInt(10) == 0) {
+            if (fluidRandom.nextInt(10) == 0) {
                 trySpawnDrippingFluid(world, pos);
             }
         }
