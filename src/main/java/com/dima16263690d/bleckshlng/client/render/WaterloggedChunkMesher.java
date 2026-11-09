@@ -457,8 +457,25 @@ public final class WaterloggedChunkMesher {
         Vec3d vector = new Vec3d(x, 0.0D, z);
         if (current.isFalling()) {
             for (EnumFacing direction : EnumFacing.Plane.HORIZONTAL) {
-                IBlockState side = access.getBlockState(pos.offset(direction));
-                if (side.getMaterial().blocksMovement()) {
+                BlockPos sidePos = pos.offset(direction);
+                IBlockState side = access.getBlockState(sidePos);
+                FluidStateBridge sideFluid = getFluidState(access, sidePos, side);
+                if (sideFluid != null && current.isSameKind(sideFluid)) {
+                    continue;
+                }
+                if (side.getMaterial() == Material.ICE) {
+                    continue;
+                }
+
+                boolean solidFace = side.isSideSolid(access, sidePos, direction);
+                BlockPos sideAbovePos = sidePos.up();
+                IBlockState sideAbove = access.getBlockState(sideAbovePos);
+                FluidStateBridge aboveFluid = getFluidState(access, sideAbovePos, sideAbove);
+                if (aboveFluid != null && current.isSameKind(aboveFluid)) {
+                    continue;
+                }
+                solidFace |= sideAbove.isSideSolid(access, sideAbovePos, direction);
+                if (solidFace) {
                     vector = vector.normalize().addVector(0.0D, -6.0D, 0.0D);
                     break;
                 }
