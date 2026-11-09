@@ -126,9 +126,9 @@ public class ModernFluidCoreTest {
         assertEquals(5, Fluids.WATER.getTickDelay(overworld));
         assertEquals(4, Fluids.WATER.getSlopeFindDistance(overworld));
         assertEquals(30, Fluids.LAVA.getTickDelay(overworld));
-        assertEquals(2, Fluids.LAVA.getSlopeFindDistanceForTest(overworld));
+        assertEquals(2, Fluids.LAVA.getSlopeFindDistance(overworld));
         assertEquals(10, Fluids.LAVA.getTickDelay(ultrawarm));
-        assertEquals(4, Fluids.LAVA.getSlopeFindDistanceForTest(ultrawarm));
+        assertEquals(4, Fluids.LAVA.getSlopeFindDistance(ultrawarm));
     }
 
     /**
