@@ -81,13 +81,27 @@ public final class FluidViewAccess implements IBlockAccess {
         }
 
         IBlockState state = delegate.getBlockState(pos);
-        if ((state.getMaterial() == net.minecraft.block.material.Material.WATER
-                || state.getMaterial() == net.minecraft.block.material.Material.LAVA)
-                && state.getBlock() instanceof net.minecraft.block.BlockLiquid) {
-            int level = state.getValue(net.minecraft.block.BlockLiquid.LEVEL).intValue();
-            return level >= 8 ? 1.0F : (float) (8 - level) / 9.0F;
+        FluidStateBridge vanillaFluid =
+                com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper
+                        .fromBlockState(state);
+        if (vanillaFluid != null) {
+            FluidStateBridge aboveFluid = getFluidStateAt(pos.up());
+            return vanillaFluid.getHeight(
+                    aboveFluid != null && vanillaFluid.isSameKind(aboveFluid));
         }
         return 0.0F;
+    }
+
+    private FluidStateBridge getFluidStateAt(BlockPos pos) {
+        if (pos == null) {
+            return null;
+        }
+        FluidStateBridge sidecar = ClientFluidStateCache.get(dimension, pos.toLong());
+        if (sidecar != null) {
+            return sidecar;
+        }
+        return com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper
+                .fromBlockState(delegate.getBlockState(pos));
     }
 
     @Override
