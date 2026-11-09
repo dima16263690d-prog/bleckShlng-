@@ -6,13 +6,10 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.IBlockAccess;
 
 /**
- * Intentionally a no-op.
- *
- * Emitting fluid into the SOLID block pass (BlockRendererDispatcher.renderBlock)
- * double-draws against the WorldLast overlay and puts translucent water into
- * the wrong render layer — that is the solid blue "box" around ladders/slabs.
- *
- * Waterlogged fluid is drawn only by WaterloggedFluidRenderer (WorldLast).
+ * Legacy BlockRendererDispatcher hook retained for binary compatibility.
+ * Vanilla water/lava are now replaced at BlockFluidRenderer.renderFluid by
+ * BlockFluidRendererMixin; waterlogged host states are meshed separately in
+ * the translucent chunk layer.
  */
 public final class FluidRenderHooks {
     private FluidRenderHooks() {
@@ -20,6 +17,6 @@ public final class FluidRenderHooks {
 
     public static void afterRenderBlock(IBlockState state, BlockPos pos,
                                         IBlockAccess access, BufferBuilder buffer) {
-        // no-op: see class comment
+        // Intentionally empty: liquid geometry is owned by the modern mesher.
     }
 }
