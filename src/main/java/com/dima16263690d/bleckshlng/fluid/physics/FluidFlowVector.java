@@ -58,9 +58,7 @@ public final class FluidFlowVector {
             float difference = 0.0F;
 
             if (neighborHeight == 0.0F) {
-                if (!neighborBlock.getMaterial().blocksMovement()
-                        && FluidShapeCalculator.canPassThroughWall(
-                        world, neighborPos, EnumFacing.DOWN)) {
+                if (!neighborBlock.getMaterial().blocksMovement()) {
                     BlockPos belowPos = neighborPos.down();
                     if (world.isBlockLoaded(belowPos)) {
                         FluidStateBridge below = FluidStateMapper.fromWorld(
