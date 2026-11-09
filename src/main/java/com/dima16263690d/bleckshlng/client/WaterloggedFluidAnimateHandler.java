@@ -113,26 +113,11 @@ public final class WaterloggedFluidAnimateHandler {
      * particle and sound registrations.
      */
     private static void animateWater(World world, BlockPos pos,
-                                      FluidStateBridge fluid, Random random) {
-        double x = (double) pos.getX();
-        double y = (double) pos.getY();
-        double z = (double) pos.getZ();
-
-        if (!fluid.isSource() && !fluid.isFalling()) {
-            if (random.nextInt(64) == 0) {
-                world.playSound(x + 0.5D, y + 0.5D, z + 0.5D,
-                        SoundEvents.BLOCK_WATER_AMBIENT, SoundCategory.BLOCKS,
-                        random.nextFloat() * 0.25F + 0.75F,
-                        random.nextFloat() + 0.5F, false);
-            }
-        } else if (random.nextInt(10) == 0) {
-            // 1.12.2 SUSPENDED is the legacy equivalent of 1.18.2 UNDERWATER.
-            world.spawnParticle(EnumParticleTypes.SUSPENDED,
-                    x + random.nextDouble(),
-                    y + random.nextDouble(),
-                    z + random.nextDouble(),
-                    0.0D, 0.0D, 0.0D);
-        }
+                                     FluidStateBridge fluid, Random random) {
+        // Both native and waterlogged liquids now use the same portable
+        // Fluid#animateTick implementation through the 1.12.2 API adapter.
+        com.dima16263690d.bleckshlng.fluid.core.ModernFluidEngine
+                .animateTick(world, pos, random);
     }
 
     /**
