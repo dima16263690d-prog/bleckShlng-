@@ -116,9 +116,9 @@ public final class FluidViewAccess implements IBlockAccess {
                 return Blocks.WATER.getDefaultState();
             }
 
-            // Falling fluid has full column height but is not a source.
-            // Preserve metadata bit 3 so BlockFluidRenderer does not flatten
-            // a falling waterlogged column into a source block.
+            // Preserve metadata bit 3 for falling fluid. Its geometric
+            // surface height is resolved separately: 1.0 only when the same
+            // fluid is present above, otherwise amount / 9 (1.18.2 behavior).
             int level = fluid.isFalling()
                     ? 8
                     : Math.max(1, Math.min(7, 8 - fluid.getAmount()));
