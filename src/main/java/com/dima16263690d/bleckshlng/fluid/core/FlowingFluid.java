@@ -82,29 +82,28 @@ public abstract class FlowingFluid extends Fluid {
             }
 
             FluidState neighbor = safeFluid(world, neighborPos);
-            if (!affectsFlow(neighbor)) {
-                continue;
-            }
-
-            float neighborHeight = neighbor.isEmpty()
-                    ? 0.0F : neighbor.getType().getOwnHeight(neighbor);
+            boolean sameFluid = !neighbor.isEmpty()
+                    && isSame(neighbor.getType());
+            float neighborHeight = sameFluid
+                    ? neighbor.getType().getOwnHeight(neighbor) : 0.0F;
             float difference = 0.0F;
 
-            if (neighborHeight == 0.0F) {
-                if (!world.blocksMotion(neighborPos)) {
-                    FluidPos belowPos = neighborPos.below();
-                    if (world.isLoaded(belowPos)) {
-                        FluidState below = safeFluid(world, belowPos);
-                        if (affectsFlow(below) && !below.isEmpty()) {
-                            neighborHeight = below.getType().getOwnHeight(below);
-                            if (neighborHeight > 0.0F) {
-                                difference = ownHeight - (neighborHeight - 0.8888889F);
-                            }
+            if (sameFluid) {
+                difference = ownHeight - neighborHeight;
+            } else if (!world.blocksMotion(neighborPos)) {
+                // A different fluid (or air) does not block the surface
+                // slope test. FlowingFluid checks the same fluid one block
+                // below and uses the 8/9 offset when it is found.
+                FluidPos belowPos = neighborPos.below();
+                if (world.isLoaded(belowPos)) {
+                    FluidState below = safeFluid(world, belowPos);
+                    if (!below.isEmpty() && isSame(below.getType())) {
+                        neighborHeight = below.getType().getOwnHeight(below);
+                        if (neighborHeight > 0.0F) {
+                            difference = ownHeight - (neighborHeight - 0.8888889F);
                         }
                     }
                 }
-            } else {
-                difference = ownHeight - neighborHeight;
             }
 
             flowX += direction.getX() * (double) difference;
@@ -128,11 +127,6 @@ public abstract class FlowingFluid extends Fluid {
             }
         }
         return vector.normalize();
-    }
-
-    private boolean affectsFlow(FluidState state) {
-        return state == null || state.isEmpty()
-                || (state.getType() != null && isSame(state.getType()));
     }
 
     private boolean isSolidFace(FluidWorld world, FluidPos pos,
