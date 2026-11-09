@@ -48,19 +48,30 @@ public final class FluidStateMapper {
             return null;
         }
 
+        // The sidecar is authoritative when present: it preserves source,
+        // amount and falling state. The WATERLOGGED property is only a legacy
+        // presence bit and must not overwrite a flowing FluidState.
+        if (world.isRemote) {
+            FluidStateBridge cached = ClientFluidStateCache.get(
+                    world.provider.getDimension(), pos.toLong());
+            if (cached != null) {
+                return cached;
+            }
+        } else {
+            ChunkFluidData data = ChunkFluidData.get(world);
+            FluidStateBridge stored = data == null ? null : data.getWater(pos);
+            if (stored != null) {
+                return stored;
+            }
+        }
+
         if (state.getBlock() instanceof IFluidWaterloggable) {
             IFluidWaterloggable adapter = (IFluidWaterloggable) state.getBlock();
             if (adapter.isWaterlogged(state)) {
                 return FluidStateBridge.source(FluidStateBridge.FluidKind.WATER);
             }
         }
-
-        if (world.isRemote) {
-            return ClientFluidStateCache.get(world.provider.getDimension(), pos.toLong());
-        }
-
-        ChunkFluidData data = ChunkFluidData.get(world);
-        return data == null ? null : data.getWater(pos);
+        return null;
     }
 
     public static boolean isSameFluid(FluidStateBridge first, FluidStateBridge second) {
