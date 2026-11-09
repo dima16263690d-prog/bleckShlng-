@@ -218,11 +218,14 @@ public final class FluidSpreadEngine {
         IBlockState belowState = world.getBlockState(belowPos);
         boolean openDownFace = canSpreadThrough(world, pos, EnumFacing.DOWN, material);
 
-        if (material == Material.LAVA && openDownFace) {
+        if (material == Material.LAVA && openDownFace
+                && canFlowInto(world, belowPos, belowState, material, EnumFacing.DOWN)) {
             FluidStateBridge belowFluid = FluidStateMapper.fromWorld(
                     world, belowPos, belowState);
             if (belowFluid != null
                     && belowFluid.getKind() == FluidStateBridge.FluidKind.WATER) {
+                // LavaFluid first applies canBeReplacedWith (water height >= 4/9)
+                // and only then performs its downward stone reaction.
                 FluidMixingHandler.reactDownward(world, belowPos, belowState);
                 return;
             }
