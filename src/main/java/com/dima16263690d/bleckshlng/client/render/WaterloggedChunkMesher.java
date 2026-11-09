@@ -101,10 +101,10 @@ public final class WaterloggedChunkMesher {
         // LiquidBlockRenderer 1.18.2 corner order: north-west,
         // north-east, south-east, south-west. Solid non-fluid neighbours
         // contribute -1 and are excluded from the weighted average.
-        float hNW = sampleCorner(access, pos, ownHeight, -1, -1);
-        float hNE = sampleCorner(access, pos, ownHeight, 1, -1);
-        float hSE = sampleCorner(access, pos, ownHeight, 1, 1);
-        float hSW = sampleCorner(access, pos, ownHeight, -1, 1);
+        float hNW = sampleCorner(access, pos, ownHeight, -1, -1, fluid.getKind());
+        float hNE = sampleCorner(access, pos, ownHeight, 1, -1, fluid.getKind());
+        float hSE = sampleCorner(access, pos, ownHeight, 1, 1, fluid.getKind());
+        float hSW = sampleCorner(access, pos, ownHeight, -1, 1, fluid.getKind());
         hNW = Math.min(ownHeight, Math.max(hNW, minY));
         hNE = Math.min(ownHeight, Math.max(hNE, minY));
         hSE = Math.min(ownHeight, Math.max(hSE, minY));
@@ -459,6 +459,7 @@ public final class WaterloggedChunkMesher {
             }
         }
         return state.getMaterial() == Material.WATER
+                || state.getMaterial() == Material.LAVA
                 ? FluidStateMapper.fromBlockState(state) : null;
     }
 
@@ -467,17 +468,18 @@ public final class WaterloggedChunkMesher {
     }
 
     private static float sampleCorner(IBlockAccess access, BlockPos pos,
-                                      float own, int ox, int oz) {
+                                      float own, int ox, int oz,
+                                      FluidStateBridge.FluidKind kind) {
         BlockPos north = pos.add(0, 0, -1);
         BlockPos south = pos.add(0, 0, 1);
         BlockPos east = pos.add(1, 0, 0);
         BlockPos west = pos.add(-1, 0, 0);
-        float hNorth = fluidHeight(access, north);
-        float hSouth = fluidHeight(access, south);
-        float hEast = fluidHeight(access, east);
-        float hWest = fluidHeight(access, west);
+        float hNorth = fluidHeight(access, north, kind);
+        float hSouth = fluidHeight(access, south, kind);
+        float hEast = fluidHeight(access, east, kind);
+        float hWest = fluidHeight(access, west, kind);
         BlockPos diagonal = pos.add(ox, 0, oz);
-        float hDiagonal = fluidHeight(access, diagonal);
+        float hDiagonal = fluidHeight(access, diagonal, kind);
         float first = ox < 0 ? hWest : hEast;
         float second = oz < 0 ? hNorth : hSouth;
 
