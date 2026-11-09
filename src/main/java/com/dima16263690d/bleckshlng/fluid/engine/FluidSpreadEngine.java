@@ -65,8 +65,20 @@ public final class FluidSpreadEngine {
 
             if (material == Material.LAVA && level < 8 && newLevel >= 0
                     && newLevel < 8) {
-                float currentHeight = FluidLevelMapper.amountFromMetadata(level) / 9.0F;
-                float nextHeight = FluidLevelMapper.amountFromMetadata(newLevel) / 9.0F;
+                FluidStateBridge.FluidKind kind =
+                        material == Material.WATER
+                                ? FluidStateBridge.FluidKind.WATER
+                                : FluidStateBridge.FluidKind.LAVA;
+                FluidStateBridge currentFluid =
+                        FluidStateMapper.fromBlockState(state);
+                FluidStateBridge nextFluid =
+                        FluidStateBridge.fromLegacyMetadata(kind, newLevel);
+                // LavaFluid#getSpreadDelay compares FluidState#getHeight(),
+                // which reaches 1.0 when same fluid is directly above.
+                float currentHeight =
+                        FluidHeightCalculator.getHeight(world, pos, currentFluid);
+                float nextHeight =
+                        FluidHeightCalculator.getHeight(world, pos, nextFluid);
                 if (nextHeight > currentHeight && random.nextInt(4) != 0) {
                     tickDelay *= 4;
                 }
