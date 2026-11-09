@@ -18,6 +18,7 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidLevelMapper;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 import com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData;
+import com.dima16263690d.bleckshlng.fluid.waterlogging.FluidTickScheduler;
 import com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable;
 
 import net.minecraft.block.Block;
@@ -299,6 +300,13 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
             com.dima16263690d.bleckshlng.fluid.engine.FluidMixingHandler
                     .reactAt(world, blockPos, world.getBlockState(blockPos));
         }
+
+        // 1.18.2 schedules every successfully placed fluid state itself.
+        // In 1.12.2 the adapter owns the scheduled update for native blocks.
+        if (!getFluidState(target).isEmpty()) {
+            scheduleFluidTick(target, incoming.getType(),
+                    incoming.getType().getTickDelay(this));
+        }
     }
 
     @Override
@@ -448,10 +456,14 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
 
         FluidStateBridge stored = toBridge(fluid);
         ChunkFluidData data = ChunkFluidData.get(world);
-        if (data != null && data.putWater(pos, stored)) {
-            FluidNetwork.syncState(world, pos, stored);
-            FluidShapeCalculator.invalidate(world, pos);
-            world.notifyNeighborsOfStateChange(pos, host.getBlock(), false);
+        if (data != null) {
+            if (data.putWater(pos, stored)) {
+                FluidNetwork.syncState(world, pos, stored);
+                FluidShapeCalculator.invalidate(world, pos);
+                world.notifyNeighborsOfStateChange(pos, host.getBlock(), false);
+            }
+            FluidTickScheduler.schedule(world, pos,
+                    fluid.getType().getTickDelay(this));
         }
     }
 
