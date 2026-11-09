@@ -269,6 +269,9 @@ public final class WaterloggedChunkMesher {
         side(buffer, access, host, pos, EnumFacing.SOUTH, x, y, z, hSW, hSE, sideMinY, flow, r, g, b, a, fluid.getKind());
         side(buffer, access, host, pos, EnumFacing.WEST, x, y, z, hNW, hSW, sideMinY, flow, r, g, b, a, fluid.getKind());
         side(buffer, access, host, pos, EnumFacing.EAST, x, y, z, hNE, hSE, sideMinY, flow, r, g, b, a, fluid.getKind());
+
+        // BlockFluidRenderer 1.12.2 clears the active sprite after each liquid.
+        buffer.setSprite((TextureAtlasSprite) null);
     }
 
     private static void side(BufferBuilder buffer, IBlockAccess access,
