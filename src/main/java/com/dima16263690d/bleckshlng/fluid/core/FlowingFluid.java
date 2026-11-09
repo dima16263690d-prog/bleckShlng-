@@ -1,10 +1,7 @@
 package com.dima16263690d.bleckshlng.fluid.core;
 
-import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -180,7 +177,7 @@ public abstract class FlowingFluid extends Fluid {
         }
 
         if (canConvertToSource() && sourceCount >= 2
-                && world.canCreateFluidSource(pos)) {
+                && world.canCreateFluidSource(pos, this)) {
             FluidPos below = pos.below();
             if (world.isLoaded(below)) {
                 FluidState belowFluid = safeFluid(world, below);
@@ -392,6 +389,7 @@ public abstract class FlowingFluid extends Fluid {
             return false;
         }
         return world.canPassThroughWall(from, direction)
+                && world.canReplaceFluid(target, incoming.getType(), direction)
                 && world.canHoldFluid(target, incoming.getType());
     }
 
