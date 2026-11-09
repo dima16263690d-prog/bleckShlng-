@@ -13,6 +13,7 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.init.Blocks;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.AxisAlignedBB;
@@ -120,18 +121,27 @@ public final class WaterloggedChunkMesher {
         Minecraft mc = Minecraft.getMinecraft();
         boolean lava = fluid.getKind() == FluidStateBridge.FluidKind.LAVA;
         IBlockState fluidBlockState = (lava ? Blocks.LAVA : Blocks.WATER).getDefaultState();
-        TextureAtlasSprite still = mc.getBlockRendererDispatcher()
-                .getBlockModelShapes().getTexture(fluidBlockState);
-        TextureAtlasSprite flow = still;
-        try {
-            TextureAtlasSprite f = mc.getTextureMapBlocks().getAtlasSprite(
-                    lava ? "minecraft:blocks/lava_flow" : "minecraft:blocks/water_flow");
-            if (f != null && !"missingno".equals(f.getIconName())) {
-                flow = f;
-            }
-        } catch (Throwable ignored) {
+
+        // Use the real animated block-atlas sprites, exactly as the vanilla
+        // 1.12.2 BlockFluidRenderer does. TextureMap advances each sprite's
+        // .mcmeta frames globally; chunk vertices keep stable atlas UVs, so
+        // the animation continues without per-frame chunk rebuilds.
+        TextureMap atlas = mc.getTextureMapBlocks();
+        String stillName = lava
+                ? "minecraft:blocks/lava_still" : "minecraft:blocks/water_still";
+        String flowName = lava
+                ? "minecraft:blocks/lava_flow" : "minecraft:blocks/water_flow";
+
+        TextureAtlasSprite still = atlas.getAtlasSprite(stillName);
+        TextureAtlasSprite flow = atlas.getAtlasSprite(flowName);
+        if (still == null || "missingno".equals(still.getIconName())) {
+            still = mc.getBlockRendererDispatcher()
+                    .getBlockModelShapes().getTexture(fluidBlockState);
         }
-        if (still == null) {
+        if (flow == null || "missingno".equals(flow.getIconName())) {
+            flow = still;
+        }
+        if (still == null || "missingno".equals(still.getIconName())) {
             return;
         }
 
