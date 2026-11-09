@@ -41,6 +41,15 @@ public final class FluidViewAccess implements IBlockAccess {
         return delegate.getBlockState(pos);
     }
 
+    public int getDimension() {
+        return dimension;
+    }
+
+    public FluidStateBridge getFluidState(BlockPos pos) {
+        return pos == null ? null
+                : ClientFluidStateCache.get(dimension, pos.toLong());
+    }
+
     /**
      * Returns the visible top of water in this cell. A top slab leaves only
      * its lower half available; a bottom slab leaves the upper half available.
@@ -54,7 +63,9 @@ public final class FluidViewAccess implements IBlockAccess {
                     && !((net.minecraft.block.BlockSlab) original.getBlock()).isDouble()) {
                 boolean top = original.getValue(net.minecraft.block.BlockSlab.HALF)
                         == net.minecraft.block.BlockSlab.EnumBlockHalf.TOP;
-                return top ? 0.5F : Math.max(height, 0.8888889F);
+                // A waterlogged bottom slab contains water in y=0.5..1.0;
+                // a top slab contains it in y=0.0..0.5.
+                return top ? 0.5F : 1.0F;
             }
             return height;
         }
