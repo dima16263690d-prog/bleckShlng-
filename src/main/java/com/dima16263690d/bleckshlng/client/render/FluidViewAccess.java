@@ -71,7 +71,7 @@ public final class FluidViewAccess implements IBlockAccess {
 
         IBlockState original = delegate.getBlockState(pos);
         FluidStateBridge fluid = getFluidStateAt(pos);
-        if (fluid == null || fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
+        if (fluid == null) {
             return 0.0F;
         }
 
@@ -79,7 +79,8 @@ public final class FluidViewAccess implements IBlockAccess {
         boolean sameFluidAbove = above != null && fluid.isSameKind(above);
         float height = fluid.getHeight(sameFluidAbove);
 
-        if (original.getBlock() instanceof net.minecraft.block.BlockSlab
+        if (fluid.getKind() == FluidStateBridge.FluidKind.WATER
+                && original.getBlock() instanceof net.minecraft.block.BlockSlab
                 && !((net.minecraft.block.BlockSlab) original.getBlock()).isDouble()) {
             boolean top = original.getValue(net.minecraft.block.BlockSlab.HALF)
                     == net.minecraft.block.BlockSlab.EnumBlockHalf.TOP;
