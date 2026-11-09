@@ -92,14 +92,14 @@ The code separates client-only model registration from common block and interact
 - Minecraft **1.12.2**
 - Minecraft Forge **14.23.5.2864**
 - Java **8**
-- [MixinBooter **12.3**](https://github.com/CleanroomMC/MixinBooter) (required for the chunk-render Mixin integration)
+- [MixinBooter **12.2 or newer**](https://github.com/CleanroomMC/MixinBooter) (required for the chunk-render Mixin integration)
 
 MixinBooter is a separate runtime mod; it is not bundled inside the BleckShlng JAR.
 
 ## Installation
 
 1. Install Forge 1.12.2.
-2. Install MixinBooter 12.3 in the client `mods` folder.
+2. Install MixinBooter 12.2 or newer in the client `mods` folder.
 3. Put the BleckShlng JAR into the `mods` folder.
 4. For multiplayer, install MixinBooter and the same BleckShlng JAR on the server and all clients. The chunk-render Mixin itself is client-only.
 5. Launch the game.
