@@ -208,7 +208,9 @@ public final class FluidCoreHooks {
     public static boolean tryReactStaticLava(World world, BlockPos pos,
                                              IBlockState state) {
         if (world == null || world.isRemote || pos == null || state == null
-                || state.getBlock() != Blocks.LAVA || !world.isBlockLoaded(pos)) {
+                || (state.getBlock() != Blocks.LAVA
+                && state.getBlock() != Blocks.FLOWING_LAVA)
+                || !world.isBlockLoaded(pos)) {
             return false;
         }
         try {
