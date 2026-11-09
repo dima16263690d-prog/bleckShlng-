@@ -17,7 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.dima16263690d.bleckshlng.fluid.engine.FluidFlowEngine;
-import com.dima16263690d.bleckshlng.fluid.engine.LavaRandomTickHandler;
+import com.dima16263690d.bleckshlng.fluid.core.ModernFluidEngine;
 import com.dima16263690d.bleckshlng.fluid.state.FluidProperties;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.physics.FluidFlowVector;
@@ -219,7 +219,7 @@ public final class FluidCoreHooks {
                 && random != null && world.isBlockLoaded(pos)
                 && world.getBlockState(pos).getBlock() == block) {
             try {
-                LavaRandomTickHandler.randomTick(world, pos, random);
+                ModernFluidEngine.randomTick(world, pos, random);
             } catch (Throwable error) {
                 LOGGER.error("Flowing lava random tick failed at {}", pos, error);
             }
