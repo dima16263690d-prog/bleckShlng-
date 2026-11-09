@@ -182,7 +182,11 @@ public final class FluidSpreadEngine {
             BlockPos belowPos = pos.down();
             if (world.isBlockLoaded(belowPos)) {
                 IBlockState belowState = world.getBlockState(belowPos);
-                boolean solidSupport = belowState.getMaterial().isSolid();
+                // FlowingFluid requires a sturdy support face, not
+                // merely a solid material (e.g. a fence is solid-ish but
+                // does not provide a full top support surface).
+                boolean solidSupport = belowState.isSideSolid(
+                        world, belowPos, EnumFacing.UP);
                 boolean waterSourceBelow = getDepth(
                         world, belowPos, Material.WATER)
                         == FluidLevelMapper.SOURCE_METADATA;
@@ -256,7 +260,9 @@ public final class FluidSpreadEngine {
         int count = 0;
         for (EnumFacing direction : EnumFacing.Plane.HORIZONTAL) {
             BlockPos neighborPos = pos.offset(direction);
-            if (getDepth(world, neighborPos, material)
+            if (world.isBlockLoaded(neighborPos)
+                    && canSpreadThrough(world, pos, direction, material)
+                    && getDepth(world, neighborPos, material)
                     == FluidLevelMapper.SOURCE_METADATA) {
                 count++;
             }
