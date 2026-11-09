@@ -8,8 +8,8 @@ import net.minecraft.block.material.Material;
 import net.minecraft.init.Blocks;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumParticleTypes;
-import net.minecraft.util.SoundCategory;
 import net.minecraft.init.SoundEvents;
+import net.minecraft.util.SoundCategory;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -57,19 +57,15 @@ public final class WaterloggedFluidAnimateHandler {
         int centerX = floor(viewer.posX);
         int centerY = floor(viewer.posY);
         int centerZ = floor(viewer.posZ);
-        int dimension = world.provider.getDimension();
         Random fluidRandom = new Random();
 
         // ClientLevel.animateTick(1.18.2) samples both radii on each tick.
-        sampleRadius(world, dimension, centerX, centerY, centerZ,
-                16, fluidRandom);
-        sampleRadius(world, dimension, centerX, centerY, centerZ,
-                32, fluidRandom);
+        sampleRadius(world, centerX, centerY, centerZ, 16, fluidRandom);
+        sampleRadius(world, centerX, centerY, centerZ, 32, fluidRandom);
     }
 
-    private static void sampleRadius(World world, int dimension,
-                                     int centerX, int centerY, int centerZ,
-                                     int radius, Random fluidRandom) {
+    private static void sampleRadius(World world, int centerX, int centerY,
+                                     int centerZ, int radius, Random fluidRandom) {
         for (int i = 0; i < SAMPLES_PER_RADIUS; i++) {
             // Match Level/ClientLevel's triangular random coordinate spread.
             int x = centerX + world.rand.nextInt(radius) - world.rand.nextInt(radius);
