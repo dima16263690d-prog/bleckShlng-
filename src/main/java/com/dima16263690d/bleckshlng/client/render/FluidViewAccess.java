@@ -16,31 +16,66 @@ import com.dima16263690d.bleckshlng.fluid.network.ClientFluidStateCache;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 
 /**
- * IBlockAccess that reports waterlogged sidecar cells as vanilla water.
- *
- * BlockFluidRenderer face-culls against Material.WATER. By presenting
- * waterlogged hosts as water, adjacent ocean faces and waterlogged faces
- * share the same culling rules as 1.13 continuous fluid.
+ * Read-only IBlockAccess facade. Host blocks remain visible through
+ * getOriginalBlockState(); neighbor queries see sidecar water as a virtual
+ * vanilla water state so the mesher can suppress shared water faces.
  */
 @SideOnly(Side.CLIENT)
 public final class FluidViewAccess implements IBlockAccess {
-    private final World world;
+    private final IBlockAccess delegate;
     private final int dimension;
 
     public FluidViewAccess(World world) {
-        this.world = world;
-        this.dimension = world.provider.getDimension();
+        this((IBlockAccess) world, world.provider.getDimension());
+    }
+
+    public FluidViewAccess(IBlockAccess delegate, int dimension) {
+        if (delegate == null) {
+            throw new IllegalArgumentException("delegate cannot be null");
+        }
+        this.delegate = delegate;
+        this.dimension = dimension;
+    }
+
+    public IBlockState getOriginalBlockState(BlockPos pos) {
+        return delegate.getBlockState(pos);
+    }
+
+    /**
+     * Returns the visible top of water in this cell. A top slab leaves only
+     * its lower half available; a bottom slab leaves the upper half available.
+     */
+    public float getFluidSurfaceHeight(BlockPos pos) {
+        IBlockState original = delegate.getBlockState(pos);
+        FluidStateBridge fluid = ClientFluidStateCache.get(dimension, pos.toLong());
+        if (fluid != null && fluid.getKind() == FluidStateBridge.FluidKind.WATER) {
+            float height = fluid.getOwnHeight();
+            if (original.getBlock() instanceof net.minecraft.block.BlockSlab
+                    && !((net.minecraft.block.BlockSlab) original.getBlock()).isDouble()) {
+                boolean top = original.getValue(net.minecraft.block.BlockSlab.HALF)
+                        == net.minecraft.block.BlockSlab.EnumBlockHalf.TOP;
+                return top ? 0.5F : Math.max(height, 0.8888889F);
+            }
+            return height;
+        }
+
+        IBlockState state = delegate.getBlockState(pos);
+        if (state.getMaterial() == net.minecraft.block.material.Material.WATER
+                && state.getBlock() instanceof net.minecraft.block.BlockLiquid) {
+            int level = state.getValue(net.minecraft.block.BlockLiquid.LEVEL).intValue();
+            return level >= 8 ? 1.0F : (float) (8 - level) / 9.0F;
+        }
+        return 0.0F;
     }
 
     @Override
     public IBlockState getBlockState(BlockPos pos) {
-        IBlockState real = world.getBlockState(pos);
+        IBlockState real = delegate.getBlockState(pos);
         if (real.getMaterial().isLiquid()) {
             return real;
         }
         FluidStateBridge fluid = ClientFluidStateCache.get(dimension, pos.toLong());
         if (fluid != null && fluid.getKind() == FluidStateBridge.FluidKind.WATER) {
-            // Source-looking water so height matches ocean surface (level 0).
             if (fluid.isSource() || fluid.getAmount() >= 8) {
                 return Blocks.WATER.getDefaultState();
             }
@@ -53,36 +88,37 @@ public final class FluidViewAccess implements IBlockAccess {
 
     @Override
     public TileEntity getTileEntity(BlockPos pos) {
-        return world.getTileEntity(pos);
+        return delegate.getTileEntity(pos);
     }
 
     @Override
     public int getCombinedLight(BlockPos pos, int lightValue) {
-        return world.getCombinedLight(pos, lightValue);
+        return delegate.getCombinedLight(pos, lightValue);
     }
 
     @Override
     public boolean isAirBlock(BlockPos pos) {
-        return getBlockState(pos).getBlock().isAir(getBlockState(pos), this, pos);
+        IBlockState state = getBlockState(pos);
+        return state.getBlock().isAir(state, this, pos);
     }
 
     @Override
     public Biome getBiome(BlockPos pos) {
-        return world.getBiome(pos);
+        return delegate.getBiome(pos);
     }
 
     @Override
     public int getStrongPower(BlockPos pos, EnumFacing direction) {
-        return world.getStrongPower(pos, direction);
+        return delegate.getStrongPower(pos, direction);
     }
 
     @Override
     public WorldType getWorldType() {
-        return world.getWorldType();
+        return delegate.getWorldType();
     }
 
     @Override
-    public boolean isSideSolid(BlockPos pos, EnumFacing side, boolean _default) {
-        return world.isSideSolid(pos, side, _default);
+    public boolean isSideSolid(BlockPos pos, EnumFacing side, boolean defaultValue) {
+        return delegate.isSideSolid(pos, side, defaultValue);
     }
 }
