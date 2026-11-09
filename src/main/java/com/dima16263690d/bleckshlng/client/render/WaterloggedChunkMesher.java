@@ -177,7 +177,7 @@ public final class WaterloggedChunkMesher {
         Vec3d flowVector = getFlowVector(access, pos, fluid);
         float flowX = (float) flowVector.x;
         float flowZ = (float) flowVector.z;
-        boolean flowingSurface = flowX * flowX + flowZ * flowZ > 1.0E-4F;
+        boolean flowingSurface = flowX != 0.0F || flowZ != 0.0F;
         TextureAtlasSprite topSprite = flowingSurface ? flow : still;
 
         boolean topOccluded = false;
@@ -205,7 +205,14 @@ public final class WaterloggedChunkMesher {
             hSE = Math.max(minY, hSE - 0.001F);
             hSW = Math.max(minY, hSW - 0.001F);
             topQuad(buffer, x, y, z, hNW, hNE, hSE, hSW,
-                    topSprite, flowX, flowZ, flowingSurface, r, g, b, a, sky, block);
+                    topSprite, flowX, flowZ, flowingSurface, r, g, b, a, sky, block, false);
+            if (shouldRenderBackwardTopFace(access, abovePos, fluid.getKind())) {
+                // LiquidBlockRenderer also emits the reverse winding so the
+                // surface remains visible from below when the surrounding
+                // 3x3 area above is not completely sealed.
+                topQuad(buffer, x, y, z, hNW, hNE, hSE, hSW,
+                        topSprite, flowX, flowZ, flowingSurface, r, g, b, a, sky, block, true);
+            }
         }
 
         boolean bottomOccluded = false;
@@ -618,7 +625,7 @@ public final class WaterloggedChunkMesher {
                                  float hNW, float hNE, float hSE, float hSW,
                                  TextureAtlasSprite sprite, float flowX, float flowZ,
                                  boolean flowing, int r, int g, int b, int a,
-                                 int sky, int block) {
+                                 int sky, int block, boolean reverseWinding) {
         float uNW;
         float vNW;
         float uSW;
@@ -667,10 +674,37 @@ public final class WaterloggedChunkMesher {
             vNE = centerV + (vNE - centerV) * (1.0F - shrink);
         }
 
-        vert(buffer, x, y + hNW, z, uNW, vNW, r, g, b, a, sky, block);
-        vert(buffer, x, y + hSW, z + 1, uSW, vSW, r, g, b, a, sky, block);
-        vert(buffer, x + 1, y + hSE, z + 1, uSE, vSE, r, g, b, a, sky, block);
-        vert(buffer, x + 1, y + hNE, z, uNE, vNE, r, g, b, a, sky, block);
+        if (!reverseWinding) {
+            vert(buffer, x, y + hNW, z, uNW, vNW, r, g, b, a, sky, block);
+            vert(buffer, x, y + hSW, z + 1, uSW, vSW, r, g, b, a, sky, block);
+            vert(buffer, x + 1, y + hSE, z + 1, uSE, vSE, r, g, b, a, sky, block);
+            vert(buffer, x + 1, y + hNE, z, uNE, vNE, r, g, b, a, sky, block);
+        } else {
+            vert(buffer, x, y + hNW, z, uNW, vNW, r, g, b, a, sky, block);
+            vert(buffer, x + 1, y + hNE, z, uNE, vNE, r, g, b, a, sky, block);
+            vert(buffer, x + 1, y + hSE, z + 1, uSE, vSE, r, g, b, a, sky, block);
+            vert(buffer, x, y + hSW, z + 1, uSW, vSW, r, g, b, a, sky, block);
+        }
+    }
+
+    private static boolean shouldRenderBackwardTopFace(
+            IBlockAccess access, BlockPos abovePos,
+            FluidStateBridge.FluidKind kind) {
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                BlockPos samplePos = abovePos.add(dx, 0, dz);
+                IBlockState state = access.getBlockState(samplePos);
+                FluidStateBridge neighbor = getFluidState(access, samplePos, state);
+                if (neighbor != null && neighbor.getKind() == kind) {
+                    continue;
+                }
+                if (state.isOpaqueCube()) {
+                    continue;
+                }
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Vec3d getFlowVector(IBlockAccess access, BlockPos pos,
@@ -828,6 +862,7 @@ public final class WaterloggedChunkMesher {
                              double x, double y, double z,
                              float u, float v,
                              int r, int g, int b, int a, int sky, int block) {
-        buffer.pos(x, y, z).color(r, g, b, a).tex(u, v).lightmap(sky, block).endVertex();
+        buffer.pos(x, y, z).color(r, g, b, a).tex(u, v)
+                .lightmap(sky, block).normal(0.0F, 1.0F, 0.0F).endVertex();
     }
 }
