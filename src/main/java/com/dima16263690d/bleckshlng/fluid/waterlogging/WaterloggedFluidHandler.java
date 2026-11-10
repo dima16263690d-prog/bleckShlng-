@@ -94,6 +94,14 @@ public final class WaterloggedFluidHandler {
                     return false;
                 }
                 removed = true;
+
+                // SimpleWaterloggedBlock#pickupBlock checks that the host
+                // still survives after the WATERLOGGED property is cleared.
+                IBlockState dryState = world.getBlockState(pos);
+                if (dryState.getBlock() == state.getBlock()
+                        && !dryState.getBlock().canPlaceBlockAt(world, pos)) {
+                    world.destroyBlock(pos, true);
+                }
             }
         }
 
