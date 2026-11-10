@@ -61,15 +61,17 @@ public final class FluidViewAccess implements IBlockAccess {
     }
 
     /**
-     * Returns the visible top of water in this cell. A top slab leaves only
-     * its lower half available; a bottom slab leaves the upper half available.
+     * Matches FlowingFluid#getHeight from Minecraft 1.18.2.
+     *
+     * The fluid height is determined only by the fluid state and a matching
+     * fluid above. Slabs and stairs do not rewrite this value: their block
+     * geometry occludes the hidden part during the normal chunk depth pass.
      */
     public float getFluidSurfaceHeight(BlockPos pos) {
         if (pos == null) {
             return 0.0F;
         }
 
-        IBlockState original = delegate.getBlockState(pos);
         FluidStateBridge fluid = getFluidStateAt(pos);
         if (fluid == null) {
             return 0.0F;
@@ -77,26 +79,7 @@ public final class FluidViewAccess implements IBlockAccess {
 
         FluidStateBridge above = getFluidStateAt(pos.up());
         boolean sameFluidAbove = above != null && fluid.isSameKind(above);
-        float height = fluid.getHeight(sameFluidAbove);
-
-        if (fluid.getKind() == FluidStateBridge.FluidKind.WATER
-                && original.getBlock() instanceof net.minecraft.block.BlockSlab
-                && !((net.minecraft.block.BlockSlab) original.getBlock()).isDouble()) {
-            boolean top = original.getValue(net.minecraft.block.BlockSlab.HALF)
-                    == net.minecraft.block.BlockSlab.EnumBlockHalf.TOP;
-            if (top) {
-                // A top slab occupies y=0.5..1.0. The water below it is
-                // clipped at y=0.5 by its collision/occlusion shape.
-                return Math.min(height, 0.5F);
-            }
-
-            // A bottom slab occupies y=0..0.5. FluidState#getOwnHeight in
-            // 1.18.2 is amount/9 (8/9 for a source), not a full 1.0 block.
-            // It reaches the cell ceiling only when matching fluid is above.
-            return Math.max(0.5F, height);
-        }
-
-        return height;
+        return fluid.getHeight(sameFluidAbove);
     }
 
     private FluidStateBridge getFluidStateAt(BlockPos pos) {
