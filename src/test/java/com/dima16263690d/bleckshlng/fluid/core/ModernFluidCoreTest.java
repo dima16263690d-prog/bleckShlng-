@@ -79,6 +79,35 @@ public class ModernFluidCoreTest {
     }
 
     @Test
+    public void spreadSearchDoesNotChooseAnOccupiedSourceAsItsOnlyRoute() {
+        TestWorld world = new TestWorld();
+        FluidPos origin = new FluidPos(0, 10, 0);
+        FluidState source = Fluids.waterSource();
+
+        // The source's downward exit is blocked. The east cell is already
+        // a source, but its lower cell is an open drop. The other three
+        // horizontal cells have no immediate drop and must be considered
+        // as the next-best routes.
+        world.fluids.put(origin, source);
+        world.fluids.put(origin.offset(FluidDirection.EAST), source);
+        world.solid.add(origin.below());
+        world.solid.add(origin.offset(FluidDirection.NORTH).below());
+        world.solid.add(origin.offset(FluidDirection.SOUTH).below());
+        world.solid.add(origin.offset(FluidDirection.WEST).below());
+
+        Fluids.WATER.tick(world, origin, source);
+
+        assertTrue("existing source must not be overwritten",
+                world.getFluidState(origin.offset(FluidDirection.EAST)).isSource());
+        assertFalse("north route should receive flowing water",
+                world.getFluidState(origin.offset(FluidDirection.NORTH)).isEmpty());
+        assertFalse("south route should receive flowing water",
+                world.getFluidState(origin.offset(FluidDirection.SOUTH)).isEmpty());
+        assertFalse("west route should receive flowing water",
+                world.getFluidState(origin.offset(FluidDirection.WEST)).isEmpty());
+    }
+
+    @Test
     public void twoWaterSourcesCreateSourceAboveSolidSupport() {
         TestWorld world = new TestWorld();
         FluidPos target = new FluidPos(0, 10, 0);
