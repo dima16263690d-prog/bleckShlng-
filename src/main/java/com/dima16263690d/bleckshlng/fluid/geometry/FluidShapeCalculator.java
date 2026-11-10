@@ -20,19 +20,57 @@ public final class FluidShapeCalculator {
         if (world == null || pos == null || state == null || !world.isBlockLoaded(pos)) {
             return new ArrayList<AxisAlignedBB>(0);
         }
-        FluidOcclusionCache.ensureState(world, pos, state);
+
+        IBlockState collisionState = resolveCollisionState(world, pos, state);
+        FluidOcclusionCache.ensureState(world, pos, collisionState);
         List<AxisAlignedBB> cached = FluidOcclusionCache.getCollisionBoxes(world, pos);
         if (cached != null) return cached;
 
         List<AxisAlignedBB> boxes = new ArrayList<AxisAlignedBB>(4);
         AxisAlignedBB mask = new AxisAlignedBB(pos.getX(), pos.getY(), pos.getZ(),
                 pos.getX() + 1.0D, pos.getY() + 1.0D, pos.getZ() + 1.0D);
-        state.getBlock().addCollisionBoxToList(state, world, pos, mask, boxes, (Entity) null, true);
-        FluidOcclusionCache.putCollisionBoxes(world, pos, boxes);
-        return FluidOcclusionCache.getCollisionBoxes(world, pos);
+
+        // The final argument means "state is already actual" for blocks such as
+        // BlockStairs. Resolve neighbour-dependent properties before passing true.
+        collisionState.getBlock().addCollisionBoxToList(
+                collisionState, world, pos, mask, boxes, (Entity) null, true);
+        FluidOcclusionCache.putCollisionBoxes(world, pos, collisionState, boxes);
+        return FluidOcclusionCache.getCollisionBoxes(world, pos, collisionState);
+    }
+
+    /**
+     * Returns the collision state that represents the block's real shape at
+     * this position. Stairs, fences, walls and panes derive shape/connection
+     * properties from neighbouring blocks instead of storing them in metadata.
+     *
+     * Never ask the world to inspect an unloaded horizontal neighbour: doing so
+     * can produce a false connection at chunk boundaries or force chunk access.
+     */
+    private static IBlockState resolveCollisionState(
+            World world, BlockPos pos, IBlockState state) {
+        if (state == null || !com.dima16263690d.bleckshlng.fluid.geometry
+                .WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
+            return state;
+        }
+
+        for (EnumFacing direction : EnumFacing.Plane.HORIZONTAL) {
+            if (!world.isBlockLoaded(pos.offset(direction))) {
+                return state;
+            }
+        }
+
+        try {
+            IBlockState actual = state.getActualState(world, pos);
+            return actual == null ? state : actual;
+        } catch (RuntimeException ignored) {
+            // A modded waterloggable block may not support actual-state lookup.
+            // Keep its supplied state rather than breaking fluid updates.
+            return state;
+        }
     }
 
     public static boolean isFaceFullyCovered(World world, BlockPos pos, IBlockState state, EnumFacing face) {
+        state = resolveCollisionState(world, pos, state);
         FluidOcclusionCache.ensureState(world, pos, state);
         Boolean cached = FluidOcclusionCache.getFaceCoverage(world, pos, face);
         if (cached != null) return cached.booleanValue();
@@ -50,8 +88,9 @@ public final class FluidShapeCalculator {
             // occlusion result that was computed without both block shapes.
             return true;
         }
-        IBlockState firstState = world.getBlockState(pos);
-        IBlockState secondState = world.getBlockState(otherPos);
+        IBlockState firstState = resolveCollisionState(world, pos, world.getBlockState(pos));
+        IBlockState secondState = resolveCollisionState(
+                world, otherPos, world.getBlockState(otherPos));
         FluidOcclusionCache.ensureState(world, pos, firstState);
         FluidOcclusionCache.ensureState(world, otherPos, secondState);
         Boolean cached = FluidOcclusionCache.getMergedFace(world, pos, direction);
@@ -64,7 +103,7 @@ public final class FluidShapeCalculator {
         return occluded;
     }
 
-    private static boolean isMergedFaceCoveredExactly(
+    static boolean isMergedFaceCoveredExactly(
             List<AxisAlignedBB> firstBoxes, BlockPos firstPos, EnumFacing firstFace,
             List<AxisAlignedBB> secondBoxes, BlockPos secondPos, EnumFacing secondFace) {
         TreeSet<Double> uEdges = new TreeSet<Double>();
@@ -273,6 +312,7 @@ public final class FluidShapeCalculator {
     }
 
     public static boolean fillsBlock(World world, BlockPos pos, IBlockState state) {
+        state = resolveCollisionState(world, pos, state);
         FluidOcclusionCache.ensureState(world, pos, state);
         Boolean cached = FluidOcclusionCache.getFullBlock(world, pos);
         if (cached != null) return cached.booleanValue();
