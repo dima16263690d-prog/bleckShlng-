@@ -752,5 +752,15 @@ public final class WaterloggedChunkMesher {
         // Vanilla fluid rendering uses the BLOCK format without normal().
         buffer.pos(x, y, z).color(r, g, b, a).tex(u, v)
                 .lightmap(sky, block).endVertex();
+
+        // BufferBuilder.noColor() may be left enabled by another block
+        // renderer while the chunk layer is being compiled. In that state
+        // color() advances the vertex format but deliberately skips writing
+        // the color bytes, leaving the grayscale water texture untinted.
+        // Write the vertex color directly into the BLOCK format color slot
+        // after endVertex so the tint is guaranteed for every fluid face.
+        int vertexIndex = buffer.getVertexCount() - 1;
+        int colorIndex = buffer.getColorIndex(vertexIndex);
+        buffer.putColorRGBA(colorIndex, r, g, b, a);
     }
 }
