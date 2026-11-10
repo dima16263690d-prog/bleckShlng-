@@ -106,41 +106,33 @@ public final class WaterloggedChunkMesher {
             ownHeight = 0.8888889F;
         }
 
-        // A bottom slab occupies y=0..0.5, leaving the upper half for water.
-        // A top slab occupies y=0.5..1, leaving only the lower half. The
-        // previous implementation applied the bottom-slab geometry to both,
-        // which placed water above top slabs instead of beneath them.
-        float minY = 0.0F;
-        if (host.getBlock() instanceof BlockSlab
-                && !((BlockSlab) host.getBlock()).isDouble()) {
-            boolean top = host.getValue(BlockSlab.HALF)
-                    == BlockSlab.EnumBlockHalf.TOP;
-            if (top) {
-                ownHeight = Math.min(ownHeight, 0.5F);
-            } else {
-                minY = 0.5F;
-                ownHeight = Math.max(ownHeight, 0.8888889F);
-            }
-        }
-        if (ownHeight <= minY + 0.001F) {
+        // LiquidBlockRenderer 1.18.2 uses the FluidState height unchanged.
+        // The host slab/stair geometry hides the part of the fluid that lies
+        // inside the block; the renderer must not shift or clamp the fluid.
+        final float minY = 0.0F;
+        if (ownHeight <= 0.001F) {
             return;
         }
 
-        // LiquidBlockRenderer 1.18.2 corner order: north-west,
-        // north-east, south-east, south-west. Solid non-fluid neighbours
-        // contribute -1 and are excluded from the weighted average.
-        float hNW = sampleCorner(access, pos, ownHeight, -1, -1, fluid.getKind());
-        float hNE = sampleCorner(access, pos, ownHeight, 1, -1, fluid.getKind());
-        float hSE = sampleCorner(access, pos, ownHeight, 1, 1, fluid.getKind());
-        float hSW = sampleCorner(access, pos, ownHeight, -1, 1, fluid.getKind());
-        // Keep the averaged corner heights exactly as LiquidBlockRenderer
-        // 1.18.2 does. Do not cap them to a slab's own height: a neighboring
-        // full/falling fluid column can legitimately raise one corner to 1.0.
-        // The slab's collision boxes clip the hidden portion of the side mesh.
-        hNW = Math.max(hNW, minY);
-        hNE = Math.max(hNE, minY);
-        hSE = Math.max(hSE, minY);
-        hSW = Math.max(hSW, minY);
+        // Exact LiquidBlockRenderer rule: if this fluid column reaches the
+        // cell ceiling (same fluid above), all four corners are 1.0. Averaging
+        // them with lower neighbours creates the false pyramid/diamond tops
+        // visible on falling water and lava.
+        float hNW;
+        float hNE;
+        float hSE;
+        float hSW;
+        if (ownHeight >= 1.0F) {
+            hNW = 1.0F;
+            hNE = 1.0F;
+            hSE = 1.0F;
+            hSW = 1.0F;
+        } else {
+            hNW = sampleCorner(access, pos, ownHeight, -1, -1, fluid.getKind());
+            hNE = sampleCorner(access, pos, ownHeight, 1, -1, fluid.getKind());
+            hSE = sampleCorner(access, pos, ownHeight, 1, 1, fluid.getKind());
+            hSW = sampleCorner(access, pos, ownHeight, -1, 1, fluid.getKind());
+        }
 
         Minecraft mc = Minecraft.getMinecraft();
         boolean lava = fluid.getKind() == FluidKind.LAVA;
@@ -193,9 +185,6 @@ public final class WaterloggedChunkMesher {
         double y = pos.getY();
         double z = pos.getZ();
 
-        boolean topSlabHost = host.getBlock() instanceof BlockSlab
-                && !((BlockSlab) host.getBlock()).isDouble()
-                && host.getValue(BlockSlab.HALF) == BlockSlab.EnumBlockHalf.TOP;
         Vec3d flowVector = getFlowVector(access, pos, fluid);
         float flowX = (float) flowVector.x;
         float flowZ = (float) flowVector.z;
@@ -207,18 +196,12 @@ public final class WaterloggedChunkMesher {
         World shapeWorld = access instanceof FluidViewAccess
                 ? ((FluidViewAccess) access).getWorld()
                 : (access instanceof World ? (World) access : Minecraft.getMinecraft().world);
-        FluidOcclusionShape aboveShape = FluidOcclusionShapeAdapter.getFaceShape(
-                access, shapeWorld, abovePos, aboveState, EnumFacing.DOWN);
-        // LiquidBlockRenderer 1.18.2 only lets the block above occlude
-        // the top when the fluid surface actually reaches the cell boundary.
-        // Source/flowing states normally peak at 8/9; hiding their top face
-        // merely because the block above has a full face creates missing
-        // surfaces and thin flashing strips around slabs.
         float minCornerHeight = Math.min(Math.min(hNW, hNE), Math.min(hSE, hSW));
-        boolean topOccluded = minCornerHeight >= 1.0F - 1.0E-6F
-                && FluidOcclusionShapeAdapter.isFaceFullyCovered(aboveShape);
-        boolean sameFluidAbove = isSameFluid(access, pos.up(), fluid.getKind());
-        boolean renderTop = !topSlabHost && !topOccluded && !sameFluidAbove;
+        boolean sameFluidAbove = isSameFluid(access, abovePos, fluid.getKind());
+        boolean topOccluded = FluidOcclusionShapeAdapter.isFaceOccludedByState(
+                access, shapeWorld, abovePos, aboveState,
+                EnumFacing.UP, minCornerHeight);
+        boolean renderTop = !sameFluidAbove && !topOccluded;
         if (renderTop) {
             // LiquidBlockRenderer 1.18.2 lowers the top vertices by 0.001
             // before emitting both the top quad and its adjoining side walls.
@@ -243,18 +226,21 @@ public final class WaterloggedChunkMesher {
 
         BlockPos belowPos = pos.down();
         IBlockState belowState = access.getBlockState(belowPos);
-        FluidOcclusionShape belowShape = FluidOcclusionShapeAdapter.getFaceShape(
-                access, shapeWorld, belowPos, belowState, EnumFacing.UP);
-        boolean bottomOccluded =
-                FluidOcclusionShapeAdapter.isFaceFullyCovered(belowShape);
+        boolean sameFluidBelow = isSameFluid(access, belowPos, fluid.getKind());
+        boolean bottomSelfOccluded = FluidOcclusionShapeAdapter.isFaceOccludedByState(
+                access, shapeWorld, pos, host, EnumFacing.UP, 1.0F);
+        boolean bottomOccluded = FluidOcclusionShapeAdapter.isFaceOccludedByState(
+                access, shapeWorld, belowPos, belowState,
+                EnumFacing.DOWN, 0.8888889F);
 
-        boolean renderBottom = minY <= 0.001F && !bottomOccluded
-                && !isSameFluid(access, belowPos, fluid.getKind());
-        float sideMinY = minY;
+        // LiquidBlockRenderer.shouldRenderFace(DOWN) checks the host's
+        // opposite face and whether the neighbour contains the same fluid.
+        boolean renderBottom = !bottomSelfOccluded
+                && !sameFluidBelow && !bottomOccluded;
+        float sideMinY = renderBottom ? 0.001F : 0.0F;
         if (renderBottom) {
             // The 1.18.2 renderer leaves a 0.001 inset on the bottom face
             // and starts adjoining side walls at the same height.
-            sideMinY = Math.max(sideMinY, 0.001F);
             double yy = y + sideMinY;
             int[] bottomLight = getFluidLight(access, belowPos);
             setSprite(buffer, still);
@@ -315,26 +301,40 @@ public final class WaterloggedChunkMesher {
                              float h0, float h1, float minY, TextureAtlasSprite sprite,
                              int r, int g, int b, int a,
                              FluidKind kind) {
-        if (isSameFluid(access, pos.offset(face), kind)) {
-            return;
-        }
         if (h0 <= minY && h1 <= minY) {
             return;
         }
 
         BlockPos neighborPos = pos.offset(face);
         IBlockState neighborState = access.getBlockState(neighborPos);
-        // HalfTransparentBlock in 1.18.2 maps to the glass/ice
-        // materials in 1.12.2; LeavesBlock remains a separate case.
-        // Portals also inherit BlockBreakable in legacy code, so do not
-        // classify every BlockBreakable as a water-overlay surface.
+        World world = access instanceof FluidViewAccess
+                ? ((FluidViewAccess) access).getWorld()
+                : (access instanceof World ? (World) access : Minecraft.getMinecraft().world);
+
+        // Exact LiquidBlockRenderer.shouldRenderFace() checks:
+        // 1) the host does not occlude its own opposite face;
+        // 2) the adjacent cell does not contain the same fluid.
+        if (isSameFluid(access, neighborPos, kind)
+                || FluidOcclusionShapeAdapter.isFaceOccludedByState(
+                        access, world, pos, host, face.getOpposite(), 1.0F)) {
+            return;
+        }
+
+        // The original renderer tests the adjacent block's occlusion shape
+        // against the liquid side prism up to max(h0,h1). It does not split
+        // the quad using collision boxes; block depth hides partial overlap.
+        if (FluidOcclusionShapeAdapter.isFaceOccludedByState(
+                access, world, neighborPos, neighborState,
+                face, Math.max(h0, h1))) {
+            return;
+        }
+
+        // 1.18.2 uses the water overlay only for leaves and half-transparent
+        // blocks. Glass/ice are the closest legacy 1.12.2 equivalents.
         boolean overlay = kind == FluidKind.WATER
                 && (neighborState.getBlock() instanceof net.minecraft.block.BlockLeaves
                 || neighborState.getMaterial() == Material.GLASS
                 || neighborState.getMaterial() == Material.ICE);
-        List<SideOcclusionRect> occlusions =
-                collectSideOcclusions(access, host, pos, neighborState,
-                        neighborPos, face, minY, overlay);
 
         TextureAtlasSprite sideSprite = sprite;
         if (overlay) {
@@ -347,17 +347,16 @@ public final class WaterloggedChunkMesher {
             }
         }
 
-        float shade = face == EnumFacing.NORTH || face == EnumFacing.SOUTH
+        float faceShade = face == EnumFacing.NORTH || face == EnumFacing.SOUTH
                 ? 0.8F : 0.6F;
         int[] sideLight = getFluidLight(access, pos);
-        int sky = sideLight[0];
-        int block = sideLight[1];
 
-        // Match vanilla BlockFluidRenderer: bind the sprite before
-        // writing this face so Forge can track it in chunk buffers.
         setSprite(buffer, sideSprite);
-        emitClippedSide(buffer, face, x, y, z, h0, h1, minY,
-                sideSprite, occlusions, r, g, b, a, sky, block, shade, !overlay);
+        emitVisibleSideStrip(buffer, face, x, y, z, 0.0D, 1.0D,
+                h0, h1, minY, Double.POSITIVE_INFINITY,
+                sideSprite, shade(r, faceShade), shade(g, faceShade),
+                shade(b, faceShade), a,
+                sideLight[0], sideLight[1], !overlay);
     }
 
     /**
