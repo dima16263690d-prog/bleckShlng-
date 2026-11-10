@@ -356,6 +356,66 @@ public final class FluidOcclusionShapeAdapter {
         return isFaceRectangleCovered(opposingFace, 0.0D, 1.0D, 0.0D, top);
     }
 
+    /**
+     * Clips a fluid column against a simple host AABB. Water in an upper
+     * slab occupies the lower half of the cell; the source FluidState still
+     * reports its normal 8/9 height, so the renderer must cap that surface at
+     * the bottom of the slab. Lower slabs leave the upper cavity available.
+     */
+    public static float clipFluidHeightToShape(float nominalHeight,
+                                                AxisAlignedBB localShape,
+                                                double localX, double localZ) {
+        if (Float.isNaN(nominalHeight) || nominalHeight <= 0.0F) {
+            return 0.0F;
+        }
+        float height = Math.min(1.0F, nominalHeight);
+        if (localShape == null
+                || localX < localShape.minX - EPSILON
+                || localX > localShape.maxX + EPSILON
+                || localZ < localShape.minZ - EPSILON
+                || localZ > localShape.maxZ + EPSILON) {
+            return height;
+        }
+
+        // If the host fills this entire sampled column up to the fluid
+        // surface, no fluid surface is visible in that column.
+        if (localShape.minY <= EPSILON
+                && localShape.maxY >= height - EPSILON) {
+            return 0.0F;
+        }
+
+        // An upper slab seals the upper part of the cell. Water stored in it
+        // is visible only in the cavity below the slab.
+        if (localShape.minY > EPSILON
+                && localShape.minY < height
+                && localShape.maxY >= 1.0D - EPSILON) {
+            return (float) localShape.minY;
+        }
+        return height;
+    }
+
+    /**
+     * Applies slab-only height clipping using the current chunk snapshot.
+     * Other waterloggable shapes (fences, stairs, panes) retain the fluid
+     * height and rely on their face geometry, as in 1.18.2.
+     */
+    public static float clipSlabFluidSurfaceHeight(
+            IBlockAccess access, BlockPos pos, IBlockState state,
+            float nominalHeight) {
+        if (access == null || pos == null || state == null
+                || !(state.getBlock() instanceof BlockSlab)) {
+            return nominalHeight;
+        }
+        IBlockState actual = state;
+        try {
+            actual = state.getActualState(access, pos);
+        } catch (Throwable ignored) {
+            // Some modded slabs do not support actual-state resolution.
+        }
+        AxisAlignedBB bounds = actual.getBlock().getBoundingBox(actual, access, pos);
+        return clipFluidHeightToShape(nominalHeight, bounds, 0.5D, 0.5D);
+    }
+
     public static boolean isFaceOccludedByState(
             IBlockAccess access, World ignoredWorld, BlockPos pos,
             IBlockState state, EnumFacing direction, float maxFluidHeight) {

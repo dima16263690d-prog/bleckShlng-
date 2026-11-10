@@ -13,6 +13,7 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
 import com.dima16263690d.bleckshlng.fluid.network.ClientFluidStateCache;
+import com.dima16263690d.bleckshlng.fluid.render.FluidOcclusionShapeAdapter;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 
 /**
@@ -79,7 +80,12 @@ public final class FluidViewAccess implements IBlockAccess {
 
         FluidStateBridge above = getFluidStateAt(pos.up());
         boolean sameFluidAbove = above != null && fluid.isSameKind(above);
-        return fluid.getHeight(sameFluidAbove);
+        float fluidHeight = fluid.getHeight(sameFluidAbove);
+        // Use the render snapshot, not the live World, so chunk meshing stays
+        // deterministic. In an upper slab the available water cavity ends at
+        // y=0.5 even though the waterlogged FluidState is a full source.
+        return FluidOcclusionShapeAdapter.clipSlabFluidSurfaceHeight(
+                delegate, pos, delegate.getBlockState(pos), fluidHeight);
     }
 
     private FluidStateBridge getFluidStateAt(BlockPos pos) {
