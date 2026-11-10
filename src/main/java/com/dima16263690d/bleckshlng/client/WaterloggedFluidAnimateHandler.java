@@ -141,9 +141,7 @@ public final class WaterloggedFluidAnimateHandler {
         EnumParticleTypes dripParticle = fluid.getKind() == FluidStateBridge.FluidKind.LAVA
                 ? EnumParticleTypes.DRIP_LAVA : EnumParticleTypes.DRIP_WATER;
         boolean sturdyHostBottom =
-                fluidHost.getBlock().getBlockFaceShape(
-                        world, fluidHost, fluidPos, EnumFacing.DOWN)
-                        == net.minecraft.block.state.BlockFaceShape.SOLID;
+                fluidHost.isSideSolid(world, fluidPos, EnumFacing.DOWN);
 
         BlockPos belowPos = fluidPos.down();
         if (!world.isBlockLoaded(belowPos)) {
@@ -251,8 +249,9 @@ public final class WaterloggedFluidAnimateHandler {
     }
 
     private static final class ShapeBounds {
+        // Empty VoxelShape has min/max == 0 on every axis.
         private static final ShapeBounds EMPTY =
-                new ShapeBounds(0.0D, 0.0D, 0.0D, 1.0D, 0.0D, 1.0D);
+                new ShapeBounds(0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D);
 
         private final double minX;
         private final double minY;

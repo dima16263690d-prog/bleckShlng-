@@ -499,20 +499,16 @@ public final class WaterloggedChunkMesher {
 
         // LiquidBlockRenderer applies the center inset to still and flowing
         // top textures alike. The inset amount is calculated from the still sprite.
-        float centerU = (uNW + uSW + uSE + uNE) * 0.25F;
-        float centerV = (vNW + vSW + vSE + vNE) * 0.25F;
         float inset = FluidUvUtils.getInset(
                 stillSprite.getIconWidth(), stillSprite.getIconHeight(),
                 stillSprite.getMinU(), stillSprite.getMaxU(),
                 stillSprite.getMinV(), stillSprite.getMaxV());
-        uNW = FluidUvUtils.inset(uNW, centerU, inset);
-        uSW = FluidUvUtils.inset(uSW, centerU, inset);
-        uSE = FluidUvUtils.inset(uSE, centerU, inset);
-        uNE = FluidUvUtils.inset(uNE, centerU, inset);
-        vNW = FluidUvUtils.inset(vNW, centerV, inset);
-        vSW = FluidUvUtils.inset(vSW, centerV, inset);
-        vSE = FluidUvUtils.inset(vSE, centerV, inset);
-        vNE = FluidUvUtils.inset(vNE, centerV, inset);
+        float[] topUv = FluidUvUtils.applyCenterInset(
+                new float[] {uNW, vNW, uSW, vSW, uSE, vSE, uNE, vNE}, inset);
+        uNW = topUv[0]; vNW = topUv[1];
+        uSW = topUv[2]; vSW = topUv[3];
+        uSE = topUv[4]; vSE = topUv[5];
+        uNE = topUv[6]; vNE = topUv[7];
 
         if (!reverseWinding) {
             vert(buffer, x, y + hNW, z, uNW, vNW, r, g, b, a, sky, block);

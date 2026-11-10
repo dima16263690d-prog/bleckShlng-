@@ -54,10 +54,35 @@ public final class FluidTickScheduler {
             tasks = new HashMap<Long, Long>();
             PENDING.put(world, tasks);
         }
+        scheduleAt(tasks, pos, dueTime);
+    }
+
+    static void scheduleAt(Map<Long, Long> tasks, BlockPos pos, long dueTime) {
+        if (tasks == null || pos == null) return;
         Long key = Long.valueOf(pos.toLong());
         Long oldDue = tasks.get(key);
         if (oldDue == null || dueTime < oldDue.longValue()) {
             tasks.put(key, Long.valueOf(dueTime));
+        }
+    }
+
+    static void restoreChunkDeadlines(
+            Map<Long, Long> tasks, ChunkFluidData data, int chunkX, int chunkZ) {
+        if (tasks == null || data == null) return;
+        for (BlockPos pos : data.getScheduledTickPositionsInChunk(chunkX, chunkZ)) {
+            Long due = data.getScheduledTick(pos);
+            if (due != null) scheduleAt(tasks, pos, due.longValue());
+        }
+    }
+
+    static void removeChunkTasks(Map<Long, Long> tasks, int chunkX, int chunkZ) {
+        if (tasks == null || tasks.isEmpty()) return;
+        Iterator<Long> iterator = tasks.keySet().iterator();
+        while (iterator.hasNext()) {
+            BlockPos pos = BlockPos.fromLong(iterator.next().longValue());
+            if ((pos.getX() >> 4) == chunkX && (pos.getZ() >> 4) == chunkZ) {
+                iterator.remove();
+            }
         }
     }
 
@@ -119,18 +144,19 @@ public final class FluidTickScheduler {
 
         int chunkX = event.getChunk().x;
         int chunkZ = event.getChunk().z;
-        java.util.Set<BlockPos> resume = new java.util.HashSet<BlockPos>();
-        resume.addAll(data.getPositionsInChunk(chunkX, chunkZ));
-        resume.addAll(data.getScheduledTickPositionsInChunk(chunkX, chunkZ));
 
-        for (BlockPos pos : resume) {
-            Long due = data.getScheduledTick(pos);
-            if (due != null) {
-                // A deadline in the past is intentionally restored as-is;
-                // the next world END tick executes it immediately.
-                scheduleAt(world, pos, due.longValue());
-            } else {
-                // Compatibility path for pre-deadline saves.
+        // Restore absolute deadlines before the legacy sidecar fallback.
+        // Overdue work is kept overdue and runs on the next END tick.
+        Map<Long, Long> tasks = PENDING.get(world);
+        if (tasks == null) {
+            tasks = new HashMap<Long, Long>();
+            PENDING.put(world, tasks);
+        }
+        restoreChunkDeadlines(tasks, data, chunkX, chunkZ);
+
+        // Pre-deadline saves have water states but no explicit due time.
+        for (BlockPos pos : data.getPositionsInChunk(chunkX, chunkZ)) {
+            if (data.getScheduledTick(pos) == null) {
                 schedule(world, pos, 5);
             }
         }
@@ -150,13 +176,7 @@ public final class FluidTickScheduler {
 
         int chunkX = event.getChunk().x;
         int chunkZ = event.getChunk().z;
-        Iterator<Long> iterator = tasks.keySet().iterator();
-        while (iterator.hasNext()) {
-            BlockPos pos = BlockPos.fromLong(iterator.next().longValue());
-            if ((pos.getX() >> 4) == chunkX && (pos.getZ() >> 4) == chunkZ) {
-                iterator.remove();
-            }
-        }
+        removeChunkTasks(tasks, chunkX, chunkZ);
     }
 
     @SubscribeEvent

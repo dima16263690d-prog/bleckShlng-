@@ -31,7 +31,9 @@ public final class WaterloggedFluidHandler {
 
         if (blockState.getBlock() instanceof IFluidWaterloggable) {
             IFluidWaterloggable adapter = (IFluidWaterloggable) blockState.getBlock();
-            if (adapter.isWaterlogged(blockState)) {
+            FluidStateBridge incoming = FluidStateBridge.source(
+                    FluidStateBridge.FluidKind.WATER);
+            if (!adapter.canPlaceFluid(blockState, incoming)) {
                 return false;
             }
             IBlockState changed = adapter.withWaterlogged(blockState, true);
@@ -99,7 +101,7 @@ public final class WaterloggedFluidHandler {
                 // still survives after the WATERLOGGED property is cleared.
                 IBlockState dryState = world.getBlockState(pos);
                 if (dryState.getBlock() == state.getBlock()
-                        && !dryState.getBlock().canPlaceBlockAt(world, pos)) {
+                        && !adapter.canSurviveAfterPickup(world, pos, dryState)) {
                     world.destroyBlock(pos, true);
                 }
             }
