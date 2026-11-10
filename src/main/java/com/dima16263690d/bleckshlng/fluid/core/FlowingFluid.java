@@ -82,8 +82,15 @@ public abstract class FlowingFluid extends Fluid {
             }
 
             FluidState neighbor = safeFluid(world, neighborPos);
-            boolean sameFluid = !neighbor.isEmpty()
-                    && isSame(neighbor.getType());
+            // FlowingFluid#affectsFlow accepts only EMPTY or this same fluid.
+            // A different fluid must not be treated as an empty cell: doing
+            // so lets water pull its flow vector toward lava's lower neighbor
+            // (and vice versa), which differs from the 1.18.2 implementation.
+            if (!neighbor.isEmpty() && !isSame(neighbor.getType())) {
+                continue;
+            }
+
+            boolean sameFluid = !neighbor.isEmpty();
             float neighborHeight = sameFluid
                     ? neighbor.getType().getOwnHeight(neighbor) : 0.0F;
             float difference = 0.0F;
