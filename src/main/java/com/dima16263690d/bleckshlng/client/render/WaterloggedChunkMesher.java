@@ -215,7 +215,7 @@ public final class WaterloggedChunkMesher {
         // merely because the block above has a full face creates missing
         // surfaces and thin flashing strips around slabs.
         float minCornerHeight = Math.min(Math.min(hNW, hNE), Math.min(hSE, hSW));
-        boolean topOccluded = minCornerHeight >= 0.999F
+        boolean topOccluded = minCornerHeight >= 1.0F - 1.0E-6F
                 && FluidOcclusionShapeAdapter.isFaceFullyCovered(aboveShape);
         boolean sameFluidAbove = isSameFluid(access, pos.up(), fluid.getKind());
         boolean renderTop = !topSlabHost && !topOccluded && !sameFluidAbove;
