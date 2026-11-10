@@ -108,15 +108,27 @@ public final class FluidOcclusionShapeAdapter {
 
             double minU;
             double maxU;
-            if (face.getAxis() == EnumFacing.Axis.Z) {
+            double minV;
+            double maxV;
+            if (face.getAxis() == EnumFacing.Axis.Y) {
+                // Horizontal faces are projected onto the X/Z plane.
+                // The previous implementation used Y as the second axis,
+                // turning a full slab face into a narrow stripe.
                 minU = box.minX - pos.getX();
                 maxU = box.maxX - pos.getX();
+                minV = box.minZ - pos.getZ();
+                maxV = box.maxZ - pos.getZ();
+            } else if (face.getAxis() == EnumFacing.Axis.Z) {
+                minU = box.minX - pos.getX();
+                maxU = box.maxX - pos.getX();
+                minV = box.minY - pos.getY();
+                maxV = box.maxY - pos.getY();
             } else {
                 minU = box.minZ - pos.getZ();
                 maxU = box.maxZ - pos.getZ();
+                minV = box.minY - pos.getY();
+                maxV = box.maxY - pos.getY();
             }
-            double minV = box.minY - pos.getY();
-            double maxV = box.maxY - pos.getY();
 
             minU = clamp(minU);
             maxU = clamp(maxU);
@@ -184,15 +196,25 @@ public final class FluidOcclusionShapeAdapter {
         }
         double minU;
         double maxU;
-        if (face.getAxis() == EnumFacing.Axis.Z) {
+        double minV;
+        double maxV;
+        if (face.getAxis() == EnumFacing.Axis.Y) {
+            // UP/DOWN face coordinates are X/Z, not Z/Y.
             minU = bounds.minX;
             maxU = bounds.maxX;
+            minV = bounds.minZ;
+            maxV = bounds.maxZ;
+        } else if (face.getAxis() == EnumFacing.Axis.Z) {
+            minU = bounds.minX;
+            maxU = bounds.maxX;
+            minV = bounds.minY;
+            maxV = bounds.maxY;
         } else {
             minU = bounds.minZ;
             maxU = bounds.maxZ;
+            minV = bounds.minY;
+            maxV = bounds.maxY;
         }
-        double minV = bounds.minY;
-        double maxV = bounds.maxY;
         minU = clamp(minU);
         maxU = clamp(maxU);
         minV = clamp(minV);
