@@ -336,11 +336,6 @@ public abstract class FlowingFluid extends Fluid {
                 continue;
             }
 
-            FluidState nextFluid = getNewLiquid(world, next);
-            if (nextFluid == null || nextFluid.isEmpty()) {
-                continue;
-            }
-
             FluidPos below = next.below();
             if (isWaterHole(world, next, below)) {
                 visited.remove(pos);
