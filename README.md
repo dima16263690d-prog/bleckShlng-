@@ -1,135 +1,148 @@
 # BleckShlng
 
-**A vanilla Minecraft 1.13+ stripped-log and stripped-wood backport for Minecraft 1.12.2.**
+**Minecraft 1.12.2 Forge mod — modern fluid-system backport and stripped-wood features.**
 
-BleckShlng brings the stripped log and stripped wood blocks, axe interaction, and related block behavior to Forge 1.12.2. The implementation is adapted to the older block states and Forge event system used by this Minecraft version.
+BleckShlng targets Minecraft 1.12.2 and Java 8. The project contains a standalone fluid core inspired by the modern Minecraft fluid architecture, with a Forge 1.12.2 compatibility layer.
 
-## What was ported
+> **Development status:** the fluid backport is actively being developed. A successful Gradle build confirms compilation and automated tests only; it does not guarantee that all fluid rendering and in-game behavior match modern Minecraft. Water and lava behavior, especially on slabs and stairs, still require in-game verification.
 
-The mod adds the two stripped block types for all six vanilla overworld wood families:
+## Main features
 
-| Wood type | Stripped log | Stripped wood |
-|---|---|---|
-| Oak | `stripped_oak_log` | `stripped_oak_wood` |
-| Spruce | `stripped_spruce_log` | `stripped_spruce_wood` |
-| Birch | `stripped_birch_log` | `stripped_birch_wood` |
-| Jungle | `stripped_jungle_log` | `stripped_jungle_wood` |
-| Acacia | `stripped_acacia_log` | `stripped_acacia_wood` |
-| Dark Oak | `stripped_dark_oak_log` | `stripped_dark_oak_wood` |
+### Modern fluid core
 
-That is **12 registered blocks** in total. Each block has its own block state, model, item model, and textures. English and Russian name translations are included.
+The fluid implementation is separated from Minecraft 1.12.2 classes:
 
-## Axe stripping
+- Immutable `FluidState` with fluid kind, amount, source and falling state.
+- Separate water and lava implementations.
+- Flow direction, spreading, slope search and source conversion logic.
+- A `FluidWorld` abstraction so the core is not tied directly to the legacy world API.
+- `ModernFluidEngine` as the runtime entry point.
 
-1. Hold an axe.
-2. Right-click a supported vanilla log or wood block.
-3. The block is replaced with its stripped counterpart.
+The Forge adapter translates between the portable fluid core and Minecraft 1.12.2 world, block, chunk and event APIs.
 
-Supported source blocks are the six vanilla log variants represented by `Blocks.LOG` and `Blocks.LOG2` in Minecraft 1.12.2.
+### Waterlogging and fluid storage
 
-### Axe compatibility
+The project includes:
 
-The interaction handler accepts:
+- Per-chunk fluid state storage and persistence.
+- Fluid state synchronization and client-side cache.
+- Waterlogged block handling and placement hooks.
+- Bucket interaction and sponge handling.
+- Public access through `FluidAPI`.
+- Forge fluid compatibility hooks.
 
-- Vanilla `ItemAxe` items.
-- Modded items advertising Forge's `axe` tool class.
-- Items reporting a non-negative axe harvest level through `getHarvestLevel(stack, "axe", ...)`.
+Compatibility with every third-party fluid or waterloggable block is not guaranteed.
 
-There is no hard-coded whitelist of mod IDs, item registry names, or axe materials. A third-party tool must expose at least one of the supported Forge/vanilla axe signals to be recognized.
+### Fluid rendering and effects
 
-### Block orientation
+The client implementation includes:
 
-The original X, Y, and Z log axes are preserved when stripping a log.
+- Custom fluid mesh generation for waterlogged blocks.
+- Separate fluid-face occlusion geometry.
+- Integration hooks for vanilla liquid rendering.
+- Water and lava animation, ambient effects, particles and sounds.
 
-Minecraft 1.12.2 uses `BlockLog.EnumAxis.NONE` for the all-bark wood state. BleckShlng maps that state to the matching stripped wood block, while ordinary X/Y/Z log states become stripped logs.
+Rendering parity with Minecraft 1.18.2 is not yet considered complete. Complex block shapes and modded occlusion geometry need further validation.
 
-## Block properties and behavior
+### Stripped logs and stripped wood
 
-The stripped blocks use the following vanilla-style properties:
+The mod also contains stripped log and stripped wood blocks for the six vanilla overworld wood types:
 
-| Property | Value |
-|---|---:|
-| Material | Wood |
-| Hardness | 2.0 |
-| Blast resistance | 2.0 |
-| Harvest tool | Axe |
-| Harvest level | 0 |
-| Sound | Wood |
-| Fire encouragement | 5 |
-| Flammability | 5 |
-| Furnace fuel value | 300 ticks |
+- Oak
+- Spruce
+- Birch
+- Jungle
+- Acacia
+- Dark Oak
 
-Additional behavior:
-
-- Stripping consumes **1 durability point** from the axe outside creative mode.
-- Creative mode does not consume axe durability.
-- Stripped blocks can sustain leaves.
-- Breaking a stripped log marks nearby leaves for decay, matching vanilla log behavior.
-- The block replacement is performed server-side and synchronized to clients.
-- Minecraft 1.12.2 does not provide the later dedicated axe-stripping sound event, so the mod uses the closest available vanilla wood sound.
-
-## Crafting recipes
-
-Each stripped log can be crafted into its matching stripped wood:
-
-- Place **4 matching stripped logs** in a 2×2 square.
-- The recipe produces **3 matching stripped wood blocks**.
-
-Recipes are registered independently from the axe-stripping interaction. This keeps crafting separate from tool compatibility.
-
-## Client and server
-
-BleckShlng is a Forge mod intended for both client and dedicated-server environments.
-
-- The server handles the block interaction, block replacement, and axe durability.
-- The client registers and renders the block models and textures.
-- For multiplayer, install the same BleckShlng JAR on the server and on every connecting client.
-
-The code separates client-only model registration from common block and interaction code. Dedicated-server deployment should still be tested with the exact modpack and server configuration in use.
+Axes can strip supported vanilla logs and wood. Axe compatibility uses vanilla/Forge axe tool signals rather than a hard-coded list of mod IDs. Crafting recipes are registered separately from the stripping interaction.
 
 ## Requirements
 
 - Minecraft **1.12.2**
 - Minecraft Forge **14.23.5.2864**
-- Java **8**
-- [MixinBooter **12.2 or newer**](https://github.com/CleanroomMC/MixinBooter) (required for the chunk-render Mixin integration)
+- **Java 8**
+- **MixinBooter 12.2 or newer** for the Mixin-based chunk-render integration.
 
-MixinBooter is a separate runtime mod; it is not bundled inside the BleckShlng JAR.
+MixinBooter is a separate dependency and is not bundled in the BleckShlng JAR. Install it on the client. For a multiplayer installation, use matching mod versions on the server and clients; client-only rendering hooks remain client-side.
 
 ## Installation
 
-1. Install Forge 1.12.2.
-2. Install MixinBooter 12.2 or newer in the client `mods` folder.
-3. Put the BleckShlng JAR into the `mods` folder.
-4. For multiplayer, install MixinBooter and the same BleckShlng JAR on the server and all clients. The chunk-render Mixin itself is client-only.
-5. Launch the game.
+1. Install Minecraft Forge 1.12.2 (14.23.5.2864).
+2. Install MixinBooter 12.2 or newer.
+3. Place the BleckShlng JAR in the `mods` directory.
+4. Launch Minecraft.
+
+For multiplayer, install the same BleckShlng build on the server and all connecting clients. Test dedicated-server startup with the exact modpack before deployment.
 
 ## Build from source
 
-Use Java 8 and the included Gradle wrapper.
+Use Java 8 and the Gradle wrapper included in the repository.
 
-**Windows:**
-
+**Windows**
 ```bat
 gradlew.bat build
 ```
 
-**Linux:**
-
+**Linux**
 ```bash
 ./gradlew build
 ```
 
-The reobfuscated mod JAR is generated in `build/libs/`.
+Build output is written to `build/libs/`.
 
-## Project details
+## Project layout
+
+```
+src/main/java/com/dima16263690d/bleckshlng/
+├── fluid/
+│   ├── api/             Public fluid API and world view
+│   ├── compatibility/   Forge / Minecraft 1.12.2 adapter
+│   ├── core/            Portable fluid model and engine
+│   ├── engine/          Spread, mixing and flow helpers
+│   ├── geometry/        Block geometry and shape adapters
+│   ├── interaction/     Bucket interactions
+│   ├── network/         Fluid synchronization
+│   ├── physics/         Entity flow and movement
+│   ├── render/          Fluid occlusion shapes
+│   ├── state/           Fluid state mapping
+│   └── waterlogging/    Chunk storage and waterlogged behavior
+├── coremod/             Bytecode integration hooks
+├── client/              Client effects and rendering
+└── mixin/               Mixin integration
+```
+
+## Testing and compatibility
+
+The repository contains unit/regression tests for fluid state mapping, spreading, waterlogging storage, core fluid behavior, and integration configuration.
+
+Automated tests do not replace in-game testing. Before reporting a fluid-rendering issue, test at minimum:
+
+- Water and lava on bottom and top slabs.
+- Water and lava beside stairs and other partial blocks.
+- Horizontal spreading and downward flow.
+- Source blocks and flowing levels.
+- Chunk unload/reload and world save/reload.
+- Bucket placement/pickup and sponge absorption.
+- Client/server synchronization.
+
+## Development reference
+
+The modern fluid implementation is developed with reference to the project's Minecraft 1.18.2 backport research repository:
+
+- [bLECPORT-1.18.2](https://github.com/dima16263690d-prog/bLECPORT-1.18.2)
+
+The target runtime remains Forge 1.12.2; modern Minecraft classes are not available at runtime.
+
+## Project metadata
 
 - Mod ID: `bleckshlng`
-- Mod version: `1.0.0`
-- Minecraft target: `1.12.2`
+- Minecraft: `1.12.2`
 - Forge: `14.23.5.2864`
+- Java: `8`
 
 ## Credits
 
-- Vanilla Minecraft for the original stripped-log, stripped-wood, and axe-stripping behavior.
-- Forge for the 1.12.2 modding API and tool-class compatibility system.
+- Mojang/Minecraft for the original game behavior and reference implementations.
+- Minecraft Forge for the 1.12.2 modding API.
+- MixinBooter for Mixin runtime integration.
