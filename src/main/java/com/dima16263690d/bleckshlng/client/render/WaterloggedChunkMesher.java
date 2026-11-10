@@ -214,13 +214,15 @@ public final class WaterloggedChunkMesher {
             // animated/multi-texture chunk tracking.
             setSprite(buffer, topSprite);
             topQuad(buffer, x, y, z, hNW, hNE, hSE, hSW,
-                    topSprite, flowX, flowZ, flowingSurface, r, g, b, a, sky, block, false);
+                    topSprite, still, flowX, flowZ, flowingSurface,
+                    r, g, b, a, sky, block, false);
             if (shouldRenderBackwardTopFace(access, abovePos, fluid.getKind())) {
                 // LiquidBlockRenderer also emits the reverse winding so the
                 // surface remains visible from below when the surrounding
                 // 3x3 area above is not completely sealed.
                 topQuad(buffer, x, y, z, hNW, hNE, hSE, hSW,
-                        topSprite, flowX, flowZ, flowingSurface, r, g, b, a, sky, block, true);
+                        topSprite, still, flowX, flowZ, flowingSurface,
+                        r, g, b, a, sky, block, true);
             }
         }
 
@@ -657,8 +659,9 @@ public final class WaterloggedChunkMesher {
      */
     private static void topQuad(BufferBuilder buffer, double x, double y, double z,
                                  float hNW, float hNE, float hSE, float hSW,
-                                 TextureAtlasSprite sprite, float flowX, float flowZ,
-                                 boolean flowing, int r, int g, int b, int a,
+                                 TextureAtlasSprite sprite, TextureAtlasSprite stillSprite,
+                                 float flowX, float flowZ, boolean flowing,
+                                 int r, int g, int b, int a,
                                  int sky, int block, boolean reverseWinding) {
         float uNW;
         float vNW;
@@ -693,10 +696,12 @@ public final class WaterloggedChunkMesher {
 
             float centerU = (uNW + uSW + uSE + uNE) * 0.25F;
             float centerV = (vNW + vSW + vSE + vNE) * 0.25F;
-            float spriteWidth = (float) sprite.getIconWidth()
-                    / Math.max(1.0E-6F, sprite.getMaxU() - sprite.getMinU());
-            float spriteHeight = (float) sprite.getIconHeight()
-                    / Math.max(1.0E-6F, sprite.getMaxV() - sprite.getMinV());
+            // LiquidBlockRenderer uses the still sprite dimensions
+            // to calculate the UV inset, even when the flow sprite is active.
+            float spriteWidth = (float) stillSprite.getIconWidth()
+                    / Math.max(1.0E-6F, stillSprite.getMaxU() - stillSprite.getMinU());
+            float spriteHeight = (float) stillSprite.getIconHeight()
+                    / Math.max(1.0E-6F, stillSprite.getMaxV() - stillSprite.getMinV());
             float shrink = 4.0F / Math.max(spriteWidth, spriteHeight);
             uNW = centerU + (uNW - centerU) * (1.0F - shrink);
             uSW = centerU + (uSW - centerU) * (1.0F - shrink);
