@@ -395,6 +395,31 @@ public final class FluidOcclusionShapeAdapter {
     }
 
     /**
+     * True when the fluid surface lies inside the solid part of an upper slab.
+     * The fluid's real height must remain unchanged for side geometry and flow;
+     * only its hidden top quad is suppressed.
+     */
+    public static boolean isFluidSurfaceBuriedBySlab(
+            IBlockAccess access, BlockPos pos, IBlockState state,
+            float nominalHeight) {
+        if (access == null || pos == null || state == null
+                || !(state.getBlock() instanceof BlockSlab)
+                || Float.isNaN(nominalHeight) || nominalHeight <= 0.0F) {
+            return false;
+        }
+        IBlockState actual = state;
+        try {
+            actual = state.getActualState(access, pos);
+        } catch (Throwable ignored) {
+            // Some modded slabs do not support actual-state resolution.
+        }
+        AxisAlignedBB bounds = actual.getBlock().getBoundingBox(actual, access, pos);
+        float clipped = clipFluidHeightToShape(
+                nominalHeight, bounds, 0.5D, 0.5D);
+        return clipped + EPSILON < nominalHeight;
+    }
+
+    /**
      * Applies slab-only height clipping using the current chunk snapshot.
      * Other waterloggable shapes (fences, stairs, panes) retain the fluid
      * height and rely on their face geometry, as in 1.18.2.

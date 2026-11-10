@@ -80,12 +80,7 @@ public final class FluidViewAccess implements IBlockAccess {
 
         FluidStateBridge above = getFluidStateAt(pos.up());
         boolean sameFluidAbove = above != null && fluid.isSameKind(above);
-        float fluidHeight = fluid.getHeight(sameFluidAbove);
-        // Use the render snapshot, not the live World, so chunk meshing stays
-        // deterministic. In an upper slab the available water cavity ends at
-        // y=0.5 even though the waterlogged FluidState is a full source.
-        return FluidOcclusionShapeAdapter.clipSlabFluidSurfaceHeight(
-                delegate, pos, delegate.getBlockState(pos), fluidHeight);
+        return fluid.getHeight(sameFluidAbove);
     }
 
     private FluidStateBridge getFluidStateAt(BlockPos pos) {

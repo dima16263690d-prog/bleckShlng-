@@ -189,7 +189,13 @@ public final class WaterloggedChunkMesher {
         boolean topOccluded = FluidOcclusionShapeAdapter.isFaceOccludedByState(
                 access, null, abovePos, aboveState,
                 EnumFacing.UP, minCornerHeight);
-        boolean renderTop = !sameFluidAbove && !topOccluded;
+        // A source inside an upper slab reaches 8/9 height, but the host's
+        // upper half hides that surface. Do not emit a coplanar water top at
+        // y=0.5: it would z-fight with the slab underside and flicker.
+        boolean topCoveredByHost =
+                FluidOcclusionShapeAdapter.isFluidSurfaceBuriedBySlab(
+                        access, pos, host, minCornerHeight);
+        boolean renderTop = !sameFluidAbove && !topOccluded && !topCoveredByHost;
         if (renderTop) {
             // LiquidBlockRenderer 1.18.2 lowers the top vertices by 0.001
             // before emitting both the top quad and its adjoining side walls.
