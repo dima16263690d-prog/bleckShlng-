@@ -108,6 +108,28 @@ public class ModernFluidCoreTest {
     }
 
     @Test
+    public void sourceWaterSpreadsAcrossAllOpenSidesWhenSlabSupportBlocksDownwardFlow() {
+        TestWorld world = new TestWorld();
+        FluidPos sourcePos = new FluidPos(0, 10, 0);
+        FluidState source = Fluids.waterSource();
+
+        world.fluids.put(sourcePos, source);
+        world.solid.add(sourcePos.below());
+        for (FluidDirection direction : FluidDirection.HORIZONTAL) {
+            world.solid.add(sourcePos.offset(direction).below());
+        }
+
+        Fluids.WATER.tick(world, sourcePos, source);
+
+        for (FluidDirection direction : FluidDirection.HORIZONTAL) {
+            FluidState side = world.getFluidState(sourcePos.offset(direction));
+            assertFalse("water must flow onto the open side " + direction, side.isEmpty());
+            assertFalse("side flow must not become a source", side.isSource());
+            assertEquals("source flow drops by one level", 7, side.getAmount());
+        }
+    }
+
+    @Test
     public void twoWaterSourcesCreateSourceAboveSolidSupport() {
         TestWorld world = new TestWorld();
         FluidPos target = new FluidPos(0, 10, 0);
