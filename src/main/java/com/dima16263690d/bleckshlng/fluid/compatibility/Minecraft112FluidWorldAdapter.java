@@ -295,10 +295,12 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
                 // LavaFluid#beforeDestroyingBlock emits the vanilla fizz event.
                 world.playEvent(1501, blockPos, 0);
             } else {
-                host.getBlock().dropBlockAsItem(world, blockPos, host, 0);
+                beforeDestroyingBlock(blockPos, host);
             }
         }
 
+        // Keep the old host and its TileEntity available until getDrops has
+        // read inventory/NBT. setBlockState then runs breakBlock cleanup.
         world.setBlockState(blockPos, toLegacyState(incoming), 3);
         FluidShapeCalculator.invalidate(world, blockPos);
         if (incomingMaterial == Material.LAVA) {
@@ -453,6 +455,15 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
         if (isLoaded(pos)) {
             world.playEvent(eventId, toBlockPos(pos), data);
         }
+    }
+
+    private void beforeDestroyingBlock(BlockPos pos, IBlockState state) {
+        if (pos == null || state == null || !world.isBlockLoaded(pos)) {
+            return;
+        }
+        // Forge getDrops implementations may inspect the current TileEntity.
+        // Invoke them before World#setBlockState removes that TileEntity.
+        state.getBlock().dropBlockAsItem(world, pos, state, 0);
     }
 
     private void storeWaterlogged(BlockPos pos, IBlockState host,
