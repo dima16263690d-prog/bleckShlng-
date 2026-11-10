@@ -42,9 +42,11 @@ public abstract class BlockLiquidAnimateMixin {
             return;
         }
 
-        if (ModernFluidEngine.animateTick(world, pos, random)) {
-            // 1.18.2 samples Fluid#getDripParticle separately from animateTick.
-            if (random.nextInt(10) == 0) {
+        // ClientLevel passes an independent Random into animateTick, while
+        // the 1/10 drip chance is selected from Level.random.
+        Random effectRandom = new Random();
+        if (ModernFluidEngine.animateTick(world, pos, effectRandom)) {
+            if (world.rand.nextInt(10) == 0) {
                 WaterloggedFluidAnimateHandler.trySpawnDrippingFluid(world, pos);
             }
             callback.cancel();
