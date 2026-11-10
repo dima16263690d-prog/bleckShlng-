@@ -383,7 +383,9 @@ public final class WaterloggedChunkMesher {
         float texU1 = sprite.getInterpolatedU((float) ((reverseU ? 1.0D - u1 : u1) * 8.0D));
         float texVTop0 = sprite.getInterpolatedV((float) ((1.0D - top0) * 8.0D));
         float texVTop1 = sprite.getInterpolatedV((float) ((1.0D - top1) * 8.0D));
-        float texVBottom = sprite.getInterpolatedV((float) ((1.0D - bottom) * 8.0D));
+        // LiquidBlockRenderer uses a fixed V=8 bottom texture coordinate;
+        // its 0.001 geometric inset does not shift the texture vertically.
+        float texVBottom = sprite.getInterpolatedV(8.0F);
 
         boolean reverseOrder = face == EnumFacing.SOUTH || face == EnumFacing.WEST;
         if (!reverseOrder) {
