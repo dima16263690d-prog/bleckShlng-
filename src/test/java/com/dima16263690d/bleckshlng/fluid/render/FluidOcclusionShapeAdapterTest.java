@@ -93,4 +93,47 @@ public class FluidOcclusionShapeAdapterTest {
                 EnumFacing.NORTH);
         assertTrue(shape.isEmpty());
     }
+
+    @Test
+    public void stairLeavesItsUncoveredSideBandOpenToFluid() {
+        // The base occupies the lower half. The upper step is set back from
+        // the south face, so the top half of that face remains exposed.
+        FluidOcclusionShape south = FluidOcclusionShapeAdapter.fromLocalBoxes(
+                Arrays.asList(
+                        new AxisAlignedBB(0.0D, 0.0D, 0.0D, 1.0D, 0.5D, 1.0D),
+                        new AxisAlignedBB(0.0D, 0.5D, 0.0D, 1.0D, 1.0D, 0.5D)),
+                EnumFacing.SOUTH);
+        assertTrue(FluidOcclusionShapeAdapter.isFaceRectangleCovered(
+                south, 0.0D, 1.0D, 0.0D, 0.5D));
+        assertFalse(FluidOcclusionShapeAdapter.isFaceFullyCovered(south));
+    }
+
+    @Test
+    public void fencePostAndRailDoNotSealTheWholeFluidFace() {
+        FluidOcclusionShape south = FluidOcclusionShapeAdapter.fromLocalBoxes(
+                Arrays.asList(
+                        new AxisAlignedBB(0.375D, 0.0D, 0.0D,
+                                0.625D, 1.0D, 1.0D),
+                        new AxisAlignedBB(0.0D, 0.375D, 0.875D,
+                                1.0D, 0.625D, 1.0D)),
+                EnumFacing.SOUTH);
+        assertFalse(FluidOcclusionShapeAdapter.isFaceFullyCovered(south));
+        assertFalse(FluidOcclusionShapeAdapter.isFaceRectangleCovered(
+                south, 0.0D, 1.0D, 0.0D, 1.0D));
+    }
+
+    @Test
+    public void glassPaneOnlyOccludesItsNarrowCenterStrip() {
+        FluidOcclusionShape south = FluidOcclusionShapeAdapter.fromLocalBoxes(
+                Collections.singletonList(new AxisAlignedBB(
+                        0.4375D, 0.0D, 0.0D,
+                        0.5625D, 1.0D, 1.0D)),
+                EnumFacing.SOUTH);
+        assertFalse(FluidOcclusionShapeAdapter.isFaceFullyCovered(south));
+        assertFalse(FluidOcclusionShapeAdapter.isFaceRectangleCovered(
+                south, 0.0D, 1.0D, 0.0D, 1.0D));
+        assertTrue(FluidOcclusionShapeAdapter.isFaceRectangleCovered(
+                south, 0.4375D, 0.5625D, 0.0D, 1.0D));
+    }
+
 }
