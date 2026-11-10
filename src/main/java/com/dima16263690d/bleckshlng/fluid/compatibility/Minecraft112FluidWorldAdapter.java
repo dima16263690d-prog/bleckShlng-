@@ -482,7 +482,14 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
             }
         }
 
-        FluidStateBridge stored = toBridge(fluid);
+        // In 1.18.2, SlabBlock/StairBlock/FenceBlock#getFluidState()
+        // returns the WATER source whenever WATERLOGGED is true. A flowing
+        // state passed to SimpleWaterloggedBlock#placeLiquid is therefore
+        // represented as a source inside the host, not as level 7/6 sidecar.
+        FluidStateBridge stored = toWaterloggedFluidState(fluid);
+        if (stored == null) {
+            return;
+        }
         ChunkFluidData data = ChunkFluidData.get(world);
         if (data != null) {
             if (data.putWater(pos, stored)) {
@@ -493,6 +500,22 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
             FluidTickScheduler.schedule(world, pos,
                     fluid.getType().getTickDelay(this));
         }
+    }
+
+    /**
+     * Converts incoming fluid to the state exposed by a waterlogged block.
+     *
+     * Minecraft 1.18.2 slab/stair implementations return the WATER source
+     * from getFluidState() whenever WATERLOGGED is set, even when
+     * SimpleWaterloggedBlock#placeLiquid received a flowing FluidState.
+     * Keep the 1.12.2 sidecar semantics identical.
+     */
+    static FluidStateBridge toWaterloggedFluidState(FluidState incoming) {
+        if (incoming == null || incoming.isEmpty()
+                || !incoming.getType().isSame(Fluids.WATER)) {
+            return null;
+        }
+        return FluidStateBridge.source(FluidStateBridge.FluidKind.WATER);
     }
 
     private static IBlockState toLegacyState(FluidState state) {
