@@ -151,17 +151,11 @@ public final class WaterloggedChunkMesher {
             return;
         }
 
-        int color = lava ? 0xFFFFFF : 0x3F76E4;
-        if (!lava) {
-            try {
-                int tint = mc.getBlockColors().colorMultiplier(
-                        fluidBlockState, access, pos, 0);
-                if (tint != -1) {
-                    color = tint;
-                }
-            } catch (Throwable ignored) {
-            }
-        }
+        // The 1.18.2 water textures are grayscale and must be tinted at
+        // vertex emission. Do not ask BlockColors here: chunk rebuilds may
+        // provide a cached IBlockAccess that has no registered water handler,
+        // which leaves the grayscale atlas uncolored.
+        int color = lava ? 0xFFFFFF : getBiomeWaterColor(access, pos);
         int r = color >> 16 & 255;
         int g = color >> 8 & 255;
         int b = color & 255;
@@ -641,6 +635,33 @@ public final class WaterloggedChunkMesher {
         return legacy.isSource()
                 ? Fluids.lavaSource()
                 : Fluids.LAVA.flowingState(legacy.getAmount(), legacy.isFalling());
+    }
+
+
+    /**
+     * Vanilla 1.12.2 BlockLiquid water tint: average the 3x3 biome
+     * getWaterColorMultiplier() values around the liquid position.
+     * This keeps the 1.18.2 grayscale water atlas blue and preserves
+     * biome-specific water colors (swamp, ocean, cold biomes, modded biomes).
+     */
+    private static int getBiomeWaterColor(IBlockAccess access, BlockPos pos) {
+        int red = 0;
+        int green = 0;
+        int blue = 0;
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                net.minecraft.world.biome.Biome biome =
+                        access.getBiome(pos.add(dx, 0, dz));
+                int biomeColor = biome == null
+                        ? 0x3F76E4 : biome.getWaterColorMultiplier();
+                red += (biomeColor >> 16) & 255;
+                green += (biomeColor >> 8) & 255;
+                blue += biomeColor & 255;
+            }
+        }
+        return ((red / 9) & 255) << 16
+                | ((green / 9) & 255) << 8
+                | ((blue / 9) & 255);
     }
 
     private static int shade(int channel, float factor) {
