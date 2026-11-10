@@ -1,6 +1,8 @@
 package com.dima16263690d.bleckshlng.fluid.geometry;
 
-import net.minecraft.init.Blocks;
+import net.minecraft.block.Block;
+import net.minecraft.block.material.Material;
+import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 
 import org.junit.Test;
@@ -11,33 +13,32 @@ import static org.junit.Assert.assertTrue;
 public class FluidImpermeableRegistryTest {
     @Test
     public void vanillaGlassVariantsAreImpermeable() {
-        BlockPos pos = new BlockPos(0, 64, 0);
-        assertTrue(FluidImpermeableRegistry.isImpermeable(
-                Blocks.GLASS.getDefaultState(), null, pos));
-        assertTrue(FluidImpermeableRegistry.isImpermeable(
-                Blocks.STAINED_GLASS.getDefaultState(), null, pos));
+        assertTrue(FluidImpermeableRegistry.isVanillaTagMember(
+                new ResourceLocation("minecraft", "glass")));
+        assertTrue(FluidImpermeableRegistry.isVanillaTagMember(
+                new ResourceLocation("minecraft", "stained_glass")));
     }
 
     @Test
     public void barrierAndStructureVoidAreNotMembersOfTheModernTag() {
-        BlockPos pos = new BlockPos(0, 64, 0);
-        assertFalse(FluidImpermeableRegistry.isImpermeable(
-                Blocks.BARRIER.getDefaultState(), null, pos));
-        assertFalse(FluidImpermeableRegistry.isImpermeable(
-                Blocks.STRUCTURE_VOID.getDefaultState(), null, pos));
+        assertFalse(FluidImpermeableRegistry.isVanillaTagMember(
+                new ResourceLocation("minecraft", "barrier")));
+        assertFalse(FluidImpermeableRegistry.isVanillaTagMember(
+                new ResourceLocation("minecraft", "structure_void")));
     }
 
     @Test
-    public void modBlocksCanBeRegisteredAndUnregistered() {
+    public void registeredBlocksCanBeAddedAndRemoved() {
+        Block custom = new Block(Material.ROCK) { };
         BlockPos pos = new BlockPos(0, 64, 0);
         try {
-            FluidImpermeableRegistry.register(Blocks.COBBLESTONE);
+            FluidImpermeableRegistry.register(custom);
             assertTrue(FluidImpermeableRegistry.isImpermeable(
-                    Blocks.COBBLESTONE.getDefaultState(), null, pos));
+                    custom.getDefaultState(), null, pos));
         } finally {
-            FluidImpermeableRegistry.unregister(Blocks.COBBLESTONE);
+            FluidImpermeableRegistry.unregister(custom);
         }
         assertFalse(FluidImpermeableRegistry.isImpermeable(
-                Blocks.COBBLESTONE.getDefaultState(), null, pos));
+                custom.getDefaultState(), null, pos));
     }
 }

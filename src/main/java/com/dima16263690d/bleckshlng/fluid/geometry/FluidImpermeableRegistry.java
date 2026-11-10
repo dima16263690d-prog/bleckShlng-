@@ -8,7 +8,7 @@ import com.dima16263690d.bleckshlng.fluid.api.IFluidImpermeable;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.init.Blocks;
+import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.IBlockAccess;
 
@@ -16,13 +16,6 @@ import net.minecraft.world.IBlockAccess;
 public final class FluidImpermeableRegistry {
     private static final Set<Block> BLOCKS = Collections.newSetFromMap(
             new IdentityHashMap<Block, Boolean>());
-
-    static {
-        // In the 1.18.2 tag: glass, every stained-glass colour and tinted glass.
-        // The 1.12.2 stained-glass variants share one Block instance.
-        register(Blocks.GLASS);
-        register(Blocks.STAINED_GLASS);
-    }
 
     private FluidImpermeableRegistry() { }
 
@@ -42,7 +35,17 @@ public final class FluidImpermeableRegistry {
                     .isFluidImpermeable(state, world, pos);
         }
         synchronized (FluidImpermeableRegistry.class) {
-            return BLOCKS.contains(state.getBlock());
+            if (BLOCKS.contains(state.getBlock())) return true;
         }
+        // Compare registry IDs instead of touching net.minecraft.init.Blocks.
+        // This also keeps headless Forge unit tests from forcing Minecraft's
+        // global bootstrap while preserving the 1.18.2 tag membership.
+        return isVanillaTagMember(state.getBlock().getRegistryName());
+    }
+
+    static boolean isVanillaTagMember(ResourceLocation id) {
+        if (id == null || !"minecraft".equals(id.getNamespace())) return false;
+        String path = id.getPath();
+        return "glass".equals(path) || "stained_glass".equals(path);
     }
 }
