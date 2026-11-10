@@ -352,6 +352,15 @@ public final class WaterloggedChunkMesher {
                 sideLight[0], sideLight[1], !overlay);
     }
 
+    /**
+     * Linear interpolation of the two fluid surface heights along one
+     * horizontal block edge. LiquidBlockRenderer uses the same interpolation
+     * when emitting the side quad between adjacent corner heights.
+     */
+    private static double interpolateHeight(float h0, float h1, double u) {
+        return (double) h0 + ((double) h1 - (double) h0) * u;
+    }
+
     private static void emitVisibleSideStrip(BufferBuilder buffer, EnumFacing face,
                                              double x, double y, double z,
                                              double u0, double u1,
