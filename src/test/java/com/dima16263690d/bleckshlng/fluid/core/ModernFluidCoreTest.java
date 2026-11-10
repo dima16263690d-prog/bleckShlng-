@@ -63,6 +63,27 @@ public class ModernFluidCoreTest {
     }
 
     @Test
+    public void differentFluidNeighborDoesNotAffectWaterFlowVector() {
+        TestWorld world = new TestWorld();
+        FluidPos pos = new FluidPos(0, 10, 0);
+        world.fluids.put(pos, Fluids.waterSource());
+
+        // A water cell below lava must not make the water above flow
+        // toward the lava column. FlowingFluid#affectsFlow ignores
+        // non-empty fluids from another family.
+        FluidPos east = pos.offset(FluidDirection.EAST);
+        world.fluids.put(east, Fluids.lavaSource());
+        world.fluids.put(east.below(), Fluids.waterSource());
+
+        FluidVector flow = Fluids.WATER.getFlow(
+                world, pos, world.getFluidState(pos));
+
+        assertEquals(0.0D, flow.getX(), 0.000001D);
+        assertEquals(0.0D, flow.getY(), 0.000001D);
+        assertEquals(0.0D, flow.getZ(), 0.000001D);
+    }
+
+    @Test
     public void fallingWaterSpreadsDownwardAsFallingFluid() {
         TestWorld world = new TestWorld();
         FluidPos sourcePos = new FluidPos(0, 10, 0);
