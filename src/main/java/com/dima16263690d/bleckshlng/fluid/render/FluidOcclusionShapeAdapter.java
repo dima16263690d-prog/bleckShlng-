@@ -100,6 +100,23 @@ public final class FluidOcclusionShapeAdapter {
         return false;
     }
 
+    /**
+     * BlockWall connections are EnumWallDirection values (NONE/LOW/TALL),
+     * unlike fence and pane connections, which are Boolean properties.
+     */
+    private static boolean propertyIsConnected(IBlockState state, String name) {
+        for (Map.Entry<IProperty<?>, Comparable<?>> entry
+                : state.getProperties().entrySet()) {
+            if (!name.equals(entry.getKey().getName())) continue;
+            Object value = entry.getValue();
+            if (value instanceof Boolean) return ((Boolean) value).booleanValue();
+            String serialized = String.valueOf(value);
+            return !"none".equalsIgnoreCase(serialized)
+                    && !"false".equalsIgnoreCase(serialized);
+        }
+        return false;
+    }
+
     private static List<AxisAlignedBB> getCompositeLocalBoxes(
             Block block, IBlockState state, IBlockAccess access, BlockPos pos) {
         IBlockState actual;
@@ -167,7 +184,7 @@ public final class FluidOcclusionShapeAdapter {
 
     private static void addWallArm(List<AxisAlignedBB> boxes, IBlockState state,
                                    String side, int direction) {
-        if (!propertyIsTrue(state, side)) return;
+        if (!propertyIsConnected(state, side)) return;
         switch (direction) {
             case 0: boxes.add(new AxisAlignedBB(0.25D, 0.25D, 0.0D,
                     0.75D, 0.75D, 0.5D)); break;
