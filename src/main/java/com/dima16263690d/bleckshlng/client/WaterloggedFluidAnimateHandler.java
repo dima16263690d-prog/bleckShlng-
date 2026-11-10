@@ -141,7 +141,9 @@ public final class WaterloggedFluidAnimateHandler {
         EnumParticleTypes dripParticle = fluid.getKind() == FluidStateBridge.FluidKind.LAVA
                 ? EnumParticleTypes.DRIP_LAVA : EnumParticleTypes.DRIP_WATER;
         boolean sturdyHostBottom =
-                fluidHost.isSideSolid(world, fluidPos, EnumFacing.DOWN);
+                fluidHost.getBlock().getBlockFaceShape(
+                        world, fluidHost, fluidPos, EnumFacing.DOWN)
+                        == net.minecraft.block.state.BlockFaceShape.SOLID;
 
         BlockPos belowPos = fluidPos.down();
         if (!world.isBlockLoaded(belowPos)) {
