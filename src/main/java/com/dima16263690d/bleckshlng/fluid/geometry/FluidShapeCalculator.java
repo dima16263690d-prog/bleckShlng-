@@ -20,6 +20,7 @@ public final class FluidShapeCalculator {
         if (world == null || pos == null || state == null || !world.isBlockLoaded(pos)) {
             return new ArrayList<AxisAlignedBB>(0);
         }
+        FluidOcclusionCache.ensureState(world, pos, state);
         List<AxisAlignedBB> cached = FluidOcclusionCache.getCollisionBoxes(world, pos);
         if (cached != null) return cached;
 
@@ -32,6 +33,7 @@ public final class FluidShapeCalculator {
     }
 
     public static boolean isFaceFullyCovered(World world, BlockPos pos, IBlockState state, EnumFacing face) {
+        FluidOcclusionCache.ensureState(world, pos, state);
         Boolean cached = FluidOcclusionCache.getFaceCoverage(world, pos, face);
         if (cached != null) return cached.booleanValue();
 
@@ -42,15 +44,18 @@ public final class FluidShapeCalculator {
     }
 
     public static boolean isMergedFaceOccluded(World world, BlockPos pos, EnumFacing direction) {
-        Boolean cached = FluidOcclusionCache.getMergedFace(world, pos, direction);
-        if (cached != null) return cached.booleanValue();
         BlockPos otherPos = pos.offset(direction);
         if (!world.isBlockLoaded(pos) || !world.isBlockLoaded(otherPos)) {
-            FluidOcclusionCache.putMergedFace(world, pos, direction, true);
+            // The neighbour may become loaded later. Never persist an
+            // occlusion result that was computed without both block shapes.
             return true;
         }
         IBlockState firstState = world.getBlockState(pos);
         IBlockState secondState = world.getBlockState(otherPos);
+        FluidOcclusionCache.ensureState(world, pos, firstState);
+        FluidOcclusionCache.ensureState(world, otherPos, secondState);
+        Boolean cached = FluidOcclusionCache.getMergedFace(world, pos, direction);
+        if (cached != null) return cached.booleanValue();
         List<AxisAlignedBB> firstBoxes = getCollisionBoxes(world, pos, firstState);
         List<AxisAlignedBB> secondBoxes = getCollisionBoxes(world, otherPos, secondState);
         boolean occluded = isMergedFaceCoveredExactly(
@@ -268,6 +273,7 @@ public final class FluidShapeCalculator {
     }
 
     public static boolean fillsBlock(World world, BlockPos pos, IBlockState state) {
+        FluidOcclusionCache.ensureState(world, pos, state);
         Boolean cached = FluidOcclusionCache.getFullBlock(world, pos);
         if (cached != null) return cached.booleanValue();
         if (state.isFullBlock()) {

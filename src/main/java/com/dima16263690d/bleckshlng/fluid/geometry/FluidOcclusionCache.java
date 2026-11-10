@@ -9,6 +9,7 @@ import java.util.WeakHashMap;
 
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.AxisAlignedBB;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
@@ -42,16 +43,41 @@ public final class FluidOcclusionCache {
 
     public static void invalidate(World world, BlockPos pos) {
         Cache cache = get(world, false);
-        if (cache == null) return;
+        if (cache == null || pos == null) return;
         synchronized (cache) {
-            cache.boxes.remove(Long.valueOf(pos.toLong()));
-            cache.fullBlocks.remove(Long.valueOf(pos.toLong()));
-            for (EnumFacing face : EnumFacing.values()) {
-                cache.faceCoverage.remove(new FaceKey(pos.toLong(), face.ordinal()));
-                cache.mergedFaces.remove(new FaceKey(pos.toLong(), face.ordinal()));
-                BlockPos neighbor = pos.offset(face);
-                cache.mergedFaces.remove(new FaceKey(neighbor.toLong(), face.getOpposite().ordinal()));
+            invalidatePosition(cache, pos);
+        }
+    }
+
+    /**
+     * Checks the immutable block state associated with a cached geometry entry.
+     * State changes (for example stair facing/half/shape) invalidate all cached
+     * geometry for that cell and every merged face touching it.
+     */
+    public static void ensureState(World world, BlockPos pos, IBlockState state) {
+        if (world == null || pos == null || state == null) return;
+        Cache cache = get(world, true);
+        synchronized (cache) {
+            Long key = Long.valueOf(pos.toLong());
+            IBlockState previous = cache.states.get(key);
+            if (previous != null && !previous.equals(state)) {
+                invalidatePosition(cache, pos);
             }
+            cache.states.put(key, state);
+        }
+    }
+
+    private static void invalidatePosition(Cache cache, BlockPos pos) {
+        Long key = Long.valueOf(pos.toLong());
+        cache.boxes.remove(key);
+        cache.fullBlocks.remove(key);
+        cache.states.remove(key);
+        for (EnumFacing face : EnumFacing.values()) {
+            cache.faceCoverage.remove(new FaceKey(pos.toLong(), face.ordinal()));
+            cache.mergedFaces.remove(new FaceKey(pos.toLong(), face.ordinal()));
+            BlockPos neighbor = pos.offset(face);
+            cache.mergedFaces.remove(
+                    new FaceKey(neighbor.toLong(), face.getOpposite().ordinal()));
         }
     }
 
@@ -126,12 +152,14 @@ public final class FluidOcclusionCache {
         private final Map<FaceKey, Boolean> mergedFaces =
                 new HashMap<FaceKey, Boolean>();
         private final Map<Long, Boolean> fullBlocks = new HashMap<Long, Boolean>();
+        private final Map<Long, IBlockState> states = new HashMap<Long, IBlockState>();
 
         private void clear() {
             boxes.clear();
             faceCoverage.clear();
             mergedFaces.clear();
             fullBlocks.clear();
+            states.clear();
         }
     }
 
