@@ -34,8 +34,8 @@ public final class FluidShapeCalculator {
         // BlockStairs. Resolve neighbour-dependent properties before passing true.
         collisionState.getBlock().addCollisionBoxToList(
                 collisionState, world, pos, mask, boxes, (Entity) null, true);
-        FluidOcclusionCache.putCollisionBoxes(world, pos, collisionState, boxes);
-        return FluidOcclusionCache.getCollisionBoxes(world, pos, collisionState);
+        FluidOcclusionCache.putCollisionBoxes(world, pos, boxes);
+        return FluidOcclusionCache.getCollisionBoxes(world, pos);
     }
 
     /**
