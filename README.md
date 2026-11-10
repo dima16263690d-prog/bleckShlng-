@@ -1,148 +1,114 @@
 # BleckShlng
 
-**Minecraft 1.12.2 Forge mod — modern fluid-system backport and stripped-wood features.**
+**A Minecraft Forge 1.12.2 mod that backports stripped wood blocks and develops a modern fluid system inspired by Minecraft 1.13–1.18.2.**
 
-BleckShlng targets Minecraft 1.12.2 and Java 8. The project contains a standalone fluid core inspired by the modern Minecraft fluid architecture, with a Forge 1.12.2 compatibility layer.
+BleckShlng targets Minecraft 1.12.2 and Java 8. It combines stripped-log/stripped-wood features with an in-progress fluid engine intended to bring newer fluid behavior to the older Forge environment.
 
-> **Development status:** the fluid backport is actively being developed. A successful Gradle build confirms compilation and automated tests only; it does not guarantee that all fluid rendering and in-game behavior match modern Minecraft. Water and lava behavior, especially on slabs and stairs, still require in-game verification.
+> **Development status:** the fluid port is experimental and is not yet a complete, verified recreation of Minecraft 1.18.2. A successful Gradle build does not guarantee correct in-game fluid physics or rendering. Test in a disposable world and report issues with logs and screenshots.
 
-## Main features
-
-### Modern fluid core
-
-The fluid implementation is separated from Minecraft 1.12.2 classes:
-
-- Immutable `FluidState` with fluid kind, amount, source and falling state.
-- Separate water and lava implementations.
-- Flow direction, spreading, slope search and source conversion logic.
-- A `FluidWorld` abstraction so the core is not tied directly to the legacy world API.
-- `ModernFluidEngine` as the runtime entry point.
-
-The Forge adapter translates between the portable fluid core and Minecraft 1.12.2 world, block, chunk and event APIs.
-
-### Waterlogging and fluid storage
-
-The project includes:
-
-- Per-chunk fluid state storage and persistence.
-- Fluid state synchronization and client-side cache.
-- Waterlogged block handling and placement hooks.
-- Bucket interaction and sponge handling.
-- Public access through `FluidAPI`.
-- Forge fluid compatibility hooks.
-
-Compatibility with every third-party fluid or waterloggable block is not guaranteed.
-
-### Fluid rendering and effects
-
-The client implementation includes:
-
-- Custom fluid mesh generation for waterlogged blocks.
-- Separate fluid-face occlusion geometry.
-- Integration hooks for vanilla liquid rendering.
-- Water and lava animation, ambient effects, particles and sounds.
-
-Rendering parity with Minecraft 1.18.2 is not yet considered complete. Complex block shapes and modded occlusion geometry need further validation.
+## Features
 
 ### Stripped logs and stripped wood
+- Adds stripped log and stripped wood blocks for the six vanilla overworld wood families.
+- Preserves log axis/orientation when stripping.
+- Supports vanilla axes and modded tools exposing Forge's axe tool class or harvest-level information.
+- Keeps axe stripping separate from crafting recipes.
+- Includes block/item models, textures, and English/Russian translations.
 
-The mod also contains stripped log and stripped wood blocks for the six vanilla overworld wood types:
+### Modern fluid port (work in progress)
+The fluid implementation is being moved into a standalone core with a thin Minecraft 1.12.2/Forge adapter.
 
-- Oak
-- Spruce
-- Birch
-- Jungle
-- Acacia
-- Dark Oak
+Current code areas include:
+- Separate fluid-state and fluid-kind models for water and lava.
+- Flowing-fluid updates, spreading, source conversion, and flow-vector calculations.
+- A Forge 1.12.2 world adapter.
+- Waterlogged-fluid state storage, chunk persistence, and client synchronization.
+- Bucket interaction and sponge-related handling.
+- Fluid collision/flow interaction with entities.
+- Custom waterlogged-fluid chunk meshing and liquid-render hooks.
+- Water/lava animation, ambient effects, sounds, and particles.
+- Automated tests for selected fluid-state, flow, persistence, and transformer behavior.
 
-Axes can strip supported vanilla logs and wood. Axe compatibility uses vanilla/Forge axe tool signals rather than a hard-coded list of mod IDs. Crafting recipes are registered separately from the stripping interaction.
+**Not all modern behavior is complete.** Exact parity for every block shape, occlusion case, bucket/container interaction, modded fluid, chunk transition, and water/lava rendering path still requires implementation and in-game verification. Slabs, stairs, flowing surfaces, waterfalls, and lava rendering are important regression-test cases.
 
 ## Requirements
+- Minecraft 1.12.2
+- Minecraft Forge 14.23.5.2864
+- Java 8 (JDK for building)
+- MixinBooter 12.2 or newer at runtime for the Mixin integration
 
-- Minecraft **1.12.2**
-- Minecraft Forge **14.23.5.2864**
-- **Java 8**
-- **MixinBooter 12.2 or newer** for the Mixin-based chunk-render integration.
-
-MixinBooter is a separate dependency and is not bundled in the BleckShlng JAR. Install it on the client. For a multiplayer installation, use matching mod versions on the server and clients; client-only rendering hooks remain client-side.
+MixinBooter is a separate dependency. It is not bundled or shaded into the BleckShlng JAR.
 
 ## Installation
-
 1. Install Minecraft Forge 1.12.2 (14.23.5.2864).
-2. Install MixinBooter 12.2 or newer.
-3. Place the BleckShlng JAR in the `mods` directory.
-4. Launch Minecraft.
+2. Install MixinBooter 12.2 or newer into the mods folder.
+3. Place the built BleckShlng JAR into the same mods folder.
+4. Launch the game.
 
-For multiplayer, install the same BleckShlng build on the server and all connecting clients. Test dedicated-server startup with the exact modpack before deployment.
+For multiplayer, install compatible versions of BleckShlng and MixinBooter on the server and connecting clients. Client-only rendering integrations run only on the client.
+
+**Use a backup or a new test world while the fluid system is under development.**
 
 ## Build from source
+Use JDK 8 and the included Gradle wrapper.
 
-Use Java 8 and the Gradle wrapper included in the repository.
-
-**Windows**
+Windows:
 ```bat
 gradlew.bat build
 ```
 
-**Linux**
+Linux:
 ```bash
 ./gradlew build
 ```
 
-Build output is written to `build/libs/`.
+The build produces the mod JAR under build/libs/ (including the reobfuscated artifact).
 
 ## Project layout
-
 ```
 src/main/java/com/dima16263690d/bleckshlng/
-├── fluid/
-│   ├── api/             Public fluid API and world view
-│   ├── compatibility/   Forge / Minecraft 1.12.2 adapter
-│   ├── core/            Portable fluid model and engine
-│   ├── engine/          Spread, mixing and flow helpers
-│   ├── geometry/        Block geometry and shape adapters
-│   ├── interaction/     Bucket interactions
-│   ├── network/         Fluid synchronization
-│   ├── physics/         Entity flow and movement
-│   ├── render/          Fluid occlusion shapes
-│   ├── state/           Fluid state mapping
-│   └── waterlogging/    Chunk storage and waterlogged behavior
-├── coremod/             Bytecode integration hooks
-├── client/              Client effects and rendering
-└── mixin/               Mixin integration
+  block/          Stripped block implementations
+  client/         Client setup, fluid animation, and rendering
+  coremod/        Forge coremod and bytecode hooks
+  fluid/
+    api/          Public fluid API and world-view contracts
+    compatibility/Forge/Minecraft 1.12.2 adapters
+    core/         Portable fluid states and water/lava logic
+    engine/       Spread, mixing, and flow engines
+    geometry/     Block geometry and waterlogging support
+    interaction/  Bucket and fluid interactions
+    network/      Fluid state synchronization
+    physics/      Entity-fluid interaction
+    render/       Fluid occlusion and rendering shapes
+    state/        Fluid state mapping and height calculations
+    waterlogging/ Waterlogged state, ticks, and persistence
+  mixin/          Client rendering and animation mixins
+
+src/test/           Automated tests
 ```
 
-## Testing and compatibility
+## Testing checklist
+When changing fluid code, build and run the automated tests, then verify behavior in Minecraft 1.12.2. At minimum, test:
+- Still and flowing water on full blocks, bottom slabs, top slabs, and stairs.
+- Water poured from a bucket onto slabs and other partial blocks.
+- Horizontal spreading, downward flow, and waterfalls.
+- Still and flowing lava, including lava animation and side faces.
+- Fluid visibility at block boundaries (no flicker, missing faces, or thin strips).
+- Waterlogged blocks after chunk unload/reload and world save/reopen.
+- Bucket pickup/placement, sponge behavior, and water/lava interactions.
+- Entity movement in flowing water.
+- Client/server synchronization in a dedicated-server world.
 
-The repository contains unit/regression tests for fluid state mapping, spreading, waterlogging storage, core fluid behavior, and integration configuration.
+Automated tests cover selected logic only; they do not replace in-game checks.
 
-Automated tests do not replace in-game testing. Before reporting a fluid-rendering issue, test at minimum:
-
-- Water and lava on bottom and top slabs.
-- Water and lava beside stairs and other partial blocks.
-- Horizontal spreading and downward flow.
-- Source blocks and flowing levels.
-- Chunk unload/reload and world save/reload.
-- Bucket placement/pickup and sponge absorption.
-- Client/server synchronization.
-
-## Development reference
-
-The modern fluid implementation is developed with reference to the project's Minecraft 1.18.2 backport research repository:
-
-- [bLECPORT-1.18.2](https://github.com/dima16263690d-prog/bLECPORT-1.18.2)
-
-The target runtime remains Forge 1.12.2; modern Minecraft classes are not available at runtime.
-
-## Project metadata
-
-- Mod ID: `bleckshlng`
-- Minecraft: `1.12.2`
-- Forge: `14.23.5.2864`
-- Java: `8`
+## Project details
+- Mod ID: bleckshlng
+- Minecraft: 1.12.2
+- Forge: 14.23.5.2864
+- Java: 8
+- Mod version: 1.0.0 (project build version)
 
 ## Credits
-
 - Mojang/Minecraft for the original game behavior and reference implementations.
 - Minecraft Forge for the 1.12.2 modding API.
-- MixinBooter for Mixin runtime integration.
+- MixinBooter for the shared Mixin runtime used by the integration.
