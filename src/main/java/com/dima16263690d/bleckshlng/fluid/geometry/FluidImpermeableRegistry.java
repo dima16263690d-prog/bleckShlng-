@@ -44,8 +44,8 @@ public final class FluidImpermeableRegistry {
     }
 
     static boolean isVanillaTagMember(ResourceLocation id) {
-        if (id == null || !"minecraft".equals(id.getNamespace())) return false;
-        String path = id.getPath();
+        if (id == null || !"minecraft".equals(id.getResourceDomain())) return false;
+        String path = id.getResourcePath();
         return "glass".equals(path) || "stained_glass".equals(path);
     }
 }
