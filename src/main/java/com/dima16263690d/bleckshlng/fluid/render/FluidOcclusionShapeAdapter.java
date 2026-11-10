@@ -1,5 +1,7 @@
 package com.dima16263690d.bleckshlng.fluid.render;
 
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeSet;
@@ -29,8 +31,86 @@ import net.minecraft.world.World;
  */
 public final class FluidOcclusionShapeAdapter {
     private static final double EPSILON = 1.0E-5D;
+    private static final Method STAIRS_COLLISION_BOX_LIST = findStairsCollisionBoxList();
 
     private FluidOcclusionShapeAdapter() { }
+
+    private static Method findStairsCollisionBoxList() {
+        for (Method method : BlockStairs.class.getDeclaredMethods()) {
+            Class<?>[] parameters = method.getParameterTypes();
+            if (!Modifier.isStatic(method.getModifiers())
+                    || !List.class.isAssignableFrom(method.getReturnType())
+                    || parameters.length != 1
+                    || parameters[0] != IBlockState.class) {
+                continue;
+            }
+            try {
+                method.setAccessible(true);
+                return method;
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static List<AxisAlignedBB> getStairLocalBoxes(
+            IBlockState state, IBlockAccess access, BlockPos pos) {
+        if (STAIRS_COLLISION_BOX_LIST == null) {
+            return java.util.Collections.emptyList();
+        }
+        try {
+            IBlockState actualState = state.getActualState(access, pos);
+            Object value = STAIRS_COLLISION_BOX_LIST.invoke(null, actualState);
+            if (!(value instanceof List)) {
+                return java.util.Collections.emptyList();
+            }
+            List<?> raw = (List<?>) value;
+            List<AxisAlignedBB> boxes = new ArrayList<AxisAlignedBB>(raw.size());
+            for (Object item : raw) {
+                if (item instanceof AxisAlignedBB) {
+                    boxes.add((AxisAlignedBB) item);
+                }
+            }
+            return boxes;
+        } catch (Throwable ignored) {
+            return java.util.Collections.emptyList();
+        }
+    }
+
+    private static FluidOcclusionShape fromLocalBoxes(
+            List<AxisAlignedBB> boxes, EnumFacing face) {
+        if (boxes == null || boxes.isEmpty() || face == null) {
+            return FluidOcclusionShape.EMPTY;
+        }
+        List<FluidOcclusionRect> rectangles = new ArrayList<FluidOcclusionRect>();
+        for (AxisAlignedBB box : boxes) {
+            if (!touchesLocalFace(box, face)) {
+                continue;
+            }
+            double minU;
+            double maxU;
+            double minV;
+            double maxV;
+            if (face.getAxis() == EnumFacing.Axis.Y) {
+                minU = box.minX; maxU = box.maxX;
+                minV = box.minZ; maxV = box.maxZ;
+            } else if (face.getAxis() == EnumFacing.Axis.Z) {
+                minU = box.minX; maxU = box.maxX;
+                minV = box.minY; maxV = box.maxY;
+            } else {
+                minU = box.minZ; maxU = box.maxZ;
+                minV = box.minY; maxV = box.maxY;
+            }
+            minU = clamp(minU); maxU = clamp(maxU);
+            minV = clamp(minV); maxV = clamp(maxV);
+            if (maxU - minU > EPSILON && maxV - minV > EPSILON) {
+                rectangles.add(new FluidOcclusionRect(minU, maxU, minV, maxV));
+            }
+        }
+        return rectangles.isEmpty()
+                ? FluidOcclusionShape.EMPTY : new FluidOcclusionShape(rectangles);
+    }
 
     public static FluidOcclusionShape getFaceShape(
             IBlockAccess access, BlockPos pos, IBlockState state, EnumFacing face) {
@@ -62,9 +142,13 @@ public final class FluidOcclusionShapeAdapter {
             return FluidOcclusionShape.FULL;
         }
 
-        // Slabs and trapdoors expose their own state-dependent block
-        // bounds. Read those visual bounds directly instead of consulting
-        // entity collision geometry.
+        // Stairs are composite voxel shapes. Read their state-only boxes from
+        // the same IBlockAccess snapshot used by the chunk compiler.
+        if (state.getBlock() instanceof BlockStairs) {
+            return fromLocalBoxes(getStairLocalBoxes(state, access, pos), face);
+        }
+
+        // Slabs and trapdoors expose state-dependent bounds via IBlockAccess.
         if (state.getBlock() instanceof BlockSlab
                 || state.getBlock() instanceof BlockTrapDoor) {
             AxisAlignedBB visualBounds =
@@ -75,12 +159,10 @@ public final class FluidOcclusionShapeAdapter {
             }
         }
 
-        // Stairs have a composite shape in 1.12.2 but no public occlusion
-        // shape. Their geometry is isolated in the platform fallback below;
-        // mods can provide exact face geometry through IFluidOcclusionShapeProvider.
+        // Unknown partial blocks are non-occluding unless they implement
+        // IFluidOcclusionShapeProvider; do not guess from collision boxes.
         boolean hasPartialVanillaShape =
                 state.getBlock() instanceof BlockSlab
-                || state.getBlock() instanceof BlockStairs
                 || state.getBlock() instanceof BlockTrapDoor;
 
         if (!hasPartialVanillaShape && faceShape != BlockFaceShape.SOLID
