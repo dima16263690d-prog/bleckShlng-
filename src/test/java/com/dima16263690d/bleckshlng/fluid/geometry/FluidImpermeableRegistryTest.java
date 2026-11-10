@@ -1,18 +1,15 @@
 package com.dima16263690d.bleckshlng.fluid.geometry;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.material.Material;
 import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.math.BlockPos;
 
 import org.junit.Test;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-/** Regression tests against the 1.18.2 minecraft:impermeable block tag. */
+/** Tests the vanilla tag compatibility without initializing the game registry. */
 public class FluidImpermeableRegistryTest {
     @Test
-    public void vanillaGlassVariantsAreImpermeable() {
+    public void vanillaGlassBlocksAreImpermeable() {
         assertTrue(FluidImpermeableRegistry.isVanillaTagMember(
                 new ResourceLocation("minecraft", "glass")));
         assertTrue(FluidImpermeableRegistry.isVanillaTagMember(
@@ -28,17 +25,10 @@ public class FluidImpermeableRegistryTest {
     }
 
     @Test
-    public void registeredBlocksCanBeAddedAndRemoved() {
-        Block custom = new Block(Material.ROCK) { };
-        BlockPos pos = new BlockPos(0, 64, 0);
-        try {
-            FluidImpermeableRegistry.register(custom);
-            assertTrue(FluidImpermeableRegistry.isImpermeable(
-                    custom.getDefaultState(), null, pos));
-        } finally {
-            FluidImpermeableRegistry.unregister(custom);
-        }
-        assertFalse(FluidImpermeableRegistry.isImpermeable(
-                custom.getDefaultState(), null, pos));
+    public void modNamespacesAndUnlistedBlocksAreNotBuiltInMembers() {
+        assertFalse(FluidImpermeableRegistry.isVanillaTagMember(
+                new ResourceLocation("examplemod", "glass")));
+        assertFalse(FluidImpermeableRegistry.isVanillaTagMember(
+                new ResourceLocation("minecraft", "stone")));
     }
 }
