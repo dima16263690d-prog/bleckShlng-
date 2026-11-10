@@ -285,8 +285,17 @@ public abstract class FlowingFluid extends Fluid {
                 continue;
             }
 
-            FluidState targetFluid = getNewLiquid(world, target);
-            if (!canPassThrough(world, target, direction, targetFluid)) {
+            // canPassThrough must inspect the fluid already occupying
+            // the target cell. getNewLiquid() is only the candidate state
+            // that would be placed there; passing that candidate here can
+            // make an occupied source cell look like an open route.
+            FluidState existingFluid = safeFluid(world, target);
+            if (!canPassThrough(world, target, direction, existingFluid)) {
+                continue;
+            }
+
+            FluidState nextFluid = getNewLiquid(world, target);
+            if (nextFluid == null || nextFluid.isEmpty()) {
                 continue;
             }
 
@@ -300,7 +309,7 @@ public abstract class FlowingFluid extends Fluid {
                 bestDistance = distance;
             }
             if (distance == bestDistance) {
-                result.put(direction, targetFluid);
+                result.put(direction, nextFluid);
             }
         }
         return result;
@@ -322,8 +331,13 @@ public abstract class FlowingFluid extends Fluid {
             if (!world.isLoaded(next)) {
                 continue;
             }
+            FluidState existingFluid = safeFluid(world, next);
+            if (!canPassThrough(world, next, direction, existingFluid)) {
+                continue;
+            }
+
             FluidState nextFluid = getNewLiquid(world, next);
-            if (!canPassThrough(world, next, direction, nextFluid)) {
+            if (nextFluid == null || nextFluid.isEmpty()) {
                 continue;
             }
 
