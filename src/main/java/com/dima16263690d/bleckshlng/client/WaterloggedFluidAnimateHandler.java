@@ -4,8 +4,6 @@ import java.util.List;
 import java.util.Random;
 
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.block.material.Material;
-import net.minecraft.init.Blocks;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.init.SoundEvents;
@@ -21,6 +19,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 import com.dima16263690d.bleckshlng.BleckShlng;
 import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
+import com.dima16263690d.bleckshlng.fluid.geometry.FluidImpermeableRegistry;
 import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
 import com.dima16263690d.bleckshlng.fluid.network.ClientFluidStateCache;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
@@ -65,20 +64,25 @@ public final class WaterloggedFluidAnimateHandler {
                 dimension, centerX >> 4, centerZ >> 4, 2)) {
             return;
         }
-        Random fluidRandom = world.rand;
+        Random positionRandom = world.rand;
+        Random effectRandom = new Random();
 
-        // ClientLevel.animateTick(1.18.2) samples both radii on each tick.
-        sampleRadius(world, centerX, centerY, centerZ, 16, fluidRandom);
-        sampleRadius(world, centerX, centerY, centerZ, 32, fluidRandom);
+        // Level.random selects sample positions and drip chances. ClientLevel
+        // passes a separate Random to block/fluid animateTick().
+        sampleRadius(world, centerX, centerY, centerZ, 16,
+                positionRandom, effectRandom);
+        sampleRadius(world, centerX, centerY, centerZ, 32,
+                positionRandom, effectRandom);
     }
 
     private static void sampleRadius(World world, int centerX, int centerY,
-                                     int centerZ, int radius, Random fluidRandom) {
+                                     int centerZ, int radius,
+                                     Random positionRandom, Random effectRandom) {
         for (int i = 0; i < SAMPLES_PER_RADIUS; i++) {
             // Match Level/ClientLevel's triangular random coordinate spread.
-            int x = centerX + fluidRandom.nextInt(radius) - fluidRandom.nextInt(radius);
-            int y = centerY + fluidRandom.nextInt(radius) - fluidRandom.nextInt(radius);
-            int z = centerZ + fluidRandom.nextInt(radius) - fluidRandom.nextInt(radius);
+            int x = centerX + positionRandom.nextInt(radius) - positionRandom.nextInt(radius);
+            int y = centerY + positionRandom.nextInt(radius) - positionRandom.nextInt(radius);
+            int z = centerZ + positionRandom.nextInt(radius) - positionRandom.nextInt(radius);
             BlockPos pos = new BlockPos(x, y, z);
             if (!world.isBlockLoaded(pos)) {
                 continue;
@@ -98,11 +102,11 @@ public final class WaterloggedFluidAnimateHandler {
                 continue;
             }
 
-            animateWater(world, pos, fluid, fluidRandom);
+            animateWater(world, pos, fluid, effectRandom);
 
             // ClientLevel.doAnimateTick also asks FluidState#getDripParticle
             // once per selected position, independently of animateTick().
-            if (fluidRandom.nextInt(10) == 0) {
+            if (positionRandom.nextInt(10) == 0) {
                 trySpawnDrippingFluid(world, pos);
             }
         }
@@ -158,10 +162,8 @@ public final class WaterloggedFluidAnimateHandler {
             return;
         }
 
-        // The 1.18.2 IMPERMEABLE tag has no complete 1.12.2 equivalent.
-        // Preserve its important vanilla barrier/structure-void exclusions.
-        if (belowState.getBlock() == Blocks.BARRIER
-                || belowState.getMaterial() == Material.STRUCTURE_VOID) {
+        // Compatibility bridge for the 1.18.2 #minecraft:impermeable tag.
+        if (FluidImpermeableRegistry.isImpermeable(belowState, world, belowPos)) {
             return;
         }
 
