@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "compatibilityLevel": "JAVA_8",
+  "package": "com.dima16263690d.bleckshlng.mixin",
+  "refmap": "mixins.bleckshlng.refmap.json",
+  "client": [
+    "client.RenderChunkWaterloggedMixin",
+    "client.BlockFluidRendererMixin",
+    "client.BlockLiquidAnimateMixin"
+  ],
+  "mixins": []
+}

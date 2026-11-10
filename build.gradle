@@ -12,6 +12,13 @@ apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'eclipse'
 apply plugin: 'maven-publish'
 
+repositories {
+    mavenCentral()
+    maven {
+        url = 'https://maven.cleanroommc.com'
+    }
+}
+
 version = '1.0.0'
 group = 'com.dima16263690d.bleckshlng'
 archivesBaseName = 'BleckShlng'
@@ -37,6 +44,16 @@ minecraft {
 
 dependencies {
     minecraft 'net.minecraftforge:forge:1.12.2-14.23.5.2864'
+
+    // MixinBooter supplies the shared Mixin runtime for Forge 1.12.2.
+    // It is a required runtime mod; do not shade it into BleckShlng.
+    def mixinBooter = 'zone.rong:mixinbooter:12.2'
+    implementation(mixinBooter) {
+        transitive = false
+    }
+    annotationProcessor(mixinBooter)
+
+    testImplementation 'junit:junit:4.13.2'
 }
 
 jar {
@@ -48,7 +65,11 @@ jar {
                 "Implementation-Title": project.name,
                 "Implementation-Version": "${version}",
                 "Implementation-Vendor": "dima16263690d-prog",
-                "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+                "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
+                "FMLCorePlugin": "com.dima16263690d.bleckshlng.coremod.FluidCorePlugin",
+                "FMLCorePluginContainsFMLMod": "true",
+                "ForceLoadAsMod": "true",
+                "MixinConfigs": "mixins.bleckshlng.json"
         ])
     }
 }

@@ -1,0 +1,210 @@
+package com.dima16263690d.bleckshlng.fluid.physics;
+
+import net.minecraft.block.BlockLiquid;
+import net.minecraft.block.material.Material;
+import net.minecraft.block.state.IBlockState;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.item.EntityBoat;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.util.math.AxisAlignedBB;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.World;
+
+import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
+import com.dima16263690d.bleckshlng.fluid.api.FluidAPI;
+import com.dima16263690d.bleckshlng.fluid.core.FluidVector;
+import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
+import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
+import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
+
+/**
+ * Entity/fluid bridge for water stored inside legacy blocks.
+ *
+ * It extends the 1.13.2 "waterlogged counts as water" behavior to the
+ * legacy 1.12.2 entity checks. The entity bounds are tested against the free
+ * volume inside the host block, and the legacy water-current coefficient
+ * (0.014) is applied from the stored source state.
+ */
+public final class FluidEntityHandler {
+    private static final double WATER_PUSH = 0.014D;
+    private static final double MIN_HORIZONTAL_MOTION = 0.003D;
+    private static final double MIN_PUSH = 0.0045D;
+    private static final double EPSILON = 0.001D;
+
+    private FluidEntityHandler() {
+    }
+
+    public static boolean updateWaterloggedMovement(Entity entity) {
+        if (entity == null || entity.world == null
+                || entity.getRidingEntity() instanceof EntityBoat) {
+            return false;
+        }
+
+        AxisAlignedBB bounds = entity.getEntityBoundingBox().shrink(EPSILON);
+        int minX = MathHelper.floor(bounds.minX);
+        int maxX = MathHelper.ceil(bounds.maxX);
+        int minY = MathHelper.floor(bounds.minY);
+        int maxY = MathHelper.ceil(bounds.maxY);
+        int minZ = MathHelper.floor(bounds.minZ);
+        int maxZ = MathHelper.ceil(bounds.maxZ);
+
+        // Match the vanilla/modern rule: never infer fluid state from an
+        // incomplete area touching an unloaded chunk.
+        for (int x = minX; x < maxX; x++) {
+            for (int y = minY; y < maxY; y++) {
+                for (int z = minZ; z < maxZ; z++) {
+                    if (!entity.world.isBlockLoaded(new BlockPos(x, y, z))) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        boolean touchingWater = false;
+        double maxFluidDepth = 0.0D;
+        Vec3d flow = Vec3d.ZERO;
+        int flowSamples = 0;
+
+        for (int x = minX; x < maxX; x++) {
+            for (int y = minY; y < maxY; y++) {
+                for (int z = minZ; z < maxZ; z++) {
+                    BlockPos pos = new BlockPos(x, y, z);
+                    IBlockState blockState = entity.world.getBlockState(pos);
+                    // The vanilla Entity/BlockLiquid hook already applies
+                    // current and buoyancy for these blocks. This extra pass
+                    // must include only water stored inside a host block.
+                    if (blockState.getBlock() instanceof BlockLiquid
+                            || !WaterloggedBlockRegistry.canWaterlog(blockState.getBlock())) {
+                        continue;
+                    }
+                    FluidStateBridge fluid = FluidStateMapper.fromWorld(
+                            entity.world, pos, blockState);
+                    if (fluid == null
+                            || fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
+                        continue;
+                    }
+
+                    float nominalHeight = FluidAPI.getFluidHeight(entity.world, pos);
+                    float height = FluidShapeCalculator.getMaxFluidColumnHeight(
+                            entity.world, pos, blockState, bounds, nominalHeight);
+                    double surfaceY = pos.getY() + (double) height;
+                    if (height <= 0.0F || surfaceY < bounds.minY) {
+                        continue;
+                    }
+
+                    touchingWater = true;
+                    maxFluidDepth = Math.max(maxFluidDepth, surfaceY - bounds.minY);
+
+                    double localFluidDepth = surfaceY - bounds.minY;
+                    FluidVector modernFlow = FluidAPI.getFlow(entity.world, pos);
+                    Vec3d localFlow = new Vec3d(
+                            modernFlow.getX(), modernFlow.getY(), modernFlow.getZ());
+                    if (localFluidDepth < 0.4D) {
+                        localFlow = localFlow.scale(localFluidDepth);
+                    }
+                    flow = flow.add(localFlow);
+                    flowSamples++;
+                }
+            }
+        }
+
+        if (!touchingWater) {
+            return false;
+        }
+
+        entity.fallDistance = 0.0F;
+        entity.extinguish();
+
+        if (flow.lengthVector() > 0.0D) {
+            if (flowSamples > 0) {
+                flow = flow.scale(1.0D / (double) flowSamples);
+            }
+            if (!(entity instanceof EntityPlayer)) {
+                flow = flow.normalize();
+            }
+            flow = flow.scale(WATER_PUSH);
+
+            if (Math.abs(entity.motionX) < MIN_HORIZONTAL_MOTION
+                    && Math.abs(entity.motionZ) < MIN_HORIZONTAL_MOTION
+                    && flow.lengthVector() < MIN_PUSH) {
+                flow = flow.normalize().scale(MIN_PUSH);
+            }
+
+            entity.motionX += flow.x;
+            entity.motionY += flow.y;
+            entity.motionZ += flow.z;
+        }
+
+        return true;
+    }
+
+    public static boolean isInWaterloggedFluid(Entity entity) {
+        if (entity == null || entity.world == null
+                || entity.getRidingEntity() instanceof EntityBoat) {
+            return false;
+        }
+
+        AxisAlignedBB bounds = entity.getEntityBoundingBox().shrink(EPSILON);
+        int minX = MathHelper.floor(bounds.minX);
+        int maxX = MathHelper.ceil(bounds.maxX);
+        int minY = MathHelper.floor(bounds.minY);
+        int maxY = MathHelper.ceil(bounds.maxY);
+        int minZ = MathHelper.floor(bounds.minZ);
+        int maxZ = MathHelper.ceil(bounds.maxZ);
+
+        for (int x = minX; x < maxX; x++) {
+            for (int y = minY; y < maxY; y++) {
+                for (int z = minZ; z < maxZ; z++) {
+                    BlockPos pos = new BlockPos(x, y, z);
+                    if (!entity.world.isBlockLoaded(pos)) {
+                        continue;
+                    }
+                    IBlockState blockState = entity.world.getBlockState(pos);
+                    if (blockState.getBlock() instanceof BlockLiquid) {
+                        continue;
+                    }
+                    FluidStateBridge fluid = FluidStateMapper.fromWorld(
+                            entity.world, pos, blockState);
+                    if (fluid == null
+                            || fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
+                        continue;
+                    }
+                    float height = FluidAPI.getFluidHeight(entity.world, pos);
+                    if (FluidShapeCalculator.intersectsFluidSpace(
+                            entity.world, pos, blockState, bounds, height)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    public static boolean isEyeInWaterloggedFluid(Entity entity) {
+        if (entity == null || entity.world == null) {
+            return false;
+        }
+
+        double eyeY = entity.posY + (double) entity.getEyeHeight() - 0.11111111D;
+        BlockPos pos = new BlockPos(entity.posX, eyeY, entity.posZ);
+        if (!entity.world.isBlockLoaded(pos)) {
+            return false;
+        }
+
+        IBlockState state = entity.world.getBlockState(pos);
+        if (state.getBlock() instanceof BlockLiquid
+                || !WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
+            return false;
+        }
+        FluidStateBridge fluid = FluidStateMapper.fromWorld(entity.world, pos, state);
+        if (fluid == null || fluid.getKind() != FluidStateBridge.FluidKind.WATER) {
+            return false;
+        }
+
+        float height = FluidAPI.getFluidHeight(entity.world, pos);
+        return FluidShapeCalculator.containsFluidPoint(entity.world, pos,
+                state, entity.posX, eyeY, entity.posZ, height);
+    }
+}
