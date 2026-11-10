@@ -150,6 +150,29 @@ public class ModernFluidCoreTest {
         }
     }
 
+
+    @Test
+    public void sourceLavaSpreadsAcrossOpenSidesWhenSlabSupportBlocksDownwardFlow() {
+        TestWorld world = new TestWorld();
+        FluidPos sourcePos = new FluidPos(0, 10, 0);
+        FluidState source = Fluids.lavaSource();
+
+        world.fluids.put(sourcePos, source);
+        world.solid.add(sourcePos.below());
+        for (FluidDirection direction : FluidDirection.HORIZONTAL) {
+            world.solid.add(sourcePos.offset(direction).below());
+        }
+
+        Fluids.LAVA.tick(world, sourcePos, source);
+
+        for (FluidDirection direction : FluidDirection.HORIZONTAL) {
+            FluidState side = world.getFluidState(sourcePos.offset(direction));
+            assertFalse("lava must flow across the open side " + direction, side.isEmpty());
+            assertFalse("side lava must remain flowing", side.isSource());
+            assertEquals("overworld lava drops by two levels", 6, side.getAmount());
+        }
+    }
+
     @Test
     public void slopeSearchCachesNeighborStatesAndSharedFaceChecksPerTick() {
         TestWorld world = new TestWorld();
