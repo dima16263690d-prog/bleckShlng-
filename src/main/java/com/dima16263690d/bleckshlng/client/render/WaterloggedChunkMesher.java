@@ -304,7 +304,7 @@ public final class WaterloggedChunkMesher {
         // 2) the adjacent cell does not contain the same fluid.
         if (isSameFluid(access, neighborPos, kind)
                 || FluidOcclusionShapeAdapter.isFaceOccludedByState(
-                        access, world, pos, host, face.getOpposite(), 1.0F)) {
+                        access, null, pos, host, face.getOpposite(), 1.0F)) {
             return;
         }
 
@@ -312,7 +312,7 @@ public final class WaterloggedChunkMesher {
         // against the liquid side prism up to max(h0,h1). It does not split
         // the quad using collision boxes; block depth hides partial overlap.
         if (FluidOcclusionShapeAdapter.isFaceOccludedByState(
-                access, world, neighborPos, neighborState,
+                access, null, neighborPos, neighborState,
                 face, Math.max(h0, h1))) {
             return;
         }
