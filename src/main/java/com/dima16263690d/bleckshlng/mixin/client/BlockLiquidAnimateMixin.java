@@ -30,7 +30,7 @@ public abstract class BlockLiquidAnimateMixin {
             remap = false
     )
     private void bleckshlng$animateModernFluid(
-            World world, BlockPos pos, net.minecraft.block.state.IBlockState state,
+            net.minecraft.block.state.IBlockState state, World world, BlockPos pos,
             Random random, CallbackInfo callback) {
         if (state == null || world == null || pos == null || random == null) {
             return;
