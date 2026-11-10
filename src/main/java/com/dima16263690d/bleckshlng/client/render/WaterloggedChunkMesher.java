@@ -209,8 +209,14 @@ public final class WaterloggedChunkMesher {
                 : (access instanceof World ? (World) access : Minecraft.getMinecraft().world);
         FluidOcclusionShape aboveShape = FluidOcclusionShapeAdapter.getFaceShape(
                 access, shapeWorld, abovePos, aboveState, EnumFacing.DOWN);
-        boolean topOccluded =
-                FluidOcclusionShapeAdapter.isFaceFullyCovered(aboveShape);
+        // LiquidBlockRenderer 1.18.2 only lets the block above occlude
+        // the top when the fluid surface actually reaches the cell boundary.
+        // Source/flowing states normally peak at 8/9; hiding their top face
+        // merely because the block above has a full face creates missing
+        // surfaces and thin flashing strips around slabs.
+        float minCornerHeight = Math.min(Math.min(hNW, hNE), Math.min(hSE, hSW));
+        boolean topOccluded = minCornerHeight >= 0.999F
+                && FluidOcclusionShapeAdapter.isFaceFullyCovered(aboveShape);
         boolean sameFluidAbove = isSameFluid(access, pos.up(), fluid.getKind());
         boolean renderTop = !topSlabHost && !topOccluded && !sameFluidAbove;
         if (renderTop) {
