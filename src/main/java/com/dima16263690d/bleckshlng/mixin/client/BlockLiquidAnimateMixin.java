@@ -42,10 +42,10 @@ public abstract class BlockLiquidAnimateMixin {
             return;
         }
 
-        // ClientLevel passes an independent Random into animateTick, while
-        // the 1/10 drip chance is selected from Level.random.
-        Random effectRandom = new Random();
-        if (ModernFluidEngine.animateTick(world, pos, effectRandom)) {
+        // Use the Random supplied by BlockLiquid.randomDisplayTick.
+        // Creating a new generator here breaks the caller's random stream
+        // and allocates an object for every liquid sample.
+        if (ModernFluidEngine.animateTick(world, pos, random)) {
             if (world.rand.nextInt(10) == 0) {
                 WaterloggedFluidAnimateHandler.trySpawnDrippingFluid(world, pos);
             }

@@ -151,6 +151,28 @@ public class ModernFluidCoreTest {
     }
 
     @Test
+    public void slopeSearchCachesNeighborStatesAndSharedFaceChecksPerTick() {
+        TestWorld world = new TestWorld();
+        FluidPos sourcePos = new FluidPos(0, 10, 0);
+        FluidState source = Fluids.waterSource();
+        world.fluids.put(sourcePos, source);
+        world.solid.add(sourcePos.below());
+        for (FluidDirection direction : FluidDirection.HORIZONTAL) {
+            world.solid.add(sourcePos.offset(direction).below());
+        }
+
+        Fluids.WATER.tick(world, sourcePos, source);
+
+        for (FluidDirection direction : FluidDirection.HORIZONTAL) {
+            FluidPos neighbor = sourcePos.offset(direction);
+            assertEquals("state lookup is cached; the only second read is canReplaceFluid",
+                    2, world.getFluidReadCount(neighbor));
+            assertEquals("shared source-to-neighbor face is checked once",
+                    1, world.getFaceReadCount(sourcePos, direction));
+        }
+    }
+
+    @Test
     public void twoWaterSourcesCreateSourceAboveSolidSupport() {
         TestWorld world = new TestWorld();
         FluidPos target = new FluidPos(0, 10, 0);
@@ -211,11 +233,17 @@ public class ModernFluidCoreTest {
                 new HashMap<FluidPos, FluidState>();
         private final Set<FluidPos> solid = new HashSet<FluidPos>();
         private final Random random = new Random(1L);
+        private final Map<FluidPos, Integer> fluidReadCounts =
+                new HashMap<FluidPos, Integer>();
+        private final Map<String, Integer> faceReadCounts =
+                new HashMap<String, Integer>();
         private boolean wallOpen = true;
         private boolean ultraWarm;
 
         @Override public boolean isLoaded(FluidPos pos) { return true; }
         @Override public FluidState getFluidState(FluidPos pos) {
+            Integer reads = fluidReadCounts.get(pos);
+            fluidReadCounts.put(pos, Integer.valueOf(reads == null ? 1 : reads.intValue() + 1));
             FluidState state = fluids.get(pos);
             return state == null ? FluidState.EMPTY : state;
         }
@@ -225,7 +253,20 @@ public class ModernFluidCoreTest {
         @Override public boolean isSolidRender(FluidPos pos) { return solid.contains(pos); }
         @Override public boolean isIce(FluidPos pos) { return false; }
         @Override public boolean isFaceSturdy(FluidPos pos, FluidDirection face) { return solid.contains(pos); }
-        @Override public boolean canPassThroughWall(FluidPos from, FluidDirection direction) { return wallOpen; }
+        @Override public boolean canPassThroughWall(FluidPos from, FluidDirection direction) {
+            String key = from.toString() + "/" + direction.name();
+            Integer reads = faceReadCounts.get(key);
+            faceReadCounts.put(key, Integer.valueOf(reads == null ? 1 : reads.intValue() + 1));
+            return wallOpen;
+        }
+        int getFluidReadCount(FluidPos pos) {
+            Integer count = fluidReadCounts.get(pos);
+            return count == null ? 0 : count.intValue();
+        }
+        int getFaceReadCount(FluidPos from, FluidDirection direction) {
+            Integer count = faceReadCounts.get(from.toString() + "/" + direction.name());
+            return count == null ? 0 : count.intValue();
+        }
         @Override public boolean canHoldFluid(FluidPos target, Fluid fluid) { return !solid.contains(target); }
         @Override public boolean canReplaceFluid(FluidPos target, Fluid incoming, FluidDirection direction) {
             FluidState current = getFluidState(target);

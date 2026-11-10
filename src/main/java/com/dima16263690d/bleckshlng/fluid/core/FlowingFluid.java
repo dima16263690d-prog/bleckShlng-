@@ -1,6 +1,7 @@
 package com.dima16263690d.bleckshlng.fluid.core;
 
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -155,52 +156,46 @@ public abstract class FlowingFluid extends Fluid {
      * FlowingFluid#getNewLiquid: horizontal maximum, source conversion,
      * same-fluid-above falling state and dimension-specific drop-off.
      */
+    /**
+     * Compatibility entry point used by tests and subclasses.
+     * Production ticks share one per-tick lookup cache across spread search.
+     */
     protected FluidState getNewLiquid(FluidWorld world, FluidPos pos) {
+        return getNewLiquid(world, pos, new SearchCache(world));
+    }
+
+    private FluidState getNewLiquid(FluidWorld world, FluidPos pos,
+                                    SearchCache cache) {
         int maximumAmount = 0;
         int sourceCount = 0;
-
         for (FluidDirection direction : FluidDirection.HORIZONTAL) {
             FluidPos neighborPos = pos.offset(direction);
-            if (!world.isLoaded(neighborPos)
-                    || !world.canPassThroughWall(pos, direction)) {
-                continue;
-            }
-
-            FluidState neighbor = safeFluid(world, neighborPos);
-            if (neighbor == null || neighbor.isEmpty()
-                    || !isSame(neighbor.getType())) {
-                continue;
-            }
-            if (neighbor.isSource()) {
-                sourceCount++;
-            }
+            if (!cache.isLoaded(neighborPos)
+                    || !cache.canPassThroughWall(pos, direction)) continue;
+            FluidState neighbor = cache.fluid(neighborPos);
+            if (neighbor.isEmpty() || !isSame(neighbor.getType())) continue;
+            if (neighbor.isSource()) sourceCount++;
             maximumAmount = Math.max(maximumAmount, neighbor.getAmount());
         }
-
         if (canConvertToSource() && sourceCount >= 2
-                && world.canCreateFluidSource(pos, this)) {
+                && cache.canCreateFluidSource(pos, this)) {
             FluidPos below = pos.below();
-            if (world.isLoaded(below)) {
-                FluidState belowFluid = safeFluid(world, below);
-                boolean sourceBelow = belowFluid != null
-                        && !belowFluid.isEmpty()
+            if (cache.isLoaded(below)) {
+                FluidState belowFluid = cache.fluid(below);
+                boolean sourceBelow = !belowFluid.isEmpty()
                         && belowFluid.isSource()
                         && isSame(belowFluid.getType());
-                if (world.isSolidMaterial(below) || sourceBelow) {
-                    return sourceState();
-                }
+                if (cache.isSolidMaterial(below) || sourceBelow) return sourceState();
             }
         }
-
         FluidPos above = pos.above();
-        if (world.isLoaded(above) && world.canPassThroughWall(pos, FluidDirection.UP)) {
-            FluidState aboveFluid = safeFluid(world, above);
-            if (aboveFluid != null && !aboveFluid.isEmpty()
-                    && isSame(aboveFluid.getType())) {
+        if (cache.isLoaded(above)
+                && cache.canPassThroughWall(pos, FluidDirection.UP)) {
+            FluidState aboveFluid = cache.fluid(above);
+            if (!aboveFluid.isEmpty() && isSame(aboveFluid.getType())) {
                 return flowingState(FluidState.MAX_AMOUNT, true);
             }
         }
-
         int amount = maximumAmount - getDropOff(world);
         return amount <= 0 ? FluidState.EMPTY : flowingState(amount, false);
     }
@@ -217,141 +212,112 @@ public abstract class FlowingFluid extends Fluid {
     @Override
     public void tick(FluidWorld world, FluidPos pos, FluidState state) {
         if (world == null || pos == null || state == null || state.isEmpty()
-                || !world.isLoaded(pos) || !isSame(state.getType())) {
-            return;
-        }
+                || !world.isLoaded(pos) || !isSame(state.getType())) return;
 
+        // Cache is local to one scheduled update; never retain mutable world state between ticks.
+        SearchCache cache = new SearchCache(world);
         FluidState active = state;
         if (!state.isSource()) {
-            FluidState next = getNewLiquid(world, pos);
+            FluidState next = getNewLiquid(world, pos, cache);
             int delay = getSpreadDelay(world, pos, state, next);
             if (next == null || next.isEmpty()) {
                 world.removeFluid(pos);
+                cache.invalidateFluid(pos);
                 return;
             }
             if (!next.equals(state)) {
                 active = next;
                 world.setFluidState(pos, next);
+                cache.invalidateFluid(pos);
                 world.scheduleFluidTick(pos, next.getType(), delay);
                 world.notifyFluidNeighbors(pos, next.getType());
             }
         }
-        spread(world, pos, active);
+        spread(world, pos, active, cache);
     }
 
     protected void spread(FluidWorld world, FluidPos pos, FluidState state) {
-        if (state == null || state.isEmpty() || !world.isLoaded(pos)) {
-            return;
-        }
+        spread(world, pos, state, new SearchCache(world));
+    }
 
+    private void spread(FluidWorld world, FluidPos pos, FluidState state,
+                        SearchCache cache) {
+        if (state == null || state.isEmpty() || !cache.isLoaded(pos)) return;
         FluidPos below = pos.below();
-        if (!world.isLoaded(below)) {
-            return;
-        }
-
-        FluidState belowState = getNewLiquid(world, below);
-        if (canSpreadTo(world, pos, FluidDirection.DOWN, below, belowState)) {
+        if (!cache.isLoaded(below)) return;
+        FluidState belowState = getNewLiquid(world, below, cache);
+        if (canSpreadTo(world, pos, FluidDirection.DOWN, below, belowState, cache)) {
             world.spreadFluidTo(below, belowState, FluidDirection.DOWN);
-            if (sourceNeighborCount(world, pos) >= 3) {
-                spreadToSides(world, pos, state);
-            }
-        } else if (state.isSource() || !isWaterHole(world, pos, below)) {
-            spreadToSides(world, pos, state);
+            cache.invalidateFluid(below);
+            if (sourceNeighborCount(pos, cache) >= 3) spreadToSides(world, pos, state, cache);
+        } else if (state.isSource() || !isWaterHole(world, pos, below, cache)) {
+            spreadToSides(world, pos, state, cache);
         }
     }
 
-    private void spreadToSides(FluidWorld world, FluidPos pos, FluidState state) {
+    private void spreadToSides(FluidWorld world, FluidPos pos, FluidState state,
+                               SearchCache cache) {
         int amount = state.getAmount() - getDropOff(world);
-        if (state.isFalling()) {
-            amount = 7;
-        }
-        if (amount <= 0) {
-            return;
-        }
+        if (state.isFalling()) amount = 7;
+        if (amount <= 0) return;
 
-        Map<FluidDirection, FluidState> spread = getSpread(world, pos);
+        Map<FluidDirection, FluidState> spread = getSpread(world, pos, cache);
         for (Map.Entry<FluidDirection, FluidState> entry : spread.entrySet()) {
             FluidDirection direction = entry.getKey();
             FluidPos target = pos.offset(direction);
-            if (!world.isLoaded(target)
-                    || !canSpreadTo(world, pos, direction, target, entry.getValue())) {
+            if (!cache.isLoaded(target)
+                    || !canSpreadTo(world, pos, direction, target, entry.getValue(), cache)) {
                 continue;
             }
             world.spreadFluidTo(target, entry.getValue(), direction);
+            cache.invalidateFluid(target);
         }
     }
 
-    private Map<FluidDirection, FluidState> getSpread(FluidWorld world, FluidPos pos) {
+    private Map<FluidDirection, FluidState> getSpread(FluidWorld world, FluidPos pos,
+                                                       SearchCache cache) {
         Map<FluidDirection, FluidState> result =
                 new EnumMap<FluidDirection, FluidState>(FluidDirection.class);
         int bestDistance = NO_SLOPE;
-
         for (FluidDirection direction : FluidDirection.HORIZONTAL) {
             FluidPos target = pos.offset(direction);
-            if (!world.isLoaded(target)) {
-                continue;
-            }
-
-            // canPassThrough must inspect the fluid already occupying
-            // the target cell. getNewLiquid() is only the candidate state
-            // that would be placed there; passing that candidate here can
-            // make an occupied source cell look like an open route.
-            FluidState existingFluid = safeFluid(world, target);
-            if (!canPassThrough(world, target, direction, existingFluid)) {
-                continue;
-            }
-
-            FluidState nextFluid = getNewLiquid(world, target);
-            if (nextFluid == null || nextFluid.isEmpty()) {
-                continue;
-            }
-
+            if (!cache.isLoaded(target)) continue;
+            FluidState existingFluid = cache.fluid(target);
+            if (!canPassThrough(target, direction, existingFluid, cache)) continue;
+            FluidState nextFluid = getNewLiquid(world, target, cache);
+            if (nextFluid == null || nextFluid.isEmpty()) continue;
             FluidPos targetBelow = target.below();
-            int distance = isWaterHole(world, target, targetBelow)
-                    ? 0 : getSlopeDistance(world, target, 1,
-                    direction.opposite(), new HashSet<FluidPos>());
-
+            int distance = isWaterHole(world, target, targetBelow, cache)
+                    ? 0 : getSlopeDistance(world, target, 1, direction.opposite(),
+                    new HashSet<FluidPos>(), cache);
             if (distance < bestDistance) {
                 result.clear();
                 bestDistance = distance;
             }
-            if (distance == bestDistance) {
-                result.put(direction, nextFluid);
-            }
+            if (distance == bestDistance) result.put(direction, nextFluid);
         }
         return result;
     }
 
     private int getSlopeDistance(FluidWorld world, FluidPos pos, int depth,
-                                 FluidDirection cameFrom, Set<FluidPos> visited) {
-        if (depth > getSlopeFindDistance(world) || !visited.add(pos)) {
-            return NO_SLOPE;
-        }
-
+                                 FluidDirection cameFrom, Set<FluidPos> visited,
+                                 SearchCache cache) {
+        if (depth > getSlopeFindDistance(world) || !visited.add(pos)) return NO_SLOPE;
         int best = NO_SLOPE;
         for (FluidDirection direction : FluidDirection.HORIZONTAL) {
-            if (direction == cameFrom || !world.isLoaded(pos)) {
-                continue;
-            }
-
+            if (direction == cameFrom || !cache.isLoaded(pos)) continue;
             FluidPos next = pos.offset(direction);
-            if (!world.isLoaded(next)) {
-                continue;
-            }
-            FluidState existingFluid = safeFluid(world, next);
-            if (!canPassThrough(world, next, direction, existingFluid)) {
-                continue;
-            }
-
+            if (!cache.isLoaded(next)) continue;
+            FluidState existingFluid = cache.fluid(next);
+            if (!canPassThrough(next, direction, existingFluid, cache)) continue;
             FluidPos below = next.below();
-            if (isWaterHole(world, next, below)) {
+            if (isWaterHole(world, next, below, cache)) {
                 visited.remove(pos);
                 return depth;
             }
-
             if (depth < getSlopeFindDistance(world)) {
                 int distance = getSlopeDistance(world, next, depth + 1,
-                        direction.opposite(), visited);
+                        direction.opposite(), visited, cache);
                 best = Math.min(best, distance);
             }
         }
@@ -359,62 +325,53 @@ public abstract class FlowingFluid extends Fluid {
         return best;
     }
 
-    private boolean isWaterHole(FluidWorld world, FluidPos from, FluidPos below) {
-        if (!world.isLoaded(from) || !world.isLoaded(below)
-                || !world.canPassThroughWall(from, FluidDirection.DOWN)) {
-            return false;
+    private boolean isWaterHole(FluidWorld world, FluidPos from, FluidPos below,
+                                SearchCache cache) {
+        Boolean cached = cache.waterHoles.get(from);
+        if (cached != null) return cached.booleanValue();
+        boolean result = false;
+        if (cache.isLoaded(from) && cache.isLoaded(below)
+                && cache.canPassThroughWall(from, FluidDirection.DOWN)) {
+            FluidState belowFluid = cache.fluid(below);
+            result = (!belowFluid.isEmpty() && isSame(belowFluid.getType()))
+                    || cache.canHoldFluid(below, getFlowing());
         }
-        FluidState belowFluid = safeFluid(world, below);
-        if (belowFluid != null && !belowFluid.isEmpty()
-                && isSame(belowFluid.getType())) {
-            return true;
-        }
-        return world.canHoldFluid(below, getFlowing());
+        cache.waterHoles.put(from, Boolean.valueOf(result));
+        return result;
     }
 
-    private boolean canPassThrough(FluidWorld world, FluidPos target,
-                                   FluidDirection direction, FluidState targetFluid) {
-        if (!world.isLoaded(target)) {
-            return false;
-        }
-        if (targetFluid != null && !targetFluid.isEmpty()
-                && targetFluid.isSource() && isSame(targetFluid.getType())) {
-            return false;
-        }
-        return world.canPassThroughWall(target.offset(direction.opposite()), direction)
-                && world.canHoldFluid(target, getFlowing());
+    private boolean canPassThrough(FluidPos target, FluidDirection direction,
+                                   FluidState targetFluid, SearchCache cache) {
+        if (!cache.isLoaded(target)) return false;
+        if (!targetFluid.isEmpty() && targetFluid.isSource()
+                && isSame(targetFluid.getType())) return false;
+        FluidPos from = target.offset(direction.opposite());
+        return cache.canPassThroughWall(from, direction)
+                && cache.canHoldFluid(target, getFlowing());
     }
 
     private boolean canSpreadTo(FluidWorld world, FluidPos from,
                                 FluidDirection direction, FluidPos target,
-                                FluidState incoming) {
-        if (!world.isLoaded(from) || !world.isLoaded(target)
-                || incoming == null || incoming.isEmpty()) {
-            return false;
-        }
-        FluidState current = safeFluid(world, target);
-        if (current != null && !current.isEmpty()
+                                FluidState incoming, SearchCache cache) {
+        if (!cache.isLoaded(from) || !cache.isLoaded(target)
+                || incoming == null || incoming.isEmpty()) return false;
+        FluidState current = cache.fluid(target);
+        if (!current.isEmpty()
                 && !current.getType().canBeReplacedWith(current, world,
-                target, incoming.getType(), direction)) {
-            return false;
-        }
-        return world.canPassThroughWall(from, direction)
+                target, incoming.getType(), direction)) return false;
+        return cache.canPassThroughWall(from, direction)
                 && world.canReplaceFluid(target, incoming.getType(), direction)
-                && world.canHoldFluid(target, incoming.getType());
+                && cache.canHoldFluid(target, incoming.getType());
     }
 
-    private int sourceNeighborCount(FluidWorld world, FluidPos pos) {
+    private int sourceNeighborCount(FluidPos pos, SearchCache cache) {
         int count = 0;
         for (FluidDirection direction : FluidDirection.HORIZONTAL) {
             FluidPos neighborPos = pos.offset(direction);
-            if (!world.isLoaded(neighborPos)) {
-                continue;
-            }
-            FluidState neighbor = safeFluid(world, neighborPos);
-            if (neighbor != null && !neighbor.isEmpty()
-                    && neighbor.isSource() && isSame(neighbor.getType())) {
-                count++;
-            }
+            if (!cache.isLoaded(neighborPos)) continue;
+            FluidState neighbor = cache.fluid(neighborPos);
+            if (!neighbor.isEmpty() && neighbor.isSource()
+                    && isSame(neighbor.getType())) count++;
         }
         return count;
     }
@@ -422,6 +379,118 @@ public abstract class FlowingFluid extends Fluid {
     @Override
     public float getExplosionResistance() {
         return 100.0F;
+    }
+
+    /**
+     * Per-tick neighbour cache for the flow/slope search. Mutated positions
+     * invalidate state, geometry and dependent water-hole entries.
+     */
+    private static final class SearchCache {
+        private final FluidWorld world;
+        private final Map<FluidPos, Boolean> loaded = new HashMap<FluidPos, Boolean>();
+        private final Map<FluidPos, FluidState> fluids = new HashMap<FluidPos, FluidState>();
+        private final Map<FaceKey, Boolean> openFaces = new HashMap<FaceKey, Boolean>();
+        private final Map<FluidPos, Boolean> holdFluid = new HashMap<FluidPos, Boolean>();
+        private final Map<FluidPos, Boolean> solidMaterials = new HashMap<FluidPos, Boolean>();
+        private final Map<FluidPos, Boolean> sourceCreation = new HashMap<FluidPos, Boolean>();
+        private final Map<FluidPos, Boolean> waterHoles = new HashMap<FluidPos, Boolean>();
+
+        private SearchCache(FluidWorld world) { this.world = world; }
+
+        private boolean isLoaded(FluidPos pos) {
+            Boolean value = loaded.get(pos);
+            if (value == null) {
+                value = Boolean.valueOf(world.isLoaded(pos));
+                loaded.put(pos, value);
+            }
+            return value.booleanValue();
+        }
+
+        private FluidState fluid(FluidPos pos) {
+            if (!isLoaded(pos)) return FluidState.EMPTY;
+            FluidState value = fluids.get(pos);
+            if (value == null) {
+                value = world.getFluidState(pos);
+                if (value == null) value = FluidState.EMPTY;
+                fluids.put(pos, value);
+            }
+            return value;
+        }
+
+        private boolean canPassThroughWall(FluidPos from, FluidDirection direction) {
+            FaceKey key = new FaceKey(from, direction);
+            Boolean value = openFaces.get(key);
+            if (value == null) {
+                value = Boolean.valueOf(isLoaded(from)
+                        && world.canPassThroughWall(from, direction));
+                openFaces.put(key, value);
+            }
+            return value.booleanValue();
+        }
+
+        private boolean canHoldFluid(FluidPos pos, Fluid fluid) {
+            Boolean value = holdFluid.get(pos);
+            if (value == null) {
+                value = Boolean.valueOf(isLoaded(pos) && world.canHoldFluid(pos, fluid));
+                holdFluid.put(pos, value);
+            }
+            return value.booleanValue();
+        }
+
+        private boolean isSolidMaterial(FluidPos pos) {
+            Boolean value = solidMaterials.get(pos);
+            if (value == null) {
+                value = Boolean.valueOf(isLoaded(pos) && world.isSolidMaterial(pos));
+                solidMaterials.put(pos, value);
+            }
+            return value.booleanValue();
+        }
+
+        private boolean canCreateFluidSource(FluidPos pos, Fluid fluid) {
+            Boolean value = sourceCreation.get(pos);
+            if (value == null) {
+                value = Boolean.valueOf(isLoaded(pos) && world.canCreateFluidSource(pos, fluid));
+                sourceCreation.put(pos, value);
+            }
+            return value.booleanValue();
+        }
+
+        private void invalidateFluid(FluidPos pos) {
+            if (pos == null) return;
+            fluids.remove(pos);
+            holdFluid.remove(pos);
+            solidMaterials.remove(pos);
+            sourceCreation.remove(pos);
+            waterHoles.remove(pos);
+            waterHoles.remove(pos.above());
+            for (FluidDirection direction : FluidDirection.values()) {
+                openFaces.remove(new FaceKey(pos, direction));
+                openFaces.remove(new FaceKey(pos.offset(direction), direction.opposite()));
+            }
+        }
+    }
+
+    private static final class FaceKey {
+        private final FluidPos from;
+        private final FluidDirection direction;
+
+        private FaceKey(FluidPos from, FluidDirection direction) {
+            this.from = from;
+            this.direction = direction;
+        }
+
+        @Override
+        public boolean equals(Object object) {
+            if (this == object) return true;
+            if (!(object instanceof FaceKey)) return false;
+            FaceKey other = (FaceKey) object;
+            return from.equals(other.from) && direction == other.direction;
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * from.hashCode() + direction.hashCode();
+        }
     }
 
     private static FluidState safeFluid(FluidWorld world, FluidPos pos) {

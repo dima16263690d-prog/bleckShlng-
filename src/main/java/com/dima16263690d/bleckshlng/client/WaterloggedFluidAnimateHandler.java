@@ -38,6 +38,9 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 @Mod.EventBusSubscriber(modid = BleckShlng.MODID, value = Side.CLIENT)
 public final class WaterloggedFluidAnimateHandler {
     private static final int SAMPLES_PER_RADIUS = 667;
+    // Independent effect stream reused across client ticks; positions and drip
+    // probability continue to use the world's Random instance.
+    private static final Random EFFECT_RANDOM = new Random();
 
     private WaterloggedFluidAnimateHandler() {
     }
@@ -65,7 +68,7 @@ public final class WaterloggedFluidAnimateHandler {
             return;
         }
         Random positionRandom = world.rand;
-        Random effectRandom = new Random();
+        Random effectRandom = EFFECT_RANDOM;
 
         // Level.random selects sample positions and drip chances. ClientLevel
         // passes a separate Random to block/fluid animateTick().
