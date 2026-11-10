@@ -1,6 +1,10 @@
 package com.dima16263690d.bleckshlng.client.render;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import net.minecraft.block.BlockLiquid;
 import net.minecraft.block.material.Material;
@@ -34,7 +38,114 @@ import com.dima16263690d.bleckshlng.fluid.render.FluidUvUtils;
  */
 @SideOnly(Side.CLIENT)
 public final class WaterloggedChunkMesher {
+    private static final Logger LOGGER =
+            LogManager.getLogger("BleckShlng/FluidMesh");
+    private static volatile Field bufferNoColorField;
+    private static volatile boolean bufferNoColorFieldResolved;
+    private static volatile boolean warnedColorFlag;
+
     private WaterloggedChunkMesher() {
+    }
+
+    /**
+     * BufferBuilder.color(int, ...) in Forge 1.12.2 returns immediately when
+     * noColor is true. It does not advance vertexFormatIndex in that case.
+     * A fluid vertex then writes UVs into the color slot and lightmap into the
+     * UV slot. Temporarily clear the private flag so the normal vertex writer
+     * advances POSITION -> COLOR -> UV -> LIGHTMAP correctly, then restore it.
+     *
+     * The field is resolved by behavior rather than its name because runtime
+     * obfuscation may rename it. isColorDisabled() is the public Forge probe.
+     */
+    private static boolean temporarilyEnableBufferColors(BufferBuilder buffer) {
+        if (!buffer.isColorDisabled()) {
+            return false;
+        }
+
+        Field field = getBufferNoColorField(buffer);
+        if (field == null) {
+            throw new IllegalStateException(
+                    "Could not resolve BufferBuilder noColor flag");
+        }
+
+        try {
+            field.setBoolean(buffer, false);
+            return true;
+        } catch (IllegalAccessException error) {
+            throw new IllegalStateException(
+                    "Could not enable BufferBuilder vertex colors", error);
+        }
+    }
+
+    private static void restoreBufferColors(BufferBuilder buffer) {
+        Field field = bufferNoColorField;
+        if (field == null) {
+            return;
+        }
+        try {
+            field.setBoolean(buffer, true);
+        } catch (IllegalAccessException error) {
+            if (!warnedColorFlag) {
+                warnedColorFlag = true;
+                LOGGER.warn("Could not restore BufferBuilder noColor state", error);
+            }
+        }
+    }
+
+    private static Field getBufferNoColorField(BufferBuilder buffer) {
+        if (bufferNoColorFieldResolved) {
+            return bufferNoColorField;
+        }
+
+        synchronized (WaterloggedChunkMesher.class) {
+            if (bufferNoColorFieldResolved) {
+                return bufferNoColorField;
+            }
+
+            for (Field candidate : BufferBuilder.class.getDeclaredFields()) {
+                if (candidate.getType() != Boolean.TYPE) {
+                    continue;
+                }
+
+                boolean originalValue = false;
+                boolean changed = false;
+                try {
+                    candidate.setAccessible(true);
+                    originalValue = candidate.getBoolean(buffer);
+                    if (!originalValue) {
+                        continue;
+                    }
+
+                    candidate.setBoolean(buffer, false);
+                    changed = true;
+                    if (!buffer.isColorDisabled()) {
+                        bufferNoColorField = candidate;
+                    }
+                } catch (Throwable ignored) {
+                    // This is only a field-discovery probe. Keep trying.
+                } finally {
+                    if (changed) {
+                        try {
+                            candidate.setBoolean(buffer, originalValue);
+                        } catch (Throwable ignored) {
+                            // A failed candidate is not used for rendering.
+                        }
+                    }
+                }
+
+                if (bufferNoColorField != null) {
+                    break;
+                }
+            }
+
+            bufferNoColorFieldResolved = true;
+            if (bufferNoColorField == null && !warnedColorFlag) {
+                warnedColorFlag = true;
+                LOGGER.warn("Could not identify BufferBuilder noColor flag; "
+                        + "fluid rendering will fall back to vanilla where possible");
+            }
+            return bufferNoColorField;
+        }
     }
 
     public static boolean tessellateFluid(IBlockAccess access, IBlockState state,
@@ -88,6 +199,30 @@ public final class WaterloggedChunkMesher {
             return;
         }
 
+        boolean restoreNoColor;
+        try {
+            restoreNoColor = temporarilyEnableBufferColors(buffer);
+        } catch (RuntimeException error) {
+            if (!warnedColorFlag) {
+                warnedColorFlag = true;
+                LOGGER.warn("Skipping custom fluid mesh because vertex colors "
+                        + "could not be enabled safely", error);
+            }
+            return;
+        }
+
+        try {
+            tessellateWithBufferColorsEnabled(access, host, pos, fluid, buffer);
+        } finally {
+            if (restoreNoColor) {
+                restoreBufferColors(buffer);
+            }
+        }
+    }
+
+    private static void tessellateWithBufferColorsEnabled(
+            IBlockAccess access, IBlockState host, BlockPos pos,
+            FluidState fluid, BufferBuilder buffer) {
         float ownHeight = fluidHeight(access, pos, fluid.getKind());
         if (ownHeight <= 0.0F) {
             // The sidecar may have been evicted from the client cache between
@@ -750,17 +885,9 @@ public final class WaterloggedChunkMesher {
         // Calling BufferBuilder.normal() here wraps its element cursor to
         // POSITION and overwrites this vertex's coordinates with the normal.
         // Vanilla fluid rendering uses the BLOCK format without normal().
+        // The outer tessellate() scope guarantees noColor is temporarily
+        // disabled, so each attribute is written in the correct BLOCK order.
         buffer.pos(x, y, z).color(r, g, b, a).tex(u, v)
                 .lightmap(sky, block).endVertex();
-
-        // BufferBuilder.noColor() may be left enabled by another block
-        // renderer while the chunk layer is being compiled. In that state
-        // color() advances the vertex format but deliberately skips writing
-        // the color bytes, leaving the grayscale water texture untinted.
-        // Write the vertex color directly into the BLOCK format color slot
-        // after endVertex so the tint is guaranteed for every fluid face.
-        int vertexIndex = buffer.getVertexCount() - 1;
-        int colorIndex = buffer.getColorIndex(vertexIndex);
-        buffer.putColorRGBA(colorIndex, r, g, b, a);
     }
 }
