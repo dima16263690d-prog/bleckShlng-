@@ -1,16 +1,9 @@
 package com.dima16263690d.bleckshlng.client.render;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
 import java.lang.reflect.Method;
-import java.util.TreeSet;
 
 import net.minecraft.block.BlockLiquid;
-import net.minecraft.block.BlockSlab;
 import net.minecraft.block.material.Material;
-import net.minecraft.block.state.BlockFaceShape;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BufferBuilder;
@@ -34,8 +27,6 @@ import com.dima16263690d.bleckshlng.fluid.core.FluidKind;
 import com.dima16263690d.bleckshlng.fluid.core.Fluids;
 import com.dima16263690d.bleckshlng.fluid.core.ModernFluidEngine;
 import com.dima16263690d.bleckshlng.fluid.core.FluidVector;
-import com.dima16263690d.bleckshlng.fluid.render.FluidOcclusionRect;
-import com.dima16263690d.bleckshlng.fluid.render.FluidOcclusionShape;
 import com.dima16263690d.bleckshlng.fluid.render.FluidOcclusionShapeAdapter;
 
 /**
@@ -361,178 +352,6 @@ public final class WaterloggedChunkMesher {
                 sideLight[0], sideLight[1], !overlay);
     }
 
-    /**
-     * Returns the actual collision rectangles touching this shared face.
-     * The old implementation only checked whether the whole face was covered.
-     * A slab covers only half of its side, so that boolean test left the entire
-     * water quad visible and produced a blue square around submerged slabs.
-     */
-    private static List<SideOcclusionRect> collectSideOcclusions(
-            IBlockAccess access, IBlockState host, BlockPos pos,
-            IBlockState neighbor, BlockPos neighborPos,
-            EnumFacing face, float minY, boolean preserveNeighborOverlay) {
-        List<SideOcclusionRect> result = new ArrayList<SideOcclusionRect>();
-        World world = null;
-        if (access instanceof FluidViewAccess) {
-            world = ((FluidViewAccess) access).getWorld();
-        } else if (access instanceof World) {
-            world = (World) access;
-        } else {
-            world = Minecraft.getMinecraft().world;
-        }
-
-        if (world != null && world.isBlockLoaded(pos) && world.isBlockLoaded(neighborPos)) {
-            IBlockState neighborShape = access instanceof FluidViewAccess
-                    ? ((FluidViewAccess) access).getOriginalBlockState(neighborPos)
-                    : neighbor;
-
-            addSideOcclusions(result,
-                    FluidOcclusionShapeAdapter.getFaceShape(
-                            access, world, pos, host, face), minY);
-
-            if (!preserveNeighborOverlay) {
-                addSideOcclusions(result,
-                        FluidOcclusionShapeAdapter.getFaceShape(
-                                access, world, neighborPos, neighborShape,
-                                face.getOpposite()), minY);
-            }
-            return result;
-        }
-
-        // No live World is available during an unusual chunk-rebuild context.
-        // Use the platform face contract only; do not substitute collision boxes.
-        if (host.getBlock().getBlockFaceShape(access, host, pos, face)
-                == BlockFaceShape.SOLID) {
-            result.add(new SideOcclusionRect(0.0D, 1.0D, minY, 1.0D));
-        }
-        if (!preserveNeighborOverlay
-                && neighbor.getBlock().getBlockFaceShape(
-                        access, neighbor, neighborPos, face.getOpposite())
-                == BlockFaceShape.SOLID) {
-            result.add(new SideOcclusionRect(0.0D, 1.0D, minY, 1.0D));
-        }
-        return result;
-    }
-
-    private static void addSideOcclusions(List<SideOcclusionRect> target,
-                                          FluidOcclusionShape shape,
-                                          float minY) {
-        if (shape == null || shape.isEmpty()) {
-            return;
-        }
-        for (FluidOcclusionRect rectangle : shape.getRectangles()) {
-            double minV = Math.max((double) minY,
-                    Math.min(1.0D, rectangle.getMinV()));
-            double maxV = Math.max((double) minY,
-                    Math.min(1.0D, rectangle.getMaxV()));
-            if (rectangle.getMaxU() - rectangle.getMinU() > 1.0E-5D
-                    && maxV - minV > 1.0E-5D) {
-                target.add(new SideOcclusionRect(
-                        rectangle.getMinU(), rectangle.getMaxU(), minV, maxV));
-            }
-        }
-    }
-
-    private static void emitClippedSide(BufferBuilder buffer, EnumFacing face,
-                                        double x, double y, double z,
-                                        float h0, float h1, float minY,
-                                        TextureAtlasSprite sprite,
-                                        List<SideOcclusionRect> occlusions,
-                                        int r, int g, int b, int a,
-                                        int sky, int block, float shade,
-                                        boolean doubleSided) {
-        TreeSet<Double> uEdges = new TreeSet<Double>();
-        uEdges.add(Double.valueOf(0.0D));
-        uEdges.add(Double.valueOf(1.0D));
-        for (SideOcclusionRect rect : occlusions) {
-            uEdges.add(Double.valueOf(rect.minU));
-            uEdges.add(Double.valueOf(rect.maxU));
-            addSurfaceCrossing(uEdges, rect.minY, h0, h1, rect.minU, rect.maxU);
-            addSurfaceCrossing(uEdges, rect.maxY, h0, h1, rect.minU, rect.maxU);
-        }
-
-        List<Double> edges = new ArrayList<Double>(uEdges);
-        int sr = shade(r, shade);
-        int sg = shade(g, shade);
-        int sb = shade(b, shade);
-
-        for (int i = 0; i + 1 < edges.size(); i++) {
-            double u0 = edges.get(i).doubleValue();
-            double u1 = edges.get(i + 1).doubleValue();
-            if (u1 - u0 <= 1.0E-5D) {
-                continue;
-            }
-            double middleU = (u0 + u1) * 0.5D;
-            double middleHeight = interpolateHeight(h0, h1, middleU);
-            if (middleHeight <= minY + 1.0E-5D) {
-                continue;
-            }
-
-            List<VerticalInterval> blocked = new ArrayList<VerticalInterval>();
-            for (SideOcclusionRect rect : occlusions) {
-                if (middleU > rect.minU - 1.0E-5D
-                        && middleU < rect.maxU + 1.0E-5D) {
-                    double low = Math.max((double) minY, rect.minY);
-                    double high = Math.min(middleHeight, rect.maxY);
-                    if (high - low > 1.0E-5D) {
-                        blocked.add(new VerticalInterval(low, high));
-                    }
-                }
-            }
-            Collections.sort(blocked, new Comparator<VerticalInterval>() {
-                @Override
-                public int compare(VerticalInterval first, VerticalInterval second) {
-                    return Double.compare(first.minY, second.minY);
-                }
-            });
-
-            List<VerticalInterval> merged = new ArrayList<VerticalInterval>();
-            for (VerticalInterval interval : blocked) {
-                if (merged.isEmpty()) {
-                    merged.add(new VerticalInterval(interval.minY, interval.maxY));
-                } else {
-                    VerticalInterval previous = merged.get(merged.size() - 1);
-                    if (interval.minY > previous.maxY + 1.0E-5D) {
-                        merged.add(new VerticalInterval(interval.minY, interval.maxY));
-                    } else if (interval.maxY > previous.maxY) {
-                        previous.maxY = interval.maxY;
-                    }
-                }
-            }
-
-            double cursor = minY;
-            for (VerticalInterval interval : merged) {
-                if (interval.minY > cursor + 1.0E-5D) {
-                    emitVisibleSideStrip(buffer, face, x, y, z, u0, u1,
-                            h0, h1, cursor, interval.minY, sprite,
-                            sr, sg, sb, a, sky, block, doubleSided);
-                }
-                cursor = Math.max(cursor, interval.maxY);
-            }
-            emitVisibleSideStrip(buffer, face, x, y, z, u0, u1,
-                    h0, h1, cursor, Double.POSITIVE_INFINITY, sprite,
-                    sr, sg, sb, a, sky, block, doubleSided);
-        }
-    }
-
-    private static void addSurfaceCrossing(TreeSet<Double> edges, double height,
-                                           float h0, float h1,
-                                           double minU, double maxU) {
-        double delta = (double) h1 - (double) h0;
-        if (Math.abs(delta) <= 1.0E-7D) {
-            return;
-        }
-        double u = (height - (double) h0) / delta;
-        if (u > minU + 1.0E-5D && u < maxU - 1.0E-5D
-                && u > 1.0E-5D && u < 1.0D - 1.0E-5D) {
-            edges.add(Double.valueOf(u));
-        }
-    }
-
-    private static double interpolateHeight(float h0, float h1, double u) {
-        return (double) h0 + ((double) h1 - (double) h0) * u;
-    }
-
     private static void emitVisibleSideStrip(BufferBuilder buffer, EnumFacing face,
                                              double x, double y, double z,
                                              double u0, double u1,
@@ -618,30 +437,6 @@ public final class WaterloggedChunkMesher {
         }
         vert(buffer, px, y + height, pz, texU, texV,
                 r, g, b, a, sky, block);
-    }
-
-    private static final class SideOcclusionRect {
-        private final double minU;
-        private final double maxU;
-        private final double minY;
-        private final double maxY;
-
-        private SideOcclusionRect(double minU, double maxU, double minY, double maxY) {
-            this.minU = minU;
-            this.maxU = maxU;
-            this.minY = minY;
-            this.maxY = maxY;
-        }
-    }
-
-    private static final class VerticalInterval {
-        private final double minY;
-        private double maxY;
-
-        private VerticalInterval(double minY, double maxY) {
-            this.minY = minY;
-            this.maxY = maxY;
-        }
     }
 
     private static int[] getFluidLight(IBlockAccess access, BlockPos pos) {
