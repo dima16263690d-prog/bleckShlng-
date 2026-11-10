@@ -36,17 +36,28 @@ public final class FluidTickScheduler {
             return;
         }
 
+        long due = world.getTotalWorldTime() + Math.max(1, delay);
+        ChunkFluidData data = ChunkFluidData.get(world);
+        if (data != null) {
+            due = data.putScheduledTick(pos, due);
+        }
+        scheduleAt(world, pos, due);
+    }
+
+    /** Restores a saved absolute deadline without converting it to a new delay. */
+    private static void scheduleAt(World world, BlockPos pos, long dueTime) {
+        if (world == null || world.isRemote || pos == null) {
+            return;
+        }
         Map<Long, Long> tasks = PENDING.get(world);
         if (tasks == null) {
             tasks = new HashMap<Long, Long>();
             PENDING.put(world, tasks);
         }
-
-        long due = world.getTotalWorldTime() + Math.max(1, delay);
         Long key = Long.valueOf(pos.toLong());
         Long oldDue = tasks.get(key);
-        if (oldDue == null || due < oldDue.longValue()) {
-            tasks.put(key, Long.valueOf(due));
+        if (oldDue == null || dueTime < oldDue.longValue()) {
+            tasks.put(key, Long.valueOf(dueTime));
         }
     }
 
@@ -72,13 +83,17 @@ public final class FluidTickScheduler {
 
             BlockPos pos = BlockPos.fromLong(task.getKey().longValue());
             if (!event.world.isBlockLoaded(pos)) {
-                // A chunk unload removes its tasks; this is a defensive fallback
-                // for a task that became unloaded during the current tick.
-                task.setValue(Long.valueOf(now + 20L));
+                // Keep the persisted deadline unchanged. The chunk-load event
+                // will restore this task with its original absolute due time.
+                iterator.remove();
                 continue;
             }
 
             iterator.remove();
+            ChunkFluidData data = ChunkFluidData.get(event.world);
+            if (data != null) {
+                data.removeScheduledTick(pos);
+            }
             duePositions.add(pos);
         }
 
@@ -102,8 +117,22 @@ public final class FluidTickScheduler {
             return;
         }
 
-        for (BlockPos pos : data.getPositionsInChunk(event.getChunk().x, event.getChunk().z)) {
-            schedule(world, pos, 5);
+        int chunkX = event.getChunk().x;
+        int chunkZ = event.getChunk().z;
+        java.util.Set<BlockPos> resume = new java.util.HashSet<BlockPos>();
+        resume.addAll(data.getPositionsInChunk(chunkX, chunkZ));
+        resume.addAll(data.getScheduledTickPositionsInChunk(chunkX, chunkZ));
+
+        for (BlockPos pos : resume) {
+            Long due = data.getScheduledTick(pos);
+            if (due != null) {
+                // A deadline in the past is intentionally restored as-is;
+                // the next world END tick executes it immediately.
+                scheduleAt(world, pos, due.longValue());
+            } else {
+                // Compatibility path for pre-deadline saves.
+                schedule(world, pos, 5);
+            }
         }
     }
 
@@ -219,9 +248,9 @@ public final class FluidTickScheduler {
         }
 
         // A waterlogged block releases its water source when it is removed.
-        // Do not delete the sidecar here: BreakEvent fires before the block is
-        // replaced with air. Its next fluid tick converts it into Blocks.WATER
-        // if the position is now empty or replaceable.
+        // Do not delete the sidecar or its deadline here: BreakEvent fires
+        // before the block is replaced with air. The saved tick releases the
+        // source after the block has actually been removed.
         BlockPos pos = event.getPos();
         ChunkFluidData data = ChunkFluidData.get(world);
         boolean hasSidecar = data != null && data.getWater(pos) != null;

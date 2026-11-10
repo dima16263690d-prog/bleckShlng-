@@ -70,6 +70,38 @@ public class ChunkFluidDataTest {
     }
 
     @Test
+    public void scheduledTicksSurviveNbtRoundTripAndKeepTheirChunkIndex() {
+        ChunkFluidData saved = new ChunkFluidData("bleckshlng_test");
+        BlockPos first = new BlockPos(17, 64, -1);
+        BlockPos second = new BlockPos(-33, 70, 48);
+
+        assertEquals(1200L, saved.putScheduledTick(first, 1200L));
+        assertEquals(1450L, saved.putScheduledTick(second, 1450L));
+        // A later schedule cannot postpone the first pending update.
+        assertEquals(1200L, saved.putScheduledTick(first, 1300L));
+
+        ChunkFluidData loaded = new ChunkFluidData("bleckshlng_test");
+        loaded.readFromNBT(saved.writeToNBT(new NBTTagCompound()));
+
+        assertEquals(Long.valueOf(1200L), loaded.getScheduledTick(first));
+        assertEquals(Long.valueOf(1450L), loaded.getScheduledTick(second));
+        assertEquals(1, loaded.getScheduledTickPositionsInChunk(1, -1).size());
+        assertEquals(1, loaded.getScheduledTickPositionsInChunk(-3, 3).size());
+    }
+
+    @Test
+    public void removingFluidAlsoRemovesItsSavedTick() {
+        ChunkFluidData data = new ChunkFluidData("bleckshlng_test");
+        BlockPos pos = new BlockPos(4, 64, 4);
+        data.putWater(pos, FluidStateBridge.source(FluidStateBridge.FluidKind.WATER));
+        data.putScheduledTick(pos, 100L);
+
+        assertTrue(data.remove(pos));
+        assertNull(data.getScheduledTick(pos));
+        assertTrue(data.getScheduledTickPositionsInChunk(0, 0).isEmpty());
+    }
+
+    @Test
     public void legacyNbtWithoutSourceFlagKeepsFullLevelAsSource() {
         NBTTagCompound root = new NBTTagCompound();
         net.minecraft.nbt.NBTTagList entries = new net.minecraft.nbt.NBTTagList();

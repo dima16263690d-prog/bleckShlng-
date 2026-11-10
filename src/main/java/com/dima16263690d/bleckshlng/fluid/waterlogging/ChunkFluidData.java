@@ -30,6 +30,9 @@ public class ChunkFluidData extends WorldSavedData {
             new HashMap<Long, FluidStateBridge>();
     private final Map<Long, Set<Long>> chunkIndex =
             new HashMap<Long, Set<Long>>();
+    /** Absolute world-time deadlines for pending fluid updates, keyed by BlockPos. */
+    private final Map<Long, Long> scheduledTicks =
+            new HashMap<Long, Long>();
 
     public ChunkFluidData() {
         super(DATA_NAME);
@@ -62,6 +65,57 @@ public class ChunkFluidData extends WorldSavedData {
         return pos == null ? null : waterStates.get(Long.valueOf(pos.toLong()));
     }
 
+    /**
+     * Returns the persisted absolute world-time deadline for a fluid update,
+     * or null when the position has no saved update.
+     */
+    public Long getScheduledTick(BlockPos pos) {
+        return pos == null ? null : scheduledTicks.get(Long.valueOf(pos.toLong()));
+    }
+
+    /**
+     * Stores the earliest deadline. A later reschedule must never postpone an
+     * already pending vanilla-style fluid update.
+     *
+     * @return the deadline that is now authoritative for this position
+     */
+    public long putScheduledTick(BlockPos pos, long dueTime) {
+        if (pos == null) {
+            return dueTime;
+        }
+        Long key = Long.valueOf(pos.toLong());
+        Long old = scheduledTicks.get(key);
+        if (old == null || dueTime < old.longValue()) {
+            scheduledTicks.put(key, Long.valueOf(dueTime));
+            markDirty();
+            return dueTime;
+        }
+        return old.longValue();
+    }
+
+    public boolean removeScheduledTick(BlockPos pos) {
+        if (pos == null) {
+            return false;
+        }
+        Long removed = scheduledTicks.remove(Long.valueOf(pos.toLong()));
+        if (removed != null) {
+            markDirty();
+            return true;
+        }
+        return false;
+    }
+
+    public List<BlockPos> getScheduledTickPositionsInChunk(int chunkX, int chunkZ) {
+        List<BlockPos> result = new ArrayList<BlockPos>();
+        for (Long packed : scheduledTicks.keySet()) {
+            BlockPos pos = BlockPos.fromLong(packed.longValue());
+            if ((pos.getX() >> 4) == chunkX && (pos.getZ() >> 4) == chunkZ) {
+                result.add(pos);
+            }
+        }
+        return result;
+    }
+
     public boolean putWater(BlockPos pos, FluidStateBridge state) {
         if (pos == null || state == null
                 || state.getKind() != FluidStateBridge.FluidKind.WATER) {
@@ -86,9 +140,14 @@ public class ChunkFluidData extends WorldSavedData {
 
         long packed = pos.toLong();
         FluidStateBridge removed = waterStates.remove(Long.valueOf(packed));
+        Long removedTick = scheduledTicks.remove(Long.valueOf(packed));
         if (removed != null) {
             removeFromChunkIndex(packed);
+        }
+        if (removed != null || removedTick != null) {
             markDirty();
+        }
+        if (removed != null) {
             return true;
         }
         return false;
@@ -110,6 +169,7 @@ public class ChunkFluidData extends WorldSavedData {
     public void readFromNBT(NBTTagCompound compound) {
         waterStates.clear();
         chunkIndex.clear();
+        scheduledTicks.clear();
         NBTTagList entries = compound.getTagList("water", 10);
         for (int i = 0; i < entries.tagCount(); i++) {
             NBTTagCompound entry = entries.getCompoundTagAt(i);
@@ -127,6 +187,15 @@ public class ChunkFluidData extends WorldSavedData {
                             amount, falling);
             waterStates.put(Long.valueOf(packedPos), state);
             addToChunkIndex(packedPos);
+        }
+
+        // Backward compatible: older saves simply have no "scheduled_ticks" list.
+        NBTTagList ticks = compound.getTagList("scheduled_ticks", 10);
+        for (int i = 0; i < ticks.tagCount(); i++) {
+            NBTTagCompound entry = ticks.getCompoundTagAt(i);
+            long packedPos = entry.getLong("pos");
+            long dueTime = entry.getLong("due");
+            scheduledTicks.put(Long.valueOf(packedPos), Long.valueOf(dueTime));
         }
     }
 
@@ -169,6 +238,15 @@ public class ChunkFluidData extends WorldSavedData {
             entries.appendTag(tag);
         }
         compound.setTag("water", entries);
+
+        NBTTagList ticks = new NBTTagList();
+        for (Map.Entry<Long, Long> entry : scheduledTicks.entrySet()) {
+            NBTTagCompound tag = new NBTTagCompound();
+            tag.setLong("pos", entry.getKey().longValue());
+            tag.setLong("due", entry.getValue().longValue());
+            ticks.appendTag(tag);
+        }
+        compound.setTag("scheduled_ticks", ticks);
         return compound;
     }
 }
