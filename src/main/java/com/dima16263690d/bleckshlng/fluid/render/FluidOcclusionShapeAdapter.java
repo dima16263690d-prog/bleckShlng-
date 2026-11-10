@@ -142,22 +142,39 @@ public final class FluidOcclusionShapeAdapter {
                 ? FluidOcclusionShape.EMPTY : new FluidOcclusionShape(rectangles);
     }
 
-    /** Returns true only when the union of face rectangles covers the full face. */
-    public static boolean isFaceFullyCovered(FluidOcclusionShape shape) {
-        if (shape == null || shape.isEmpty()) {
+    /**
+     * Tests whether the union of face rectangles covers the requested
+     * rectangle. This is the 2-D equivalent of the face-slice comparison
+     * used by Minecraft 1.18.2 Shapes.blockOccudes().
+     */
+    public static boolean isFaceRectangleCovered(FluidOcclusionShape shape,
+                                                   double minU, double maxU,
+                                                   double minV, double maxV) {
+        if (shape == null || shape.isEmpty()
+                || maxU - minU <= EPSILON || maxV - minV <= EPSILON) {
             return false;
         }
+
         TreeSet<Double> uEdges = new TreeSet<Double>();
         TreeSet<Double> vEdges = new TreeSet<Double>();
-        uEdges.add(Double.valueOf(0.0D));
-        uEdges.add(Double.valueOf(1.0D));
-        vEdges.add(Double.valueOf(0.0D));
-        vEdges.add(Double.valueOf(1.0D));
+        uEdges.add(Double.valueOf(minU));
+        uEdges.add(Double.valueOf(maxU));
+        vEdges.add(Double.valueOf(minV));
+        vEdges.add(Double.valueOf(maxV));
+
         for (FluidOcclusionRect rectangle : shape.getRectangles()) {
-            uEdges.add(Double.valueOf(rectangle.getMinU()));
-            uEdges.add(Double.valueOf(rectangle.getMaxU()));
-            vEdges.add(Double.valueOf(rectangle.getMinV()));
-            vEdges.add(Double.valueOf(rectangle.getMaxV()));
+            double clippedMinU = Math.max(minU, rectangle.getMinU());
+            double clippedMaxU = Math.min(maxU, rectangle.getMaxU());
+            double clippedMinV = Math.max(minV, rectangle.getMinV());
+            double clippedMaxV = Math.min(maxV, rectangle.getMaxV());
+            if (clippedMaxU - clippedMinU <= EPSILON
+                    || clippedMaxV - clippedMinV <= EPSILON) {
+                continue;
+            }
+            uEdges.add(Double.valueOf(clippedMinU));
+            uEdges.add(Double.valueOf(clippedMaxU));
+            vEdges.add(Double.valueOf(clippedMinV));
+            vEdges.add(Double.valueOf(clippedMaxV));
         }
 
         Double[] us = uEdges.toArray(new Double[uEdges.size()]);
@@ -168,10 +185,10 @@ public final class FluidOcclusionShapeAdapter {
                 double middleV = (vs[v].doubleValue() + vs[v + 1].doubleValue()) * 0.5D;
                 boolean covered = false;
                 for (FluidOcclusionRect rectangle : shape.getRectangles()) {
-                    if (middleU > rectangle.getMinU() - EPSILON
-                            && middleU < rectangle.getMaxU() + EPSILON
-                            && middleV > rectangle.getMinV() - EPSILON
-                            && middleV < rectangle.getMaxV() + EPSILON) {
+                    if (middleU >= rectangle.getMinU() - EPSILON
+                            && middleU <= rectangle.getMaxU() + EPSILON
+                            && middleV >= rectangle.getMinV() - EPSILON
+                            && middleV <= rectangle.getMaxV() + EPSILON) {
                         covered = true;
                         break;
                     }
@@ -182,6 +199,46 @@ public final class FluidOcclusionShapeAdapter {
             }
         }
         return true;
+    }
+
+    /** Returns true only when the union covers the complete unit face. */
+    public static boolean isFaceFullyCovered(FluidOcclusionShape shape) {
+        return isFaceRectangleCovered(shape, 0.0D, 1.0D, 0.0D, 1.0D);
+    }
+
+    /**
+     * Port of LiquidBlockRenderer.isFaceOccludedByState from 1.18.2.
+     *
+     * A liquid occupies a full X/Z column up to maxFluidHeight. On UP it
+     * touches the cell boundary only when the surface reaches height 1;
+     * DOWN always tests the full bottom face. Horizontal faces test the
+     * projected liquid side from y=0 to its highest corner.
+     */
+    public static boolean isFaceOccludedByState(
+            IBlockAccess access, World world, BlockPos pos,
+            IBlockState state, EnumFacing direction, float maxFluidHeight) {
+        if (access == null || pos == null || state == null || direction == null) {
+            return false;
+        }
+
+        FluidOcclusionShape shape = getFaceShape(
+                access, world, pos, state, direction.getOpposite());
+        if (shape == null || shape.isEmpty()) {
+            return false;
+        }
+
+        if (direction == EnumFacing.UP) {
+            if (maxFluidHeight < 1.0F - 1.0E-7F) {
+                return false;
+            }
+            return isFaceFullyCovered(shape);
+        }
+        if (direction == EnumFacing.DOWN) {
+            return isFaceFullyCovered(shape);
+        }
+
+        double top = Math.max(0.0D, Math.min(1.0D, (double) maxFluidHeight));
+        return isFaceRectangleCovered(shape, 0.0D, 1.0D, 0.0D, top);
     }
 
     public static boolean canOcclude(
