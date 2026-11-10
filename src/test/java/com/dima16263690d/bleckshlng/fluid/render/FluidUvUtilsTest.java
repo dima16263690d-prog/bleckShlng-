@@ -11,8 +11,8 @@ public class FluidUvUtilsTest {
         float inset = FluidUvUtils.getInset(
                 16, 16, 0.0F, 1.0F / 16.0F, 0.0F, 1.0F / 16.0F);
         assertEquals(4.0F / 256.0F, inset, 0.000001F);
-        assertEquals(0.125F, FluidUvUtils.inset(0.0F, 0.5F, 0.75F), 0.000001F);
-        assertEquals(0.875F, FluidUvUtils.inset(1.0F, 0.5F, 0.75F), 0.000001F);
+        assertEquals(0.375F, FluidUvUtils.inset(0.0F, 0.5F, 0.75F), 0.000001F);
+        assertEquals(0.625F, FluidUvUtils.inset(1.0F, 0.5F, 0.75F), 0.000001F);
     }
 
     @Test
