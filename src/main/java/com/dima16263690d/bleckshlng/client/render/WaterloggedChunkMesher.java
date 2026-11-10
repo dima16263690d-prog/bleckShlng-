@@ -91,10 +91,10 @@ public final class WaterloggedChunkMesher {
 
         float ownHeight = fluidHeight(access, pos, fluid.getKind());
         if (ownHeight <= 0.0F) {
+            // The sidecar may have been evicted from the client cache between
+            // chunk collection and tessellation. Fall back to the exact
+            // FluidState amount, never to a fabricated source height.
             ownHeight = fluid.getOwnHeight();
-        }
-        if (ownHeight <= 0.001F) {
-            ownHeight = 0.8888889F;
         }
 
         // LiquidBlockRenderer 1.18.2 uses the FluidState height unchanged.
