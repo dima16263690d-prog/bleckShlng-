@@ -25,9 +25,8 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 import com.dima16263690d.bleckshlng.fluid.core.FluidKind;
 import com.dima16263690d.bleckshlng.fluid.core.Fluids;
-import com.dima16263690d.bleckshlng.fluid.core.ModernFluidEngine;
-import com.dima16263690d.bleckshlng.fluid.core.FluidVector;
 import com.dima16263690d.bleckshlng.fluid.render.FluidOcclusionShapeAdapter;
+import com.dima16263690d.bleckshlng.fluid.render.FluidUvUtils;
 
 /**
  * Emits modern water/lava quads into the chunk BufferBuilder.
@@ -184,13 +183,11 @@ public final class WaterloggedChunkMesher {
 
         BlockPos abovePos = pos.up();
         IBlockState aboveState = access.getBlockState(abovePos);
-        World shapeWorld = access instanceof FluidViewAccess
-                ? ((FluidViewAccess) access).getWorld()
-                : (access instanceof World ? (World) access : Minecraft.getMinecraft().world);
+        // Face occlusion reads the same IBlockAccess snapshot as this chunk mesh.
         float minCornerHeight = Math.min(Math.min(hNW, hNE), Math.min(hSE, hSW));
         boolean sameFluidAbove = isSameFluid(access, abovePos, fluid.getKind());
         boolean topOccluded = FluidOcclusionShapeAdapter.isFaceOccludedByState(
-                access, shapeWorld, abovePos, aboveState,
+                access, null, abovePos, aboveState,
                 EnumFacing.UP, minCornerHeight);
         boolean renderTop = !sameFluidAbove && !topOccluded;
         if (renderTop) {
@@ -221,9 +218,9 @@ public final class WaterloggedChunkMesher {
         IBlockState belowState = access.getBlockState(belowPos);
         boolean sameFluidBelow = isSameFluid(access, belowPos, fluid.getKind());
         boolean bottomSelfOccluded = FluidOcclusionShapeAdapter.isFaceOccludedByState(
-                access, shapeWorld, pos, host, EnumFacing.UP, 1.0F);
+                access, null, pos, host, EnumFacing.UP, 1.0F);
         boolean bottomOccluded = FluidOcclusionShapeAdapter.isFaceOccludedByState(
-                access, shapeWorld, belowPos, belowState,
+                access, null, belowPos, belowState,
                 EnumFacing.DOWN, 0.8888889F);
 
         // LiquidBlockRenderer.shouldRenderFace(DOWN) checks the host's
@@ -300,9 +297,7 @@ public final class WaterloggedChunkMesher {
 
         BlockPos neighborPos = pos.offset(face);
         IBlockState neighborState = access.getBlockState(neighborPos);
-        World world = access instanceof FluidViewAccess
-                ? ((FluidViewAccess) access).getWorld()
-                : (access instanceof World ? (World) access : Minecraft.getMinecraft().world);
+        // Neighbor occlusion uses the same chunk snapshot.
 
         // Exact LiquidBlockRenderer.shouldRenderFace() checks:
         // 1) the host does not occlude its own opposite face;
@@ -500,24 +495,24 @@ public final class WaterloggedChunkMesher {
             uNE = sprite.getInterpolatedU(8.0F + (cos - sin) * 16.0F);
             vNE = sprite.getInterpolatedV(8.0F + (-cos - sin) * 16.0F);
 
-            float centerU = (uNW + uSW + uSE + uNE) * 0.25F;
-            float centerV = (vNW + vSW + vSE + vNE) * 0.25F;
-            // LiquidBlockRenderer uses the still sprite dimensions
-            // to calculate the UV inset, even when the flow sprite is active.
-            float spriteWidth = (float) stillSprite.getIconWidth()
-                    / Math.max(1.0E-6F, stillSprite.getMaxU() - stillSprite.getMinU());
-            float spriteHeight = (float) stillSprite.getIconHeight()
-                    / Math.max(1.0E-6F, stillSprite.getMaxV() - stillSprite.getMinV());
-            float shrink = 4.0F / Math.max(spriteWidth, spriteHeight);
-            uNW = centerU + (uNW - centerU) * (1.0F - shrink);
-            uSW = centerU + (uSW - centerU) * (1.0F - shrink);
-            uSE = centerU + (uSE - centerU) * (1.0F - shrink);
-            uNE = centerU + (uNE - centerU) * (1.0F - shrink);
-            vNW = centerV + (vNW - centerV) * (1.0F - shrink);
-            vSW = centerV + (vSW - centerV) * (1.0F - shrink);
-            vSE = centerV + (vSE - centerV) * (1.0F - shrink);
-            vNE = centerV + (vNE - centerV) * (1.0F - shrink);
         }
+
+        // LiquidBlockRenderer applies the center inset to still and flowing
+        // top textures alike. The inset amount is calculated from the still sprite.
+        float centerU = (uNW + uSW + uSE + uNE) * 0.25F;
+        float centerV = (vNW + vSW + vSE + vNE) * 0.25F;
+        float inset = FluidUvUtils.getInset(
+                stillSprite.getIconWidth(), stillSprite.getIconHeight(),
+                stillSprite.getMinU(), stillSprite.getMaxU(),
+                stillSprite.getMinV(), stillSprite.getMaxV());
+        uNW = FluidUvUtils.inset(uNW, centerU, inset);
+        uSW = FluidUvUtils.inset(uSW, centerU, inset);
+        uSE = FluidUvUtils.inset(uSE, centerU, inset);
+        uNE = FluidUvUtils.inset(uNE, centerU, inset);
+        vNW = FluidUvUtils.inset(vNW, centerV, inset);
+        vSW = FluidUvUtils.inset(vSW, centerV, inset);
+        vSE = FluidUvUtils.inset(vSE, centerV, inset);
+        vNE = FluidUvUtils.inset(vNE, centerV, inset);
 
         if (!reverseWinding) {
             vert(buffer, x, y + hNW, z, uNW, vNW, r, g, b, a, sky, block);
@@ -554,16 +549,7 @@ public final class WaterloggedChunkMesher {
 
     private static Vec3d getFlowVector(IBlockAccess access, BlockPos pos,
                                        FluidState current) {
-        // Use the same FlowingFluid#getFlow implementation as simulation
-        // and entity acceleration. Chunk rebuilds still receive FluidViewAccess
-        // so waterlogged FluidState remains separate from the host BlockState.
-        World world = access instanceof FluidViewAccess
-                ? ((FluidViewAccess) access).getWorld()
-                : (access instanceof World ? (World) access : null);
-        if (world != null && world.isBlockLoaded(pos)) {
-            FluidVector modern = ModernFluidEngine.getFlow(world, pos);
-            return new Vec3d(modern.getX(), modern.getY(), modern.getZ());
-        }
+        // Flow is recalculated from the same chunk snapshot as geometry and lighting.
 
         double x = 0.0D;
         double z = 0.0D;
