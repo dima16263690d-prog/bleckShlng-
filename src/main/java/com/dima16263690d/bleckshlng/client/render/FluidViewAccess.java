@@ -14,7 +14,6 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 import com.dima16263690d.bleckshlng.fluid.network.ClientFluidStateCache;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
-import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 
 /**
  * Read-only IBlockAccess facade. Host blocks remain visible through
@@ -81,34 +80,6 @@ public final class FluidViewAccess implements IBlockAccess {
         FluidStateBridge above = getFluidStateAt(pos.up());
         boolean sameFluidAbove = above != null && fluid.isSameKind(above);
         return fluid.getHeight(sameFluidAbove);
-    }
-
-    /**
-     * Clips one already-calculated LiquidBlockRenderer corner height against
-     * the host block's collision geometry. The captured chunk state must
-     * still match the live world state before querying collision boxes.
-     */
-    public float clipFluidSurfaceHeight(BlockPos pos,
-                                        double localX, double localZ,
-                                        float nominalHeight) {
-        if (pos == null || nominalHeight <= 0.0F) {
-            return 0.0F;
-        }
-        if (world == null || !world.isBlockLoaded(pos)) {
-            return nominalHeight;
-        }
-
-        IBlockState snapshotState = delegate.getBlockState(pos);
-        IBlockState liveState = world.getBlockState(pos);
-        if (snapshotState == null || !snapshotState.equals(liveState)) {
-            return nominalHeight;
-        }
-
-        float clippedHeight = FluidShapeCalculator.getFluidColumnHeight(
-                world, pos, snapshotState,
-                pos.getX() + localX, pos.getZ() + localZ,
-                nominalHeight);
-        return Math.max(0.0F, clippedHeight);
     }
 
     private FluidStateBridge getFluidStateAt(BlockPos pos) {
