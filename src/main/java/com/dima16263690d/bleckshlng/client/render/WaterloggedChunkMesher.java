@@ -28,7 +28,6 @@ import com.dima16263690d.bleckshlng.fluid.core.Fluids;
 import com.dima16263690d.bleckshlng.fluid.core.ModernFluidEngine;
 import com.dima16263690d.bleckshlng.fluid.core.FluidVector;
 import com.dima16263690d.bleckshlng.fluid.render.FluidOcclusionShapeAdapter;
-import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
 
 /**
@@ -131,7 +130,8 @@ public final class WaterloggedChunkMesher {
         // vanilla corner averages, then clip only those four final host
         // columns against the host collision geometry. Never clip neighbours
         // before averaging, or an isolated source above a slab collapses.
-        boolean geometryAwareHost = access instanceof FluidViewAccess
+        boolean geometryAwareHost = fluid.getKind() == FluidKind.WATER
+                && access instanceof FluidViewAccess
                 && WaterloggedBlockRegistry.canWaterlog(host.getBlock());
         if (geometryAwareHost) {
             final double epsilon = 1.0E-4D;
