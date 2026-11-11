@@ -1,6 +1,8 @@
 package com.dima16263690d.bleckshlng.fluid.geometry;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.TreeSet;
 import net.minecraft.block.state.IBlockState;
@@ -380,6 +382,89 @@ public final class FluidShapeCalculator {
             }
         }
         return false;
+    }
+
+    /**
+     * Computes the available vertical fluid interval at an X/Z point.
+     * Used by geometry-aware volume queries (entity contact and bucket
+     * interaction), not by LiquidBlockRenderer surface-height averaging.
+     */
+    public static float getFluidColumnHeight(World world, BlockPos pos,
+                                             IBlockState state, double worldX,
+                                             double worldZ, float nominalHeight) {
+        if (world == null || pos == null || state == null
+                || nominalHeight <= 0.0F || !world.isBlockLoaded(pos)) {
+            return 0.0F;
+        }
+        return calculateFluidColumnHeight(
+                getCollisionBoxes(world, pos, state), pos,
+                worldX, worldZ, nominalHeight);
+    }
+
+    static float calculateFluidColumnHeight(List<AxisAlignedBB> boxes,
+                                            BlockPos pos,
+                                            double worldX, double worldZ,
+                                            float nominalHeight) {
+        if (boxes == null || pos == null || nominalHeight <= 0.0F) {
+            return 0.0F;
+        }
+
+        double height = Math.min(1.0D, (double) nominalHeight);
+        List<double[]> intervals = new ArrayList<double[]>();
+        for (AxisAlignedBB box : boxes) {
+            if (box == null
+                    || worldX <= box.minX + EPSILON
+                    || worldX >= box.maxX - EPSILON
+                    || worldZ <= box.minZ + EPSILON
+                    || worldZ >= box.maxZ - EPSILON) {
+                continue;
+            }
+
+            double minY = Math.max(0.0D, box.minY - pos.getY());
+            double maxY = Math.min(1.0D, box.maxY - pos.getY());
+            if (maxY - minY > EPSILON) {
+                intervals.add(new double[] {minY, maxY});
+            }
+        }
+
+        if (intervals.isEmpty()) {
+            return (float) height;
+        }
+
+        Collections.sort(intervals, new Comparator<double[]>() {
+            @Override
+            public int compare(double[] first, double[] second) {
+                return Double.compare(first[0], second[0]);
+            }
+        });
+
+        List<double[]> merged = new ArrayList<double[]>();
+        for (double[] interval : intervals) {
+            if (merged.isEmpty()) {
+                merged.add(new double[] {interval[0], interval[1]});
+                continue;
+            }
+
+            double[] previous = merged.get(merged.size() - 1);
+            if (interval[0] <= previous[1] + EPSILON) {
+                previous[1] = Math.max(previous[1], interval[1]);
+            } else {
+                merged.add(new double[] {interval[0], interval[1]});
+            }
+        }
+
+        for (double[] interval : merged) {
+            double minY = interval[0];
+            double maxY = interval[1];
+            if (minY <= EPSILON && maxY >= height - EPSILON) {
+                return 0.0F;
+            }
+            if (minY > EPSILON && minY < height
+                    && maxY >= 1.0D - EPSILON) {
+                height = Math.min(height, minY);
+            }
+        }
+        return (float) Math.max(0.0D, height);
     }
 
     public static float getMaxFluidColumnHeight(World world, BlockPos pos,
