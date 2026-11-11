@@ -105,10 +105,9 @@ public final class WaterloggedChunkMesher {
             return;
         }
 
-        // Exact LiquidBlockRenderer rule: if this fluid column reaches the
-        // cell ceiling (same fluid above), all four corners are 1.0. Averaging
-        // them with lower neighbours creates the false pyramid/diamond tops
-        // visible on falling water and lava.
+        // Match LiquidBlockRenderer 1.18.2 exactly while averaging the
+        // surrounding FluidState heights. Geometry must not be applied to
+        // neighbouring samples: an empty neighbour is a valid zero sample.
         float hNW;
         float hNE;
         float hSE;
@@ -659,6 +658,11 @@ public final class WaterloggedChunkMesher {
         return Math.min(255, Math.max(0, Math.round((float) channel * factor)));
     }
 
+    /**
+     * Direct port of LiquidBlockRenderer#calculateAverageHeight from 1.18.2.
+     * The four input heights are FluidState heights, not collision-clipped
+     * per-cell samples. Host geometry is applied after all four corners exist.
+     */
     private static float sampleCorner(IBlockAccess access, BlockPos pos,
                                       float own, int ox, int oz,
                                       FluidKind kind) {
@@ -670,36 +674,16 @@ public final class WaterloggedChunkMesher {
         float hSouth = fluidHeight(access, south, kind);
         float hEast = fluidHeight(access, east, kind);
         float hWest = fluidHeight(access, west, kind);
-        BlockPos diagonal = pos.add(ox, 0, oz);
-        float hDiagonal = fluidHeight(access, diagonal, kind);
         float first = ox < 0 ? hWest : hEast;
         float second = oz < 0 ? hNorth : hSouth;
-
-        if (first >= 1.0F || second >= 1.0F) {
-            return 1.0F;
-        }
-
-        float[] weighted = new float[2];
+        float hDiagonal = -1.0F;
         if (first > 0.0F || second > 0.0F) {
-            if (hDiagonal >= 1.0F) {
-                return 1.0F;
-            }
-            addWeightedHeight(weighted, hDiagonal);
+            BlockPos diagonal = pos.add(ox, 0, oz);
+            hDiagonal = fluidHeight(access, diagonal, kind);
         }
-        addWeightedHeight(weighted, own);
-        addWeightedHeight(weighted, first);
-        addWeightedHeight(weighted, second);
-        return weighted[1] == 0.0F ? own : weighted[0] / weighted[1];
-    }
 
-    private static void addWeightedHeight(float[] weighted, float height) {
-        if (height >= 0.8F) {
-            weighted[0] += height * 10.0F;
-            weighted[1] += 10.0F;
-        } else if (height >= 0.0F) {
-            weighted[0] += height;
-            weighted[1] += 1.0F;
-        }
+        return FluidSurfaceHeightCalculator.calculateAverageHeight(
+                own, first, second, hDiagonal);
     }
 
     private static float fluidHeight(IBlockAccess access, BlockPos pos,
@@ -707,9 +691,10 @@ public final class WaterloggedChunkMesher {
         IBlockState state = access.getBlockState(pos);
         FluidState fluid = getFluidState(access, pos, state);
         if (fluid != null && fluid.getKind() == kind) {
-            // FluidViewAccess applies host-specific clipping (for example,
-            // water stored below a top slab). Do not return 1.0 here before
-            // that geometry-aware height has been resolved.
+            // FluidViewAccess reads the sidecar FluidState and its matching
+            // same-fluid-above state. Like the 1.18.2 renderer, surface height
+            // is derived from FluidState; block geometry is handled by face
+            // occlusion rather than by clipping this value.
             if (access instanceof FluidViewAccess) {
                 return ((FluidViewAccess) access).getFluidSurfaceHeight(pos);
             }
