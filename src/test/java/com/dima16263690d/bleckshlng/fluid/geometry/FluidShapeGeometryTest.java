@@ -96,13 +96,27 @@ public class FluidShapeGeometryTest {
 
     @Test
     public void touchingStairCollisionBoxesMergeIntoAFullSolidColumn() {
+        // A vanilla stair column consists of a bottom half slab and an
+        // upper step box over only half the X/Z footprint.
         List<AxisAlignedBB> stairColumn = java.util.Arrays.asList(
                 new AxisAlignedBB(0.0D, 0.0D, 0.0D, 1.0D, 0.5D, 1.0D),
-                new AxisAlignedBB(0.0D, 0.5D, 0.0D, 1.0D, 1.0D, 1.0D));
+                new AxisAlignedBB(0.0D, 0.5D, 0.0D, 0.5D, 1.0D, 1.0D));
 
         assertEquals(0.0F,
                 FluidShapeCalculator.calculateFluidColumnHeight(
-                        stairColumn, ORIGIN, 0.5D, 0.5D, 8.0F / 9.0F),
+                        stairColumn, ORIGIN, 0.25D, 0.5D, 8.0F / 9.0F),
+                1.0E-5F);
+    }
+
+    @Test
+    public void openHalfOfStairKeepsTheFluidColumnAboveItsBase() {
+        List<AxisAlignedBB> stairColumn = java.util.Arrays.asList(
+                new AxisAlignedBB(0.0D, 0.0D, 0.0D, 1.0D, 0.5D, 1.0D),
+                new AxisAlignedBB(0.0D, 0.5D, 0.0D, 0.5D, 1.0D, 1.0D));
+
+        assertEquals(8.0F / 9.0F,
+                FluidShapeCalculator.calculateFluidColumnHeight(
+                        stairColumn, ORIGIN, 0.75D, 0.5D, 8.0F / 9.0F),
                 1.0E-5F);
     }
 
