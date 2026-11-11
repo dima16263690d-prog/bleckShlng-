@@ -674,10 +674,13 @@ public final class WaterloggedChunkMesher {
         float hSouth = fluidHeight(access, south, kind);
         float hEast = fluidHeight(access, east, kind);
         float hWest = fluidHeight(access, west, kind);
-        BlockPos diagonal = pos.add(ox, 0, oz);
-        float hDiagonal = fluidHeight(access, diagonal, kind);
         float first = ox < 0 ? hWest : hEast;
         float second = oz < 0 ? hNorth : hSouth;
+        float hDiagonal = -1.0F;
+        if (first > 0.0F || second > 0.0F) {
+            BlockPos diagonal = pos.add(ox, 0, oz);
+            hDiagonal = fluidHeight(access, diagonal, kind);
+        }
 
         return FluidSurfaceHeightCalculator.calculateAverageHeight(
                 own, first, second, hDiagonal);
