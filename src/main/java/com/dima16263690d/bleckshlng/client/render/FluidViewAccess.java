@@ -14,6 +14,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 import com.dima16263690d.bleckshlng.fluid.network.ClientFluidStateCache;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
+import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
 
 /**
  * Read-only IBlockAccess facade. Host blocks remain visible through
@@ -80,6 +81,44 @@ public final class FluidViewAccess implements IBlockAccess {
         FluidStateBridge above = getFluidStateAt(pos.up());
         boolean sameFluidAbove = above != null && fluid.isSameKind(above);
         return fluid.getHeight(sameFluidAbove);
+    }
+
+    /**
+     * Geometry-aware height for one horizontal column of a fluid cell.
+     * localX/localZ are coordinates inside [0, 1]. The captured chunk state
+     * must still match the live world state before collision geometry is
+     * queried, so a chunk rebuild never combines two different block states.
+     */
+    public float getFluidSurfaceHeight(BlockPos pos,
+                                       double localX, double localZ) {
+        if (pos == null) {
+            return 0.0F;
+        }
+
+        FluidStateBridge fluid = getFluidStateAt(pos);
+        if (fluid == null) {
+            return 0.0F;
+        }
+
+        FluidStateBridge above = getFluidStateAt(pos.up());
+        boolean sameFluidAbove = above != null && fluid.isSameKind(above);
+        float nominalHeight = fluid.getHeight(sameFluidAbove);
+
+        if (world == null || !world.isBlockLoaded(pos)) {
+            return nominalHeight;
+        }
+
+        IBlockState snapshotState = delegate.getBlockState(pos);
+        IBlockState liveState = world.getBlockState(pos);
+        if (snapshotState == null || !snapshotState.equals(liveState)) {
+            return nominalHeight;
+        }
+
+        float clippedHeight = FluidShapeCalculator.getFluidColumnHeight(
+                world, pos, snapshotState,
+                pos.getX() + localX, pos.getZ() + localZ,
+                nominalHeight);
+        return Math.max(0.0F, clippedHeight);
     }
 
     private FluidStateBridge getFluidStateAt(BlockPos pos) {
