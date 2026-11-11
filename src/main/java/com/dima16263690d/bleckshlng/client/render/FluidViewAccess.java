@@ -84,26 +84,16 @@ public final class FluidViewAccess implements IBlockAccess {
     }
 
     /**
-     * Geometry-aware height for one horizontal column of a fluid cell.
-     * localX/localZ are coordinates inside [0, 1]. The captured chunk state
-     * must still match the live world state before collision geometry is
-     * queried, so a chunk rebuild never combines two different block states.
+     * Clips one already-calculated LiquidBlockRenderer corner height against
+     * the host block's collision geometry. The captured chunk state must
+     * still match the live world state before querying collision boxes.
      */
-    public float getFluidSurfaceHeight(BlockPos pos,
-                                       double localX, double localZ) {
-        if (pos == null) {
+    public float clipFluidSurfaceHeight(BlockPos pos,
+                                        double localX, double localZ,
+                                        float nominalHeight) {
+        if (pos == null || nominalHeight <= 0.0F) {
             return 0.0F;
         }
-
-        FluidStateBridge fluid = getFluidStateAt(pos);
-        if (fluid == null) {
-            return 0.0F;
-        }
-
-        FluidStateBridge above = getFluidStateAt(pos.up());
-        boolean sameFluidAbove = above != null && fluid.isSameKind(above);
-        float nominalHeight = fluid.getHeight(sameFluidAbove);
-
         if (world == null || !world.isBlockLoaded(pos)) {
             return nominalHeight;
         }
