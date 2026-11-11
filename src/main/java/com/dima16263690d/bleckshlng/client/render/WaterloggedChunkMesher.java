@@ -28,7 +28,6 @@ import com.dima16263690d.bleckshlng.fluid.core.Fluids;
 import com.dima16263690d.bleckshlng.fluid.core.ModernFluidEngine;
 import com.dima16263690d.bleckshlng.fluid.core.FluidVector;
 import com.dima16263690d.bleckshlng.fluid.render.FluidOcclusionShapeAdapter;
-import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
 
 /**
  * Emits modern water/lava quads into the chunk BufferBuilder.
@@ -125,22 +124,6 @@ public final class WaterloggedChunkMesher {
             hSW = sampleCorner(access, pos, ownHeight, -1, 1, fluid.getKind());
         }
 
-        // A waterlogged host is the one 1.12.2-specific case: the sidecar
-        // fluid shares its cell with a real block shape. First calculate the
-        // vanilla corner averages, then clip only those four final host
-        // columns against the host collision geometry. Never clip neighbours
-        // before averaging, or an isolated source above a slab collapses.
-        boolean geometryAwareHost = fluid.getKind() == FluidKind.WATER
-                && access instanceof FluidViewAccess
-                && WaterloggedBlockRegistry.canWaterlog(host.getBlock());
-        if (geometryAwareHost) {
-            final double epsilon = 1.0E-4D;
-            hNW = clipHostedCorner(access, pos, epsilon, epsilon, hNW);
-            hNE = clipHostedCorner(access, pos, 1.0D - epsilon, epsilon, hNE);
-            hSE = clipHostedCorner(access, pos,
-                    1.0D - epsilon, 1.0D - epsilon, hSE);
-            hSW = clipHostedCorner(access, pos, epsilon, 1.0D - epsilon, hSW);
-        }
         Minecraft mc = Minecraft.getMinecraft();
         boolean lava = fluid.getKind() == FluidKind.LAVA;
         IBlockState fluidBlockState = (lava ? Blocks.LAVA : Blocks.WATER).getDefaultState();
@@ -696,45 +679,8 @@ public final class WaterloggedChunkMesher {
         float first = ox < 0 ? hWest : hEast;
         float second = oz < 0 ? hNorth : hSouth;
 
-        if (first >= 1.0F || second >= 1.0F) {
-            return 1.0F;
-        }
-
-        float[] weighted = new float[2];
-        if (first > 0.0F || second > 0.0F) {
-            if (hDiagonal >= 1.0F) {
-                return 1.0F;
-            }
-            addWeightedHeight(weighted, hDiagonal);
-        }
-        addWeightedHeight(weighted, own);
-        addWeightedHeight(weighted, first);
-        addWeightedHeight(weighted, second);
-        return weighted[1] == 0.0F ? own : weighted[0] / weighted[1];
-    }
-
-    /**
-     * Clips one already-averaged host surface corner against the waterlogged
-     * block's actual collision geometry. Ordinary water/lava is untouched.
-     */
-    private static float clipHostedCorner(IBlockAccess access, BlockPos pos,
-                                          double localX, double localZ,
-                                          float nominalHeight) {
-        if (nominalHeight <= 0.0F) {
-            return 0.0F;
-        }
-        FluidViewAccess view = (FluidViewAccess) access;
-        return view.clipFluidSurfaceHeight(pos, localX, localZ, nominalHeight);
-    }
-
-    private static void addWeightedHeight(float[] weighted, float height) {
-        if (height >= 0.8F) {
-            weighted[0] += height * 10.0F;
-            weighted[1] += 10.0F;
-        } else if (height >= 0.0F) {
-            weighted[0] += height;
-            weighted[1] += 1.0F;
-        }
+        return FluidSurfaceHeightCalculator.calculateAverageHeight(
+                own, first, second, hDiagonal);
     }
 
     private static float fluidHeight(IBlockAccess access, BlockPos pos,
@@ -742,9 +688,10 @@ public final class WaterloggedChunkMesher {
         IBlockState state = access.getBlockState(pos);
         FluidState fluid = getFluidState(access, pos, state);
         if (fluid != null && fluid.getKind() == kind) {
-            // FluidViewAccess applies host-specific clipping (for example,
-            // water stored below a top slab). Do not return 1.0 here before
-            // that geometry-aware height has been resolved.
+            // FluidViewAccess reads the sidecar FluidState and its matching
+            // same-fluid-above state. Like the 1.18.2 renderer, surface height
+            // is derived from FluidState; block geometry is handled by face
+            // occlusion rather than by clipping this value.
             if (access instanceof FluidViewAccess) {
                 return ((FluidViewAccess) access).getFluidSurfaceHeight(pos);
             }
