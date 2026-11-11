@@ -28,6 +28,8 @@ import com.dima16263690d.bleckshlng.fluid.core.Fluids;
 import com.dima16263690d.bleckshlng.fluid.core.ModernFluidEngine;
 import com.dima16263690d.bleckshlng.fluid.core.FluidVector;
 import com.dima16263690d.bleckshlng.fluid.render.FluidOcclusionShapeAdapter;
+import com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator;
+import com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry;
 
 /**
  * Emits modern water/lava quads into the chunk BufferBuilder.
@@ -105,24 +107,26 @@ public final class WaterloggedChunkMesher {
             return;
         }
 
-        // Exact LiquidBlockRenderer rule: if this fluid column reaches the
-        // cell ceiling (same fluid above), all four corners are 1.0. Averaging
-        // them with lower neighbours creates the false pyramid/diamond tops
-        // visible on falling water and lava.
+        // Vanilla 1.18.2 can use a single height for ordinary liquid cells.
+        // A waterlogged stair/slab is different: the host's collision shape
+        // occupies part of the cell, so its four surface corners must be
+        // sampled against the remaining fluid volume independently.
+        boolean geometryAwareHost = access instanceof FluidViewAccess
+                && WaterloggedBlockRegistry.canWaterlog(host.getBlock());
         float hNW;
         float hNE;
         float hSE;
         float hSW;
-        if (ownHeight >= 1.0F) {
+        if (ownHeight >= 1.0F && !geometryAwareHost) {
             hNW = 1.0F;
             hNE = 1.0F;
             hSE = 1.0F;
             hSW = 1.0F;
         } else {
-            hNW = sampleCorner(access, pos, ownHeight, -1, -1, fluid.getKind());
-            hNE = sampleCorner(access, pos, ownHeight, 1, -1, fluid.getKind());
-            hSE = sampleCorner(access, pos, ownHeight, 1, 1, fluid.getKind());
-            hSW = sampleCorner(access, pos, ownHeight, -1, 1, fluid.getKind());
+            hNW = sampleCorner(access, pos, -1, -1, fluid.getKind());
+            hNE = sampleCorner(access, pos, 1, -1, fluid.getKind());
+            hSE = sampleCorner(access, pos, 1, 1, fluid.getKind());
+            hSW = sampleCorner(access, pos, -1, 1, fluid.getKind());
         }
 
         Minecraft mc = Minecraft.getMinecraft();
@@ -660,20 +664,27 @@ public final class WaterloggedChunkMesher {
     }
 
     private static float sampleCorner(IBlockAccess access, BlockPos pos,
-                                      float own, int ox, int oz,
-                                      FluidKind kind) {
-        BlockPos north = pos.add(0, 0, -1);
-        BlockPos south = pos.add(0, 0, 1);
-        BlockPos east = pos.add(1, 0, 0);
-        BlockPos west = pos.add(-1, 0, 0);
-        float hNorth = fluidHeight(access, north, kind);
-        float hSouth = fluidHeight(access, south, kind);
-        float hEast = fluidHeight(access, east, kind);
-        float hWest = fluidHeight(access, west, kind);
+                                      int ox, int oz, FluidKind kind) {
+        // Sample just inside each cell edge. The epsilon is larger than the
+        // collision-shape comparison tolerance, avoiding an edge being
+        // misclassified as both inside and outside a stair/slab box.
+        final double epsilon = 1.0E-4D;
+        double ownX = ox < 0 ? epsilon : 1.0D - epsilon;
+        double ownZ = oz < 0 ? epsilon : 1.0D - epsilon;
+
+        float own = fluidHeightAt(access, pos, ownX, ownZ, kind);
+
+        BlockPos firstPos = pos.add(ox, 0, 0);
+        double firstX = ox < 0 ? 1.0D - epsilon : epsilon;
+        float first = fluidHeightAt(access, firstPos, firstX, ownZ, kind);
+
+        BlockPos secondPos = pos.add(0, 0, oz);
+        double secondZ = oz < 0 ? 1.0D - epsilon : epsilon;
+        float second = fluidHeightAt(access, secondPos, ownX, secondZ, kind);
+
         BlockPos diagonal = pos.add(ox, 0, oz);
-        float hDiagonal = fluidHeight(access, diagonal, kind);
-        float first = ox < 0 ? hWest : hEast;
-        float second = oz < 0 ? hNorth : hSouth;
+        float diagonalHeight = fluidHeightAt(
+                access, diagonal, firstX, secondZ, kind);
 
         if (first >= 1.0F || second >= 1.0F) {
             return 1.0F;
@@ -681,15 +692,57 @@ public final class WaterloggedChunkMesher {
 
         float[] weighted = new float[2];
         if (first > 0.0F || second > 0.0F) {
-            if (hDiagonal >= 1.0F) {
+            if (diagonalHeight >= 1.0F) {
                 return 1.0F;
             }
-            addWeightedHeight(weighted, hDiagonal);
+            addWeightedHeight(weighted, diagonalHeight);
         }
         addWeightedHeight(weighted, own);
         addWeightedHeight(weighted, first);
         addWeightedHeight(weighted, second);
-        return weighted[1] == 0.0F ? own : weighted[0] / weighted[1];
+        return weighted[1] == 0.0F ? Math.max(0.0F, own)
+                : weighted[0] / weighted[1];
+    }
+
+    /**
+     * Returns the fluid surface height at one X/Z column within a cell.
+     * Waterlogged hosts are clipped against their real collision geometry;
+     * ordinary liquid blocks retain the legacy FluidState height.
+     */
+    private static float fluidHeightAt(IBlockAccess access, BlockPos pos,
+                                       double localX, double localZ,
+                                       FluidKind kind) {
+        IBlockState state = access.getBlockState(pos);
+        FluidState fluid = getFluidState(access, pos, state);
+        if (fluid == null || fluid.getKind() != kind) {
+            return state.getMaterial().isSolid() ? -1.0F : 0.0F;
+        }
+
+        float nominalHeight = isSameFluid(access, pos.up(), kind)
+                ? 1.0F : fluid.getOwnHeight();
+        float columnHeight = nominalHeight;
+
+        if (access instanceof FluidViewAccess) {
+            columnHeight = ((FluidViewAccess) access)
+                    .getFluidSurfaceHeight(pos, localX, localZ);
+        } else if (access instanceof World) {
+            World world = (World) access;
+            if (world.isBlockLoaded(pos)) {
+                columnHeight = FluidShapeCalculator.getFluidColumnHeight(
+                        world, pos, state,
+                        pos.getX() + localX, pos.getZ() + localZ,
+                        nominalHeight);
+            }
+        }
+
+        // A solid collision column that occupies the complete fluid height
+        // contributes no surface sample. Treat it like the solid material
+        // case in LiquidBlockRenderer#getHeight rather than averaging it as
+        // an empty zero-height fluid column.
+        if (columnHeight <= 1.0E-5F && state.getMaterial().isSolid()) {
+            return -1.0F;
+        }
+        return columnHeight;
     }
 
     private static void addWeightedHeight(float[] weighted, float height) {
