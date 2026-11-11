@@ -8,6 +8,7 @@ on:
       - fix/1.18-fluid-behavior-audit
       - block
       - block2
+      - fix/waterlogged-fluid-shape-render
   pull_request:
     branches:
       - main
