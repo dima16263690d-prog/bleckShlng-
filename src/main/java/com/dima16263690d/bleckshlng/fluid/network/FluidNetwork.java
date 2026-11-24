@@ -40,7 +40,10 @@ public final class FluidNetwork {
 
     private static void send(World world, BlockPos pos,
                              FluidStateBridge state, boolean removed) {
-        if (channel == null || world == null || world.isRemote || pos == null) {
+        if (channel == null || world == null || world.isRemote || pos == null
+                || (!removed && state != null
+                && state.getKind() == FluidStateBridge.FluidKind.WATER
+                && world.provider.doesWaterVaporize())) {
             return;
         }
 
@@ -53,7 +56,8 @@ public final class FluidNetwork {
     }
 
     public static void syncChunkToPlayer(World world, Chunk chunk, EntityPlayerMP player) {
-        if (world == null || chunk == null || player == null || world.isRemote || channel == null) {
+        if (world == null || chunk == null || player == null || world.isRemote
+                || channel == null || world.provider.doesWaterVaporize()) {
             return;
         }
         ChunkFluidData data = ChunkFluidData.get(world);
