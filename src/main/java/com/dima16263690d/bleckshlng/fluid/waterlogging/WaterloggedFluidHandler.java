@@ -17,6 +17,9 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
  * The target block itself is never replaced and its metadata stays unchanged.
  */
 public final class WaterloggedFluidHandler {
+    /** First scheduled update for a newly created waterlogged source. */
+    public static final int INITIAL_TICK_DELAY = 5;
+
     private WaterloggedFluidHandler() {
     }
 
@@ -24,6 +27,7 @@ public final class WaterloggedFluidHandler {
                                       IBlockState blockState, int legacyLevel) {
         if (world == null || world.isRemote || pos == null || blockState == null
                 || !world.isBlockLoaded(pos)
+                || world.provider.doesWaterVaporize()
                 || blockState.getMaterial() == Material.WATER
                 || !WaterloggedBlockRegistry.canWaterlog(blockState.getBlock())) {
             return false;
@@ -50,7 +54,7 @@ public final class WaterloggedFluidHandler {
             // Placement only records the source and schedules its first
             // fluid tick. Immediate spreading here duplicated the scheduled
             // update and caused waterlogged blocks to fan out too early.
-            FluidTickScheduler.schedule(world, pos, 5);
+            FluidTickScheduler.schedule(world, pos, INITIAL_TICK_DELAY);
             return true;
         }
 
@@ -66,7 +70,7 @@ public final class WaterloggedFluidHandler {
 
         FluidShapeCalculator.invalidate(world, pos);
         FluidNetwork.syncState(world, pos, stored);
-        FluidTickScheduler.schedule(world, pos, 1);
+        FluidTickScheduler.schedule(world, pos, INITIAL_TICK_DELAY);
         world.notifyNeighborsOfStateChange(pos, blockState.getBlock(), false);
         return true;
     }
@@ -110,6 +114,7 @@ public final class WaterloggedFluidHandler {
 
         FluidShapeCalculator.invalidate(world, pos);
         FluidNetwork.removeState(world, pos);
+        FluidTickScheduler.cancel(world, pos);
         world.notifyNeighborsOfStateChange(pos, state.getBlock(), false);
         return true;
     }

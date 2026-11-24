@@ -111,6 +111,14 @@ public final class FluidBucketHandler {
 
         IBlockState clickedState = world.getBlockState(pos);
 
+        // Leave Nether water-bucket behavior to vanilla ItemBucket. It
+        // vaporizes water with the vanilla sound/particles instead of storing
+        // it inside a waterloggable host or passing it to a Forge fluid handler.
+        if (held.getItem() == Items.WATER_BUCKET
+                && world.provider.doesWaterVaporize()) {
+            return;
+        }
+
         if (world.isRemote) {
             handleClientPredict(event, held, world, pos, clickedState);
             return;

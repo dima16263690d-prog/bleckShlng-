@@ -70,6 +70,36 @@ public class ChunkFluidDataTest {
     }
 
     @Test
+    public void scheduledFluidTicksSurviveWorldSavedDataNbtRoundTrip() {
+        ChunkFluidData saved = new ChunkFluidData("bleckshlng_test");
+        BlockPos pos = new BlockPos(31, 72, -17);
+
+        assertTrue(saved.scheduleFluidTick(pos, 145L));
+
+        ChunkFluidData loaded = new ChunkFluidData("bleckshlng_test");
+        loaded.readFromNBT(saved.writeToNBT(new NBTTagCompound()));
+
+        assertEquals(Long.valueOf(145L), loaded.getScheduledFluidTick(pos));
+        assertTrue(loaded.getDueScheduledFluidTicks(144L).isEmpty());
+        assertEquals(pos, loaded.getDueScheduledFluidTicks(145L).get(0));
+    }
+
+    @Test
+    public void schedulerKeepsEarliestDueTimeAndCanCancel() {
+        ChunkFluidData data = new ChunkFluidData("bleckshlng_test");
+        BlockPos pos = new BlockPos(-4, 64, 9);
+
+        assertTrue(data.scheduleFluidTick(pos, 200L));
+        org.junit.Assert.assertFalse(data.scheduleFluidTick(pos, 230L));
+        assertEquals(Long.valueOf(200L), data.getScheduledFluidTick(pos));
+
+        assertTrue(data.scheduleFluidTick(pos, 150L));
+        assertEquals(Long.valueOf(150L), data.getScheduledFluidTick(pos));
+        assertTrue(data.removeScheduledFluidTick(pos));
+        assertNull(data.getScheduledFluidTick(pos));
+    }
+
+    @Test
     public void legacyNbtWithoutSourceFlagKeepsFullLevelAsSource() {
         NBTTagCompound root = new NBTTagCompound();
         net.minecraft.nbt.NBTTagList entries = new net.minecraft.nbt.NBTTagList();

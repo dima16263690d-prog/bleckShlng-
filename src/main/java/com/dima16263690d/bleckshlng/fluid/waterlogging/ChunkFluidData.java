@@ -30,6 +30,9 @@ public class ChunkFluidData extends WorldSavedData {
             new HashMap<Long, FluidStateBridge>();
     private final Map<Long, Set<Long>> chunkIndex =
             new HashMap<Long, Set<Long>>();
+    /** Due world times for native-fluid and waterlogged-fluid updates. */
+    private final Map<Long, Long> scheduledFluidTicks =
+            new HashMap<Long, Long>();
 
     public ChunkFluidData() {
         super(DATA_NAME);
@@ -39,27 +42,99 @@ public class ChunkFluidData extends WorldSavedData {
         super(name);
     }
 
-    public static ChunkFluidData get(World world) {
+    public static ChunkFluidData getExisting(World world) {
         if (world == null || world.isRemote) {
             return null;
+        }
+        MapStorage storage = world.getPerWorldStorage();
+        if (storage == null) {
+            return null;
+        }
+        return (ChunkFluidData) storage.getOrLoadData(
+                ChunkFluidData.class, DATA_NAME);
+    }
+
+    public static ChunkFluidData get(World world) {
+        ChunkFluidData data = getExisting(world);
+        if (data != null || world == null || world.isRemote) {
+            return data;
         }
 
         MapStorage storage = world.getPerWorldStorage();
         if (storage == null) {
             return null;
         }
-
-        ChunkFluidData data = (ChunkFluidData) storage.getOrLoadData(
-                ChunkFluidData.class, DATA_NAME);
-        if (data == null) {
-            data = new ChunkFluidData();
-            storage.setData(DATA_NAME, data);
-        }
+        data = new ChunkFluidData();
+        storage.setData(DATA_NAME, data);
         return data;
     }
 
     public FluidStateBridge getWater(BlockPos pos) {
         return pos == null ? null : waterStates.get(Long.valueOf(pos.toLong()));
+    }
+
+    /**
+     * Persists the earliest scheduled update for this position.
+     * A later neighbor notification must not postpone an already pending tick.
+     */
+    public boolean scheduleFluidTick(BlockPos pos, long dueWorldTime) {
+        if (pos == null) {
+            return false;
+        }
+
+        Long key = Long.valueOf(pos.toLong());
+        Long oldDue = scheduledFluidTicks.get(key);
+        if (oldDue != null && oldDue.longValue() <= dueWorldTime) {
+            return false;
+        }
+
+        scheduledFluidTicks.put(key, Long.valueOf(dueWorldTime));
+        markDirty();
+        return true;
+    }
+
+    public Long getScheduledFluidTick(BlockPos pos) {
+        return pos == null ? null
+                : scheduledFluidTicks.get(Long.valueOf(pos.toLong()));
+    }
+
+    public boolean removeScheduledFluidTick(BlockPos pos) {
+        if (pos == null) {
+            return false;
+        }
+        Long removed = scheduledFluidTicks.remove(Long.valueOf(pos.toLong()));
+        if (removed != null) {
+            markDirty();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Returns due positions in deterministic due-time/position order.
+     * Unloaded chunks are filtered by FluidTickScheduler without deleting
+     * their persisted entries.
+     */
+    public List<BlockPos> getDueScheduledFluidTicks(final long now) {
+        List<BlockPos> result = new ArrayList<BlockPos>();
+        for (Map.Entry<Long, Long> entry : scheduledFluidTicks.entrySet()) {
+            if (entry.getValue().longValue() <= now) {
+                result.add(BlockPos.fromLong(entry.getKey().longValue()));
+            }
+        }
+        java.util.Collections.sort(result, new java.util.Comparator<BlockPos>() {
+            @Override
+            public int compare(BlockPos first, BlockPos second) {
+                long firstDue = scheduledFluidTicks.get(
+                        Long.valueOf(first.toLong())).longValue();
+                long secondDue = scheduledFluidTicks.get(
+                        Long.valueOf(second.toLong())).longValue();
+                int byDue = Long.compare(firstDue, secondDue);
+                return byDue != 0 ? byDue
+                        : Long.compare(first.toLong(), second.toLong());
+            }
+        });
+        return result;
     }
 
     public boolean putWater(BlockPos pos, FluidStateBridge state) {
@@ -110,6 +185,7 @@ public class ChunkFluidData extends WorldSavedData {
     public void readFromNBT(NBTTagCompound compound) {
         waterStates.clear();
         chunkIndex.clear();
+        scheduledFluidTicks.clear();
         NBTTagList entries = compound.getTagList("water", 10);
         for (int i = 0; i < entries.tagCount(); i++) {
             NBTTagCompound entry = entries.getCompoundTagAt(i);
@@ -127,6 +203,16 @@ public class ChunkFluidData extends WorldSavedData {
                             amount, falling);
             waterStates.put(Long.valueOf(packedPos), state);
             addToChunkIndex(packedPos);
+        }
+
+        // Added in the persisted scheduler update. Old saves simply have no
+        // "fluidTicks" list and remain fully compatible.
+        NBTTagList ticks = compound.getTagList("fluidTicks", 10);
+        for (int i = 0; i < ticks.tagCount(); i++) {
+            NBTTagCompound entry = ticks.getCompoundTagAt(i);
+            scheduledFluidTicks.put(
+                    Long.valueOf(entry.getLong("pos")),
+                    Long.valueOf(entry.getLong("due")));
         }
     }
 
@@ -169,6 +255,15 @@ public class ChunkFluidData extends WorldSavedData {
             entries.appendTag(tag);
         }
         compound.setTag("water", entries);
+
+        NBTTagList ticks = new NBTTagList();
+        for (Map.Entry<Long, Long> entry : scheduledFluidTicks.entrySet()) {
+            NBTTagCompound tag = new NBTTagCompound();
+            tag.setLong("pos", entry.getKey().longValue());
+            tag.setLong("due", entry.getValue().longValue());
+            ticks.appendTag(tag);
+        }
+        compound.setTag("fluidTicks", ticks);
         return compound;
     }
 }
