@@ -9,6 +9,7 @@ on:
       - block
       - block2
       - fix/waterlogged-fluid-shape-render
+      - fix/fluid-engine-parity-audit
   pull_request:
     branches:
       - main
