@@ -39,16 +39,19 @@ public final class FluidStateMapper {
 
     public static FluidStateBridge fromWorld(World world, BlockPos pos,
                                              IBlockState state) {
-        if (state == null
-                || (world != null && world.provider.doesWaterVaporize())) {
+        if (state == null) {
             return null;
         }
 
         FluidStateBridge blockState = fromBlockState(state);
         if (blockState != null) {
+            if (world != null && world.provider.doesWaterVaporize()
+                    && blockState.getKind() == FluidStateBridge.FluidKind.WATER) {
+                return null;
+            }
             return blockState;
         }
-        if (world == null || pos == null) {
+        if (world == null || pos == null || world.provider.doesWaterVaporize()) {
             return null;
         }
 
