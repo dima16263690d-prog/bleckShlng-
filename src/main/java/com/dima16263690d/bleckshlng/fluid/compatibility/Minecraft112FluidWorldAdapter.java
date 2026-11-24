@@ -69,6 +69,10 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
         if (state == null) {
             return FluidState.EMPTY;
         }
+        if (state.getKind() == FluidStateBridge.FluidKind.WATER
+                && world.provider.doesWaterVaporize()) {
+            return FluidState.EMPTY;
+        }
 
         if (state.getKind() == FluidStateBridge.FluidKind.WATER) {
             return state.isSource()
@@ -141,6 +145,9 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
         }
 
         Material material = toMaterial(fluid);
+        if (material == Material.WATER && world.provider.doesWaterVaporize()) {
+            return false;
+        }
         if (state.getBlock() instanceof BlockLiquid) {
             return true;
         }
@@ -161,6 +168,9 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
         }
         BlockPos blockPos = toBlockPos(target);
         IBlockState state = world.getBlockState(blockPos);
+        if (incoming.isSame(Fluids.WATER) && world.provider.doesWaterVaporize()) {
+            return false;
+        }
         if (ForgeFluidCompatibility.isForgeFluidBlock(state)) {
             return false;
         }
@@ -189,7 +199,8 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
 
     @Override
     public boolean canCreateFluidSource(FluidPos target, Fluid fluid) {
-        if (!isLoaded(target) || fluid == null || !fluid.isSame(Fluids.WATER)) {
+        if (!isLoaded(target) || fluid == null || !fluid.isSame(Fluids.WATER)
+                || world.provider.doesWaterVaporize()) {
             return false;
         }
         return ForgeEventFactory.canCreateFluidSource(
@@ -199,6 +210,9 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
     @Override
     public void setFluidState(FluidPos pos, FluidState state) {
         if (!isLoaded(pos) || state == null || state.isEmpty()) {
+            return;
+        }
+        if (state.getType().isSame(Fluids.WATER) && world.provider.doesWaterVaporize()) {
             return;
         }
 
@@ -259,6 +273,9 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
         BlockPos blockPos = toBlockPos(target);
         IBlockState host = world.getBlockState(blockPos);
         Material incomingMaterial = toMaterial(incoming.getType());
+        if (incomingMaterial == Material.WATER && world.provider.doesWaterVaporize()) {
+            return;
+        }
 
         if (incomingMaterial == Material.WATER
                 && host.getMaterial() == Material.LAVA
@@ -316,7 +333,8 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
 
     @Override
     public void scheduleFluidTick(FluidPos pos, Fluid fluid, int delay) {
-        if (!isLoaded(pos) || fluid == null || world.isRemote) {
+        if (!isLoaded(pos) || fluid == null || world.isRemote
+                || (fluid.isSame(Fluids.WATER) && world.provider.doesWaterVaporize())) {
             return;
         }
         world.scheduleUpdate(toBlockPos(pos), flowingBlock(fluid), Math.max(1, delay));
@@ -457,7 +475,8 @@ public final class Minecraft112FluidWorldAdapter implements FluidWorld {
 
     private void storeWaterlogged(BlockPos pos, IBlockState host,
                                   FluidState fluid) {
-        if (world.isRemote) {
+        if (world.isRemote || (fluid.getType().isSame(Fluids.WATER)
+                && world.provider.doesWaterVaporize())) {
             return;
         }
 

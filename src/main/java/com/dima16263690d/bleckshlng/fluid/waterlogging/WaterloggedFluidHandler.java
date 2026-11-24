@@ -77,7 +77,7 @@ public final class WaterloggedFluidHandler {
 
     /**
      * Removes stored water from a waterlogged host while keeping the block.
-     * Used by empty bucket pickup and sponge absorption.
+     * Used by empty-bucket pickup.
      */
     public static boolean pickupWater(World world, BlockPos pos, IBlockState state) {
         if (world == null || world.isRemote || pos == null || state == null
@@ -119,6 +119,32 @@ public final class WaterloggedFluidHandler {
         return true;
     }
 
+    /**
+     * Clears sidecar or native-adapter water restored from a save in an
+     * ultra-warm dimension. Bucket vaporization remains vanilla-owned.
+     */
+    private static void clearWaterInVaporizingDimension(
+            World world, BlockPos pos, IBlockState state) {
+        ChunkFluidData data = ChunkFluidData.getExisting(world);
+        boolean removed = data != null && data.remove(pos);
+        boolean driedAdapter = false;
+        if (state.getBlock() instanceof IFluidWaterloggable) {
+            IFluidWaterloggable adapter = (IFluidWaterloggable) state.getBlock();
+            if (adapter.isWaterlogged(state)) {
+                IBlockState dry = adapter.withWaterlogged(state, false);
+                if (dry != null && !dry.equals(state)) {
+                    driedAdapter = world.setBlockState(pos, dry, 3);
+                }
+            }
+        }
+        FluidTickScheduler.cancel(world, pos);
+        if (removed || driedAdapter) {
+            FluidNetwork.removeState(world, pos);
+            FluidShapeCalculator.invalidate(world, pos);
+            world.notifyNeighborsOfStateChange(pos, state.getBlock(), false);
+        }
+    }
+
     public static void tick(World world, BlockPos pos) {
         if (world == null || world.isRemote || pos == null
                 || !world.isBlockLoaded(pos)) {
@@ -126,6 +152,10 @@ public final class WaterloggedFluidHandler {
         }
 
         IBlockState state = world.getBlockState(pos);
+        if (world.provider.doesWaterVaporize()) {
+            clearWaterInVaporizingDimension(world, pos, state);
+            return;
+        }
 
         // The same scheduler also handles native static source blocks.
         // Flowing BlockDynamicLiquid ticks are intercepted by FluidCoreHooks.

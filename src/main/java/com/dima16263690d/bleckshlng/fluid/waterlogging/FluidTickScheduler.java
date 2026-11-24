@@ -12,6 +12,10 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.eventhandler.EventPriority;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
+import net.minecraft.block.state.IBlockState;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 
 /**
  * Persistent server-thread scheduler for native and waterlogged fluid states.
@@ -22,6 +26,9 @@ import net.minecraftforge.fml.common.gameevent.TickEvent;
  */
 @Mod.EventBusSubscriber(modid = "bleckshlng")
 public final class FluidTickScheduler {
+    private static final Logger LOGGER =
+            LogManager.getLogger("BleckShlng/FluidTickScheduler");
+
     private FluidTickScheduler() {
     }
 
@@ -73,7 +80,21 @@ public final class FluidTickScheduler {
         // Execute after the due-list pass: fluid updates can schedule new
         // positions and must not mutate the map being inspected above.
         for (BlockPos pos : ready) {
-            WaterloggedFluidHandler.tick(event.world, pos);
+            try {
+                WaterloggedFluidHandler.tick(event.world, pos);
+            } catch (Throwable error) {
+                LOGGER.error("Fluid tick failed at {}; the update will be retried",
+                        pos, error);
+                try {
+                    IBlockState state = event.world.getBlockState(pos);
+                    if (FluidStateMapper.fromWorld(event.world, pos, state) != null) {
+                        schedule(event.world, pos,
+                                WaterloggedFluidHandler.INITIAL_TICK_DELAY);
+                    }
+                } catch (Throwable retryError) {
+                    LOGGER.error("Could not restore failed fluid tick at {}", pos, retryError);
+                }
+            }
         }
     }
 
@@ -142,6 +163,9 @@ public final class FluidTickScheduler {
             return;
         }
 
+        if (world.provider.doesWaterVaporize()) {
+            return;
+        }
         ChunkFluidData data = ChunkFluidData.getExisting(world);
         BlockPos changed = event.getPos();
         scheduleIfWaterlogged(data, world, changed);

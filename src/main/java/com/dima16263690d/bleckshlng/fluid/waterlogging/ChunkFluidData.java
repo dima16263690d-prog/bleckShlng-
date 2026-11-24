@@ -6,6 +6,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
@@ -33,6 +35,9 @@ public class ChunkFluidData extends WorldSavedData {
     /** Due world times for native-fluid and waterlogged-fluid updates. */
     private final Map<Long, Long> scheduledFluidTicks =
             new HashMap<Long, Long>();
+    /** Ordered secondary index for retrieving due ticks without sorting all entries. */
+    private final TreeMap<Long, TreeSet<Long>> scheduledFluidTicksByTime =
+            new TreeMap<Long, TreeSet<Long>>();
 
     public ChunkFluidData() {
         super(DATA_NAME);
@@ -88,7 +93,11 @@ public class ChunkFluidData extends WorldSavedData {
             return false;
         }
 
+        if (oldDue != null) {
+            unindexScheduledTick(pos.toLong(), oldDue.longValue());
+        }
         scheduledFluidTicks.put(key, Long.valueOf(dueWorldTime));
+        indexScheduledTick(pos.toLong(), dueWorldTime);
         markDirty();
         return true;
     }
@@ -104,6 +113,7 @@ public class ChunkFluidData extends WorldSavedData {
         }
         Long removed = scheduledFluidTicks.remove(Long.valueOf(pos.toLong()));
         if (removed != null) {
+            unindexScheduledTick(pos.toLong(), removed.longValue());
             markDirty();
             return true;
         }
@@ -115,26 +125,37 @@ public class ChunkFluidData extends WorldSavedData {
      * Unloaded chunks are filtered by FluidTickScheduler without deleting
      * their persisted entries.
      */
-    public List<BlockPos> getDueScheduledFluidTicks(final long now) {
+    public List<BlockPos> getDueScheduledFluidTicks(long now) {
         List<BlockPos> result = new ArrayList<BlockPos>();
-        for (Map.Entry<Long, Long> entry : scheduledFluidTicks.entrySet()) {
-            if (entry.getValue().longValue() <= now) {
-                result.add(BlockPos.fromLong(entry.getKey().longValue()));
+        for (Map.Entry<Long, TreeSet<Long>> dueEntry
+                : scheduledFluidTicksByTime.headMap(Long.valueOf(now), true).entrySet()) {
+            for (Long packedPosition : dueEntry.getValue()) {
+                result.add(BlockPos.fromLong(packedPosition.longValue()));
             }
         }
-        java.util.Collections.sort(result, new java.util.Comparator<BlockPos>() {
-            @Override
-            public int compare(BlockPos first, BlockPos second) {
-                long firstDue = scheduledFluidTicks.get(
-                        Long.valueOf(first.toLong())).longValue();
-                long secondDue = scheduledFluidTicks.get(
-                        Long.valueOf(second.toLong())).longValue();
-                int byDue = Long.compare(firstDue, secondDue);
-                return byDue != 0 ? byDue
-                        : Long.compare(first.toLong(), second.toLong());
-            }
-        });
         return result;
+    }
+
+    private void indexScheduledTick(long packedPosition, long dueWorldTime) {
+        Long dueKey = Long.valueOf(dueWorldTime);
+        TreeSet<Long> positions = scheduledFluidTicksByTime.get(dueKey);
+        if (positions == null) {
+            positions = new TreeSet<Long>();
+            scheduledFluidTicksByTime.put(dueKey, positions);
+        }
+        positions.add(Long.valueOf(packedPosition));
+    }
+
+    private void unindexScheduledTick(long packedPosition, long dueWorldTime) {
+        Long dueKey = Long.valueOf(dueWorldTime);
+        TreeSet<Long> positions = scheduledFluidTicksByTime.get(dueKey);
+        if (positions == null) {
+            return;
+        }
+        positions.remove(Long.valueOf(packedPosition));
+        if (positions.isEmpty()) {
+            scheduledFluidTicksByTime.remove(dueKey);
+        }
     }
 
     public boolean putWater(BlockPos pos, FluidStateBridge state) {
@@ -186,6 +207,7 @@ public class ChunkFluidData extends WorldSavedData {
         waterStates.clear();
         chunkIndex.clear();
         scheduledFluidTicks.clear();
+        scheduledFluidTicksByTime.clear();
         NBTTagList entries = compound.getTagList("water", 10);
         for (int i = 0; i < entries.tagCount(); i++) {
             NBTTagCompound entry = entries.getCompoundTagAt(i);
@@ -210,9 +232,15 @@ public class ChunkFluidData extends WorldSavedData {
         NBTTagList ticks = compound.getTagList("fluidTicks", 10);
         for (int i = 0; i < ticks.tagCount(); i++) {
             NBTTagCompound entry = ticks.getCompoundTagAt(i);
-            scheduledFluidTicks.put(
-                    Long.valueOf(entry.getLong("pos")),
-                    Long.valueOf(entry.getLong("due")));
+            long packedPosition = entry.getLong("pos");
+            long dueWorldTime = entry.getLong("due");
+            Long key = Long.valueOf(packedPosition);
+            Long previousDue = scheduledFluidTicks.put(
+                    key, Long.valueOf(dueWorldTime));
+            if (previousDue != null) {
+                unindexScheduledTick(packedPosition, previousDue.longValue());
+            }
+            indexScheduledTick(packedPosition, dueWorldTime);
         }
     }
 

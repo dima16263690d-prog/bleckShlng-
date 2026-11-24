@@ -116,47 +116,88 @@ public final class FluidCoreHooks {
             WORLD_BLOCK_SET_CAPTURE.remove();
         }
 
-        if (!setSucceeded || !capturedWater || world == null || world.isRemote
-                || world.provider.doesWaterVaporize()
+        if (!setSucceeded || world == null || world.isRemote
                 || pos == null || placedState == null || !world.isBlockLoaded(pos)) {
             return;
         }
 
         try {
             IBlockState actualState = world.getBlockState(pos);
-            if (actualState == null || actualState.getBlock() != placedState.getBlock()
-                    || !com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry
-                    .canWaterlog(actualState.getBlock())) {
+            if (actualState == null) {
                 return;
             }
 
-            if (actualState.getBlock() instanceof
-                    com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable) {
-                com.dima16263690d.bleckshlng.fluid.waterlogging.WaterloggedFluidHandler
-                        .tryWaterlog(world, pos, actualState, 0);
-                return;
+            boolean canRetainWater =
+                    com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry
+                            .canWaterlog(actualState.getBlock());
+
+            // First carry an ordinary source into a newly placed waterloggable host.
+            if (capturedWater && !world.provider.doesWaterVaporize()
+                    && actualState.getBlock() == placedState.getBlock()
+                    && canRetainWater) {
+                if (actualState.getBlock() instanceof
+                        com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable) {
+                    if (com.dima16263690d.bleckshlng.fluid.waterlogging.WaterloggedFluidHandler
+                            .tryWaterlog(world, pos, actualState, 0)) {
+                        return;
+                    }
+                } else {
+                    com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData data =
+                            com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData.get(world);
+                    if (data != null) {
+                        FluidStateBridge water = FluidStateBridge.source(
+                                FluidStateBridge.FluidKind.WATER);
+                        if (data.putWater(pos, water)) {
+                            com.dima16263690d.bleckshlng.fluid.network.FluidNetwork
+                                    .syncState(world, pos, water);
+                            com.dima16263690d.bleckshlng.fluid.waterlogging.FluidTickScheduler
+                                    .schedule(world, pos,
+                                            com.dima16263690d.bleckshlng.fluid.waterlogging
+                                                    .WaterloggedFluidHandler.INITIAL_TICK_DELAY);
+                            com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator
+                                    .invalidate(world, pos);
+                            world.notifyNeighborsOfStateChange(
+                                    pos, actualState.getBlock(), false);
+                        }
+                        return;
+                    }
+                }
             }
 
-            com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData data =
-                    com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData.get(world);
-            if (data == null) {
-                return;
-            }
-
-            FluidStateBridge water = FluidStateBridge.source(FluidStateBridge.FluidKind.WATER);
-            if (data.putWater(pos, water)) {
+            // Reconcile every successful block replacement, including commands,
+            // explosions and pistons which never fire player BreakEvent hooks.
+            com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData existing =
+                    com.dima16263690d.bleckshlng.fluid.waterlogging.ChunkFluidData
+                            .getExisting(world);
+            FluidStateBridge stored = existing == null ? null : existing.getWater(pos);
+            boolean adapterIsDry = actualState.getBlock() instanceof
+                    com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable
+                    && !((com.dima16263690d.bleckshlng.fluid.waterlogging.IFluidWaterloggable)
+                    actualState.getBlock()).isWaterlogged(actualState);
+            if (stored != null && (!canRetainWater || adapterIsDry)) {
+                existing.remove(pos);
                 com.dima16263690d.bleckshlng.fluid.network.FluidNetwork
-                        .syncState(world, pos, water);
+                        .removeState(world, pos);
                 com.dima16263690d.bleckshlng.fluid.waterlogging.FluidTickScheduler
-                        .schedule(world, pos,
-                                com.dima16263690d.bleckshlng.fluid.waterlogging.WaterloggedFluidHandler
-                                        .INITIAL_TICK_DELAY);
+                        .cancel(world, pos);
                 com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator
                         .invalidate(world, pos);
-                world.notifyNeighborsOfStateChange(pos, actualState.getBlock(), false);
+
+                boolean replaceable = world.isAirBlock(pos)
+                        || actualState.getBlock().isReplaceable(world, pos);
+                if (!world.provider.doesWaterVaporize()
+                        && actualState.getMaterial() != Material.WATER
+                        && actualState.getMaterial() != Material.LAVA
+                        && replaceable) {
+                    world.setBlockState(pos, Blocks.WATER.getDefaultState(), 3);
+                } else {
+                    world.notifyNeighborsOfStateChange(
+                            pos, actualState.getBlock(), false);
+                }
             }
         } catch (Throwable error) {
-            LOGGER.error("Could not transfer source water into placed block at {}", pos, error);
+            LOGGER.error("Could not reconcile fluid sidecar after block change at {}",
+                    pos, error);
         }
     }
 
