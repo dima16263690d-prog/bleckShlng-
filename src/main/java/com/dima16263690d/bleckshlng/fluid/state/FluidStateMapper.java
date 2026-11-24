@@ -39,13 +39,14 @@ public final class FluidStateMapper {
 
     public static FluidStateBridge fromWorld(World world, BlockPos pos,
                                              IBlockState state) {
+        if (world == null || pos == null || state == null
+                || world.provider.doesWaterVaporize()) {
+            return null;
+        }
+
         FluidStateBridge blockState = fromBlockState(state);
         if (blockState != null) {
             return blockState;
-        }
-
-        if (world == null || pos == null || state == null) {
-            return null;
         }
 
         // The sidecar is authoritative when present: it preserves source,
