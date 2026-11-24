@@ -117,6 +117,7 @@ public final class FluidCoreHooks {
         }
 
         if (!setSucceeded || !capturedWater || world == null || world.isRemote
+                || world.provider.doesWaterVaporize()
                 || pos == null || placedState == null || !world.isBlockLoaded(pos)) {
             return;
         }
@@ -147,7 +148,9 @@ public final class FluidCoreHooks {
                 com.dima16263690d.bleckshlng.fluid.network.FluidNetwork
                         .syncState(world, pos, water);
                 com.dima16263690d.bleckshlng.fluid.waterlogging.FluidTickScheduler
-                        .schedule(world, pos, 5);
+                        .schedule(world, pos,
+                                com.dima16263690d.bleckshlng.fluid.waterlogging.WaterloggedFluidHandler
+                                        .INITIAL_TICK_DELAY);
                 com.dima16263690d.bleckshlng.fluid.geometry.FluidShapeCalculator
                         .invalidate(world, pos);
                 world.notifyNeighborsOfStateChange(pos, actualState.getBlock(), false);
