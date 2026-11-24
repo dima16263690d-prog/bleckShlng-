@@ -127,6 +127,10 @@ public final class WaterloggedFluidHandler {
             World world, BlockPos pos, IBlockState state) {
         ChunkFluidData data = ChunkFluidData.getExisting(world);
         boolean removed = data != null && data.remove(pos);
+        if (state.getMaterial() == Material.WATER
+                && state.getBlock() instanceof net.minecraft.block.BlockLiquid) {
+            removed = world.setBlockToAir(pos) || removed;
+        }
         boolean driedAdapter = false;
         if (state.getBlock() instanceof IFluidWaterloggable) {
             IFluidWaterloggable adapter = (IFluidWaterloggable) state.getBlock();
@@ -153,8 +157,17 @@ public final class WaterloggedFluidHandler {
 
         IBlockState state = world.getBlockState(pos);
         if (world.provider.doesWaterVaporize()) {
-            clearWaterInVaporizingDimension(world, pos, state);
-            return;
+            ChunkFluidData data = ChunkFluidData.getExisting(world);
+            boolean hasSidecarWater = data != null && data.getWater(pos) != null;
+            boolean hasAdapterWater = state.getBlock() instanceof IFluidWaterloggable
+                    && ((IFluidWaterloggable) state.getBlock()).isWaterlogged(state);
+            boolean hasVanillaWater = state.getMaterial() == Material.WATER
+                    && state.getBlock() instanceof net.minecraft.block.BlockLiquid;
+            if (hasSidecarWater || hasAdapterWater || hasVanillaWater) {
+                clearWaterInVaporizingDimension(world, pos, state);
+                return;
+            }
+            // Do not consume lava or unrelated scheduled ticks in ultra-warm dimensions.
         }
 
         // The same scheduler also handles native static source blocks.
