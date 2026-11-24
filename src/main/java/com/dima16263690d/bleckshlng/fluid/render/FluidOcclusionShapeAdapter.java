@@ -94,7 +94,7 @@ public final class FluidOcclusionShapeAdapter {
         }
 
         List<AxisAlignedBB> boxes =
-                FluidShapeCalculator.getCollisionBoxes(world, pos, state);
+                FluidShapeCalculator.getCollisionBoxes(access, world, pos, state);
         if (boxes.isEmpty()) {
             return faceShape == BlockFaceShape.SOLID
                     ? FluidOcclusionShape.FULL : FluidOcclusionShape.EMPTY;

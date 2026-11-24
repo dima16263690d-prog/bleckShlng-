@@ -10,6 +10,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 
 /** Reads actual collision boxes for fluid pass-through decisions. */
@@ -18,26 +19,42 @@ public final class FluidShapeCalculator {
 
     private FluidShapeCalculator() { }
 
-    public static List<AxisAlignedBB> getCollisionBoxes(World world, BlockPos pos, IBlockState state) {
-        if (world == null || pos == null || state == null || !world.isBlockLoaded(pos)) {
+    public static List<AxisAlignedBB> getCollisionBoxes(
+            World world, BlockPos pos, IBlockState state) {
+        return getCollisionBoxes(world, world, pos, state);
+    }
+
+    /**
+     * Render adapter: resolve neighbour-dependent state from the immutable
+     * chunk snapshot, not live World#getBlockState queries. Forge 1.12.2 still
+     * requires World for the final collision-box emission call.
+     */
+    public static List<AxisAlignedBB> getCollisionBoxes(
+            IBlockAccess shapeAccess, World collisionWorld,
+            BlockPos pos, IBlockState state) {
+        if (shapeAccess == null || collisionWorld == null || pos == null
+                || state == null || !collisionWorld.isBlockLoaded(pos)) {
             return new ArrayList<AxisAlignedBB>(0);
         }
 
-        IBlockState collisionState = resolveCollisionState(world, pos, state);
-        FluidOcclusionCache.ensureState(world, pos, collisionState);
-        List<AxisAlignedBB> cached = FluidOcclusionCache.getCollisionBoxes(world, pos);
-        if (cached != null) return cached;
+        IBlockState collisionState = resolveCollisionState(shapeAccess, pos, state);
+        FluidOcclusionCache.ensureState(collisionWorld, pos, collisionState);
+        List<AxisAlignedBB> cached =
+                FluidOcclusionCache.getCollisionBoxes(collisionWorld, pos);
+        if (cached != null) {
+            return cached;
+        }
 
         List<AxisAlignedBB> boxes = new ArrayList<AxisAlignedBB>(4);
         AxisAlignedBB mask = new AxisAlignedBB(pos.getX(), pos.getY(), pos.getZ(),
                 pos.getX() + 1.0D, pos.getY() + 1.0D, pos.getZ() + 1.0D);
 
-        // The final argument means "state is already actual" for blocks such as
-        // BlockStairs. Resolve neighbour-dependent properties before passing true.
+        // The actual state is already resolved from the snapshot. Passing true
+        // avoids a second actual-state lookup against the live world.
         collisionState.getBlock().addCollisionBoxToList(
-                collisionState, world, pos, mask, boxes, (Entity) null, true);
-        FluidOcclusionCache.putCollisionBoxes(world, pos, boxes);
-        return FluidOcclusionCache.getCollisionBoxes(world, pos);
+                collisionState, collisionWorld, pos, mask, boxes, (Entity) null, true);
+        FluidOcclusionCache.putCollisionBoxes(collisionWorld, pos, boxes);
+        return FluidOcclusionCache.getCollisionBoxes(collisionWorld, pos);
     }
 
     /**
@@ -50,23 +67,22 @@ public final class FluidShapeCalculator {
      */
     private static IBlockState resolveCollisionState(
             World world, BlockPos pos, IBlockState state) {
-        if (state == null || !com.dima16263690d.bleckshlng.fluid.geometry
-                .WaterloggedBlockRegistry.canWaterlog(state.getBlock())) {
+        return resolveCollisionState((IBlockAccess) world, pos, state);
+    }
+
+    private static IBlockState resolveCollisionState(
+            IBlockAccess access, BlockPos pos, IBlockState state) {
+        if (access == null || pos == null || state == null
+                || !com.dima16263690d.bleckshlng.fluid.geometry.WaterloggedBlockRegistry
+                        .canWaterlog(state.getBlock())) {
             return state;
         }
 
-        for (EnumFacing direction : EnumFacing.Plane.HORIZONTAL) {
-            if (!world.isBlockLoaded(pos.offset(direction))) {
-                return state;
-            }
-        }
-
         try {
-            IBlockState actual = state.getActualState(world, pos);
+            IBlockState actual = state.getActualState(access, pos);
             return actual == null ? state : actual;
         } catch (RuntimeException ignored) {
             // A modded waterloggable block may not support actual-state lookup.
-            // Keep its supplied state rather than breaking fluid updates.
             return state;
         }
     }

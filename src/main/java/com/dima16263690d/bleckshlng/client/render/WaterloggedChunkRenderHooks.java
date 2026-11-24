@@ -216,8 +216,12 @@ public final class WaterloggedChunkRenderHooks {
 
             IBlockAccess chunkAccess = getChunkAccess(renderChunk);
             if (chunkAccess == null) {
-                // Defensive fallback for environments that replace RenderChunk's cache field.
-                chunkAccess = world;
+                if (!warned) {
+                    warned = true;
+                    LOGGER.warn("RenderChunk has no readable ChunkCache; skipping the fluid mesh "
+                            + "instead of mixing snapshot data with live World data");
+                }
+                return false;
             }
 
             FluidViewAccess fluidAccess =
@@ -269,7 +273,8 @@ public final class WaterloggedChunkRenderHooks {
         } catch (Throwable error) {
             if (!warned) {
                 warned = true;
-                LOGGER.warn("Could not read RenderChunk ChunkCache; falling back to World", error);
+                LOGGER.warn("Could not read RenderChunk ChunkCache; fluid mesh will be skipped",
+                    error);
             }
             return null;
         }

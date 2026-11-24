@@ -13,6 +13,7 @@ import org.objectweb.asm.tree.MethodNode;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertArrayEquals;
 
 /**
  * Verifies that the 1.12.2 Coremod transformer actually finds the expected
@@ -54,6 +55,23 @@ public class FluidTickTransformerTest {
         assertHook(net.minecraft.world.World.class, "onWorldBlockSet");
     }
 
+    @Test
+    public void leavesSpongeAndWaterPlantsToVanilla() throws Exception {
+        assertUnchanged(net.minecraft.block.BlockFarmland.class);
+        assertUnchanged(net.minecraft.block.BlockReed.class);
+        assertUnchanged(net.minecraft.block.BlockLilyPad.class);
+        assertUnchanged(net.minecraft.block.BlockBush.class);
+        assertUnchanged(net.minecraft.block.BlockSponge.class);
+    }
+
+    private static void assertUnchanged(Class<?> target) throws Exception {
+        byte[] original = readClassBytes(target);
+        byte[] transformed = new FluidTickTransformer().transform(
+                target.getName(), target.getName(), original);
+        assertArrayEquals(target.getName() + " must remain vanilla-owned",
+                original, transformed);
+    }
+
     private static void assertHook(Class<?> target, String hookName) throws Exception {
         byte[] transformed = transform(target);
         assertTrue(target.getName() + " did not receive " + hookName,
@@ -61,11 +79,15 @@ public class FluidTickTransformerTest {
     }
 
     private static byte[] transform(Class<?> target) throws Exception {
+        byte[] original = readClassBytes(target);
+        FluidTickTransformer transformer = new FluidTickTransformer();
+        return transformer.transform(target.getName(), target.getName(), original);
+    }
+
+    private static byte[] readClassBytes(Class<?> target) throws IOException {
         String resource = "/" + target.getName().replace('.', '/') + ".class";
         InputStream input = target.getResourceAsStream(resource);
         assertNotNull("Missing class bytes for " + target.getName(), input);
-
-        byte[] original;
         try {
             ByteArrayOutputStream output = new ByteArrayOutputStream();
             byte[] buffer = new byte[8192];
@@ -73,13 +95,10 @@ public class FluidTickTransformerTest {
             while ((count = input.read(buffer)) != -1) {
                 output.write(buffer, 0, count);
             }
-            original = output.toByteArray();
+            return output.toByteArray();
         } finally {
             input.close();
         }
-
-        FluidTickTransformer transformer = new FluidTickTransformer();
-        return transformer.transform(target.getName(), target.getName(), original);
     }
 
     private static boolean hasHook(byte[] bytecode, String hookName) {

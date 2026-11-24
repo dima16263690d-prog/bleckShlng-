@@ -100,6 +100,36 @@ public class ChunkFluidDataTest {
     }
 
     @Test
+    public void dueTicksAreReturnedInDueTimeThenPackedPositionOrder() {
+        ChunkFluidData data = new ChunkFluidData("bleckshlng_test");
+        BlockPos later = new BlockPos(3, 64, 3);
+        BlockPos firstAtSameTime = new BlockPos(1, 64, 1);
+        BlockPos earlier = new BlockPos(-2, 64, 0);
+        data.scheduleFluidTick(later, 200L);
+        data.scheduleFluidTick(firstAtSameTime, 200L);
+        data.scheduleFluidTick(earlier, 100L);
+
+        List<BlockPos> due = data.getDueScheduledFluidTicks(200L);
+        assertEquals(3, due.size());
+        assertEquals(earlier, due.get(0));
+        assertEquals(firstAtSameTime, due.get(1));
+        assertEquals(later, due.get(2));
+    }
+
+    @Test
+    public void movingTickToEarlierDeadlineRemovesItsOldIndexEntry() {
+        ChunkFluidData data = new ChunkFluidData("bleckshlng_test");
+        BlockPos pos = new BlockPos(7, 64, 7);
+        data.scheduleFluidTick(pos, 300L);
+        data.scheduleFluidTick(pos, 120L);
+
+        assertTrue(data.getDueScheduledFluidTicks(119L).isEmpty());
+        assertEquals(pos, data.getDueScheduledFluidTicks(120L).get(0));
+        assertTrue(data.removeScheduledFluidTick(pos));
+        assertTrue(data.getDueScheduledFluidTicks(400L).isEmpty());
+    }
+
+    @Test
     public void legacyNbtWithoutSourceFlagKeepsFullLevelAsSource() {
         NBTTagCompound root = new NBTTagCompound();
         net.minecraft.nbt.NBTTagList entries = new net.minecraft.nbt.NBTTagList();

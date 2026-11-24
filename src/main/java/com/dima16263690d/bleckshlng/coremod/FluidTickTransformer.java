@@ -71,11 +71,11 @@ public final class FluidTickTransformer implements IClassTransformer {
         boolean worldTarget = isTarget(name, transformedName, WORLD_TARGET);
         boolean liquidTarget = isTarget(name, transformedName, LIQUID_TARGET);
         boolean entityTarget = isTarget(name, transformedName, ENTITY_TARGET);
-        boolean farmlandTarget = isTarget(name, transformedName, FARMLAND_TARGET);
-        boolean reedTarget = isTarget(name, transformedName, REED_TARGET);
-        boolean lilyPadTarget = isTarget(name, transformedName, LILYPAD_TARGET);
-        boolean bushTarget = isTarget(name, transformedName, BUSH_TARGET);
-        boolean spongeTarget = isTarget(name, transformedName, SPONGE_TARGET);
+        boolean farmlandTarget = false;
+        boolean reedTarget = false;
+        boolean lilyPadTarget = false;
+        boolean bushTarget = false;
+        boolean spongeTarget = false;
         boolean fishHookTarget = isTarget(name, transformedName, FISH_HOOK_TARGET);
         if (!dynamicTarget && !staticLiquidTarget && !blockTarget
                 && !worldTarget && !liquidTarget && !entityTarget

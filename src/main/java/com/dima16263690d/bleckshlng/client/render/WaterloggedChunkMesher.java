@@ -25,8 +25,6 @@ import com.dima16263690d.bleckshlng.fluid.state.FluidStateBridge;
 import com.dima16263690d.bleckshlng.fluid.state.FluidStateMapper;
 import com.dima16263690d.bleckshlng.fluid.core.FluidKind;
 import com.dima16263690d.bleckshlng.fluid.core.Fluids;
-import com.dima16263690d.bleckshlng.fluid.core.ModernFluidEngine;
-import com.dima16263690d.bleckshlng.fluid.core.FluidVector;
 import com.dima16263690d.bleckshlng.fluid.render.FluidOcclusionShapeAdapter;
 
 /**
@@ -553,17 +551,9 @@ public final class WaterloggedChunkMesher {
 
     private static Vec3d getFlowVector(IBlockAccess access, BlockPos pos,
                                        FluidState current) {
-        // Use the same FlowingFluid#getFlow implementation as simulation
-        // and entity acceleration. Chunk rebuilds still receive FluidViewAccess
-        // so waterlogged FluidState remains separate from the host BlockState.
-        World world = access instanceof FluidViewAccess
-                ? ((FluidViewAccess) access).getWorld()
-                : (access instanceof World ? (World) access : null);
-        if (world != null && world.isBlockLoaded(pos)) {
-            FluidVector modern = ModernFluidEngine.getFlow(world, pos);
-            return new Vec3d(modern.getX(), modern.getY(), modern.getZ());
-        }
-
+        // Flow is sampled exclusively from the same IBlockAccess used to
+        // build this chunk. Neighbour fluid levels and host states therefore
+        // come from one consistent render snapshot.
         double x = 0.0D;
         double z = 0.0D;
         float currentHeight = current.getOwnHeight();
